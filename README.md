@@ -54,7 +54,7 @@ dsh-ops selftest               # 自检：内置故障样本跑全规则
 | `scan` | 单 profile 深扫：规则 1-7 + 可选更新检查 |
 | `fix` | 自动可修集：磁盘↔lockfile 对齐（`pnpm install --frozen-lockfile --force`）；plan→确认→执行→备份 |
 | `gate` | 先阻断分级处置：fatal 先拦（自动修→放行；复杂→醒目指引；`--bypass` 逃生舱记录不静默）；dsh 启动秒退 → 归因差异包 → 交互禁用重试；headless 一次性 profile 退出码透传不归因 |
-| `serve` | 本地 Web 面板：健康卡/结果列表/修复执行/插件行启用禁用（官方行保护）/故障时间线，zh/en 切换 |
+| `serve` | 本地 Web 面板：健康卡/结果列表/修复执行/**插件行管理**（健康徽标、致命/警告/正常筛选、每页 10 行分页、官方行保护、启停开关）/故障时间线/**诊断对话**（DeepSeek 或任意 OpenAI 兼容 provider，解释 + 指引白名单修复），zh/en 切换 |
 | `selftest` | 引擎自检（6 内置故障样本），验证安装健康 |
 
 退出码：`0` 通过（或 dsh 自身码）/ `1` 仍有 fatal / `2` 用法或 profile 缺失 / `3` gate 被需人工处置的 fatal 阻断 / `4-5` gate 归因相关。
