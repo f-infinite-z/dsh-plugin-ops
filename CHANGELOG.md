@@ -13,7 +13,7 @@ plan in [docs/PLAN.md](docs/PLAN.md).
 - `scan` / `fix` (auto-fix set: lockfile realign, disabled-row writes) /
   `gate` (block-first graded disposition, boot-failure attribution with
   interactive disable-and-retry, `--bypass` escape hatch)
-- Real-environment smoke validated on web and dsh-tui profiles
+- Real-environment smoke validated on shipped profiles
 
 ### v0.2 — full rule set and config
 

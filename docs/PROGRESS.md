@@ -5,19 +5,19 @@
 ## 项目概况
 
 - 定位：DeepSeek Harness（dsh）插件生态的启动生命周期防护——启动前预检拦截、失败归因与恢复、依赖树治理；长期收敛为插件管理增强一体化。
-- 命名三层：仓库目录 `dsh-plugin-doctor`（早期名遗留，仅本地路径）→ npm 包 `dsh-plugin-ops`（CLI）/`dsh-plugin-ops-core`（引擎）→ bin `dsh-ops`。monorepo root package 名 `dsh-plugin-ops-monorepo`（private，不发布）。
-- 仓库：`github.com/f-infinite-z/dsh-plugin-ops`（private，v1.0 开源）；本地 `<workspace>\dsh-plugin-doctor`。
+- 命名三层：仓库目录 `dsh-plugin-doctor`（早期名遗留，仅本地目录名）→ npm 包 `dsh-plugin-ops`（CLI）/`dsh-plugin-ops-core`（引擎）→ bin `dsh-ops`。monorepo root package 名 `dsh-plugin-ops-monorepo`（private，不发布）。
+- 仓库：`github.com/f-infinite-z/dsh-plugin-ops`（private，v1.0 开源）。
 - 形态：monorepo `packages/cli`（dsh-ops CLI + serve 面板，npm 名 dsh-plugin-ops）+ `packages/core`（引擎，npm 名 dsh-plugin-ops-core）+ `packages/bundle`（内嵌 bundle，v0.3 B1 开发中）。
-- 命令入口：`node <workspace>\dsh-plugin-doctor\packages\cli\lib\index.js <cmd>`；常用 `check/scan/fix/gate/serve/selftest`。
+- 命令入口（在仓库根运行）：`node packages/cli/lib/index.js <cmd>`；常用 `check/scan/fix/gate/serve/selftest`。机器本地细节（绝对路径等）不在仓库内记录。
 - 测试：core 单测 38 + cli 单测 10（`pnpm test` 实测为准）+ 真实 E2E `scripts/e2e/{scan-fix,gate,real-plugins}.e2e.mjs`（需网络装真实包）。
-- 用户真实环境：dsh 0.1.2-rc.1，`~/.dsh` profiles = `web`（7 bundles）与 `dsh-tui`；pnpm 走 **npmmirror 镜像**；dsh web 进程偶发由用户手动启动（port 3080）。
+- 用户真实环境基线（脱敏口径）：dsh 官方 rc 版本；两个 shipped/custom profile 均 0 fatal；镜像/端口/进程习惯为机器细节不入库。
 
 ## 里程碑时间线
 
 | 版本 | 状态 | 内容 |
 |---|---|---|
 | v0.1 | ✅ 完成 | 规则 1/2/6、fix（lockfile 对齐+写 disabled）、gate 先阻断分级处置+归因、故障记忆 JSONL；web profile |
-| v0.2 | ✅ 完成 | 规则 3（pnpm outdated，advisory）/4（peer 缺口+双实例 fatal）/5（patch 悬空）/7（结构+CJS fatal）；`$DSH_HOME/dsh-ops.yml` 配置；gate 平台分级（headless 透传）；规则 4 真实环境抓到 2 个真阳性（见下） |
+| v0.2 | ✅ 完成 | 规则 3（pnpm outdated，advisory）/4（peer 缺口+双实例 fatal）/5（patch 悬空）/7（结构+CJS fatal）；`$DSH_HOME/dsh-ops.yml` 配置；gate 平台分级（headless 透传）；规则 4 真实环境抓到 peer 悬空真阳性 |
 | v0.3 part 1 | ✅ 完成 | selftest 6 样本；`core/panel-api` 共享 API；插件行管理端点 + serve UI toggle；patch insert 展开；`[]` 占位结构化写入修复 |
 | v0.3 part 2 | 🔜 待开工 | **B1**：dsh 设置页内嵌 bundle（单包双端）；**B2**：explain（scan→DeepSeek 解读） |
 | v1.0（发布就绪） | ✅ 工程完成 | A1 包整理（core/cli 0.1.0、public、metadata）；A2 自包含单文件（tsup dist，运行时零 node_modules，assets 双布局探测）；A3 CI+发布 workflow；A4 LICENSE/CHANGELOG/SECURITY/CONTRIBUTING；A5 两 npm 名核查可用 |
@@ -30,8 +30,8 @@
 
 ## 环境事实与真实生态发现（重要）
 
-- **peer 声明悬空是真实现象**：`@leetoners/dsh-ui-subagent-monitor`（web profile）与 `dsh-thinking-language`（dsh-tui profile）声明了官方闭包不发布的 peer（dsh-client-runtime / dsh-client-ui-slots / dsh-client-ui-primitives）；前者在全新 profile 根本无法 pnpm 安装（`ERR_PNPM_NO_MATCHING_VERSION`）。规则 4 warn 为真阳性，非 bug。
-- 真实扫描基线：web 与 dsh-tui 均 0 fatal；仅上述 peer warn（用户可 `ignorePackages` 消音）。
+- **peer 声明悬空是真实现象**：真实安装的 UI 插件（如 `@leetoners/dsh-ui-subagent-monitor`、`dsh-thinking-language`）声明了官方闭包不发布的 peer（dsh-client-runtime / dsh-client-ui-slots / dsh-client-ui-primitives）；前者在全新 profile 根本无法 pnpm 安装（`ERR_PNPM_NO_MATCHING_VERSION`）。规则 4 warn 为真阳性，非 bug。
+- 真实扫描基线：用户各 profile 均 0 fatal；仅上述 peer warn（可 `ignorePackages` 消音）。
 - 官方模板 patch 层 = `注释 + []` 占位；第三方 bundle patch 普遍用 `- insert:` 包裹真实行（本工具的可见行视图必须展开 insert）。
 - pnpm `.pnpm` 文件与全局 store 为 **hardlink**：截断写（writeFileSync 原路径）会污染全局 store，后续 install 从损坏 store 提取坏版本（真实 profile 曾被两次注入 `-drift-test` 污染，见卡点）。
 - dsh 官方 client 契约（B1 依据，详见会话调研）：`dsh.client{platform:'web',inject[]}` + `exports["./client"]`；Settings tab 注册走 `ctx.slots.inject('settings.section'|'settings.plugins.tab', ...)`；client 打包 = CJS 单文件 + `window.__ModuleLoader__.load({id, factory})` 尾调用、react 等平台模块直接 import（外部化不打包）；host→client 官方一等通道是 Typert Remote（生成器重，第三方用 webServer prefix 属仅第三方实践）；`ctx.dshHomePath`/`ctx.baseUrl` 可用，无"当前 profile 目录"服务（需自推导 `resolveDshHome()+profiles/<名>`）。
@@ -44,7 +44,7 @@
 4. **PowerShell 文件事故（当天 3 次）**：a) `Get-Content -Raw` 失败后 `WriteAllText` 仍执行 → 文件清空；b) `\r\n`/`\u0022` 字面替换不命中；c) **GBK 误解码重写含中文 HTML → 面板乱码**。教训（全局规则）：含中文/新文件一律用 write/edit 工具，禁止 PowerShell Get-Content/Set-Content/Replace 处理项目文件。
 5. **patch 层写坏 YAML**：文本追加到 `注释+[]` 模板破坏文档 → append 改结构化 push（`doc.createNode`）；remove 遍历根 items 而非展开索引；yaml 2.9 节点级 `toJS()` 必须走 Document 级（`doc.toJS()`）。
 6. **rowViews 状态错乱**：同 id 跨 source（bundle 层 + 用户层）→ 用户层行优先（applyEntries 覆盖顺序）。
-7. **GitHub 网络长期不通**（移动热点）：本地 commit 持续积压，网络恢复后 `git push` 一次补齐。
+7. **网络波动致推送积压**：本地 commit 持续积压，网络恢复后 `git push` 一次补齐（曾积压 8 个）。
 8. **pnpm Windows spawn**：`.cmd` 不能直接 spawn → `cmd.exe /c` 常量串；杀进程树用 `taskkill /T`。
 9. **浏览器自动翻译机翻正文**：`meta notranslate` + 合法 BCP47 lang。
 
