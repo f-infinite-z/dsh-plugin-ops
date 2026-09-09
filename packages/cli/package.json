@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "DeepSeek Harness plugin operations CLI: scan, fix, gate — pre-boot health checks and failure attribution",
+  "description": "DeepSeek Harness plugin operations CLI: scan, fix, gate 鈥?pre-boot health checks and failure attribution",
   "bin": {
     "dsh-ops": "lib/index.js"
   },
@@ -16,13 +16,21 @@
     },
     "./package.json": "./package.json"
   },
-  "files": ["lib"],
+  "files": [
+    "lib"
+  ],
   "engines": {
     "node": "^22.19.0 || >=24.0.0"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "clean": "rimraf lib"
+    "clean": "node -e \u0022require(\u0027fs\u0027).rmSync(\u0027lib\u0027,{recursive:true,force:true})\u0022"
+  },
+  "dependencies": {
+    "dsh-plugin-ops-core": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
   }
 }
