@@ -1,9 +1,9 @@
 {
-  "name": "dsh-plugin-ops",
+  "name": "dsh-plugin-ops-monorepo",
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "DeepSeek Harness plugin operations: pre-boot health gate, failure attribution, and dependency governance",
+  "description": "Workspace root for dsh-plugin-ops: published packages are dsh-plugin-ops-core and dsh-plugin-ops (bin: dsh-ops)",
   "packageManager": "pnpm@11.7.0",
   "engines": {
     "node": "^22.19.0 || >=24.0.0"

@@ -5,10 +5,11 @@
 ## 项目概况
 
 - 定位：DeepSeek Harness（dsh）插件生态的启动生命周期防护——启动前预检拦截、失败归因与恢复、依赖树治理；长期收敛为插件管理增强一体化。
+- 命名三层：仓库目录 `dsh-plugin-doctor`（早期名遗留，仅本地路径）→ npm 包 `dsh-plugin-ops`（CLI）/`dsh-plugin-ops-core`（引擎）→ bin `dsh-ops`。monorepo root package 名 `dsh-plugin-ops-monorepo`（private，不发布）。
 - 仓库：`github.com/f-infinite-z/dsh-plugin-ops`（private，v1.0 开源）；本地 `<workspace>\dsh-plugin-doctor`。
 - 形态：monorepo `packages/cli`（dsh-ops CLI + serve 面板，npm 名 dsh-plugin-ops）+ `packages/core`（引擎，npm 名 dsh-plugin-ops-core）+ `packages/bundle`（内嵌 bundle，v0.3 B1 开发中）。
-- 命令入口：`node <workspace>\dsh-plugin-doctor\packages\cli\lib\index.js <cmd>`；常用 `scan/fix/gate/serve/selftest`。
-- 测试：core 单测 37 例（`pnpm test`）+ 真实 E2E `scripts/e2e/{scan-fix,gate,real-plugins}.e2e.mjs`（需网络装真实包）。
+- 命令入口：`node <workspace>\dsh-plugin-doctor\packages\cli\lib\index.js <cmd>`；常用 `check/scan/fix/gate/serve/selftest`。
+- 测试：core 单测 38 + cli 单测 10（`pnpm test` 实测为准）+ 真实 E2E `scripts/e2e/{scan-fix,gate,real-plugins}.e2e.mjs`（需网络装真实包）。
 - 用户真实环境：dsh 0.1.2-rc.1，`~/.dsh` profiles = `web`（7 bundles）与 `dsh-tui`；pnpm 走 **npmmirror 镜像**；dsh web 进程偶发由用户手动启动（port 3080）。
 
 ## 里程碑时间线

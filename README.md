@@ -4,6 +4,14 @@
 
 **状态：v0.3 开发中（v1.0 发布就绪）；执行进度/卡点见 [docs/PROGRESS.md](docs/PROGRESS.md)，策略与决策见 [docs/PLAN.md](docs/PLAN.md)。**
 
+## 命名（三层关系）
+
+| 层 | 名称 | 说明 |
+|---|---|---|
+| 仓库目录 | `dsh-plugin-doctor`（早期名遗留，本地路径） | 仅本地目录名，计划保持 |
+| npm 包 | `dsh-plugin-ops`（CLI）/ `dsh-plugin-ops-core`（引擎） | 对外发布名（GitHub 仓库同名 `dsh-plugin-ops`） |
+| 命令 | `dsh-ops` | 安装后提供的 bin |
+
 ## 为什么做
 
 DeepSeek Harness（dsh）插件生态自 2026-08 起爆发式增长，但 dsh 的加载模型是：静态补丁全部应用 → 插件行并发激活 → **任一插件失败即整树中止启动**。装几个插件后，"昨天还能开、今天启动失败"成为常态。
@@ -74,7 +82,7 @@ ignorePackages:
 
 ```sh
 pnpm install && pnpm run build
-pnpm run typecheck && pnpm run test      # 38 单测
+pnpm run typecheck && pnpm run test      # 48 单测（core 38 + cli 10；以实测为准）
 node packages/cli/lib/index.js selftest  # 引擎自检
 node scripts/e2e/scan-fix.e2e.mjs        # 离线 E2E（真实 pnpm 修复）
 node scripts/e2e/gate.e2e.mjs            # gate 场景（放行/阻断/旁路/归因/headless）
