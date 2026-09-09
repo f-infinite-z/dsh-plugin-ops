@@ -17,9 +17,15 @@
 |---|---|---|
 | v0.1 | ✅ 完成 | 规则 1/2/6、fix（lockfile 对齐+写 disabled）、gate 先阻断分级处置+归因、故障记忆 JSONL；web profile |
 | v0.2 | ✅ 完成 | 规则 3（pnpm outdated，advisory）/4（peer 缺口+双实例 fatal）/5（patch 悬空）/7（结构+CJS fatal）；`$DSH_HOME/dsh-ops.yml` 配置；gate 平台分级（headless 透传）；规则 4 真实环境抓到 2 个真阳性（见下） |
-| v0.3 part 1 | ✅ 完成 | selftest 6 样本；`core/panel-api` 共享 API（serve 与 bundle host 共用）；插件行管理端点 + serve UI toggle；patch insert 展开；`[]` 占位结构化写入修复 |
-| v0.3 part 2 | 🔜 进行中 | **B1**：dsh 设置页内嵌 bundle（单包双端）；**B2**：explain（scan→DeepSeek 解读） |
-| v1.0 | ⏳ 未开始 | A 线全部：npm 发布（包名核查/自包含单文件构建/CI/治理文件）、repo public、topic 打标、awesome 收录 |
+| v0.3 part 1 | ✅ 完成 | selftest 6 样本；`core/panel-api` 共享 API；插件行管理端点 + serve UI toggle；patch insert 展开；`[]` 占位结构化写入修复 |
+| v0.3 part 2 | 🔜 待开工 | **B1**：dsh 设置页内嵌 bundle（单包双端）；**B2**：explain（scan→DeepSeek 解读） |
+| v1.0（发布就绪） | ✅ 工程完成 | A1 包整理（core/cli 0.1.0、public、metadata）；A2 自包含单文件（tsup dist，运行时零 node_modules，assets 双布局探测）；A3 CI+发布 workflow；A4 LICENSE/CHANGELOG/SECURITY/CONTRIBUTING；A5 两 npm 名核查可用 |
+| v1.0（对外） | ⏳ 等人工验收 | 用户多装插件人工校验 → 修复 → repo public + topic 打标 → npm 发布（tag `v*` 触发 release workflow，core 先 cli 后；NPM_TOKEN secret 待建）→ awesome 收录 |
+| v2.0+ | ⏳ | 一体化整合（竞品功能按自有架构吸收：启停/更新/市场/canary/适配门）；报告 diff 取消项重评估 |
+
+## 长期记忆的数据库化（待办）
+
+当前长期记忆 = `docs/PROGRESS.md` + `docs/PLAN.md`（够用）。后续迁移到数据库（如 SQLite/duckdb）时设计方向：事件表（milestone/decision/blocker/finding 四类事件，`ts`+`kind`+`payload JSON`+`linkedCommit`）、样本表（真实插件/故障样本与期望基线）、commit↔事件映射。短期不阻塞。
 
 ## 环境事实与真实生态发现（重要）
 
@@ -47,7 +53,16 @@
 - `547bc80` 面板 zh/en i18n + 切换
 - `916d9e8` 防浏览器自动翻译
 - `371d7af` v0.3 part1（selftest、panel-api 共享、插件行管理、insert 展开、[] 占位修复）
-- （本次会话新增）乱码重写 + 本文档 → 待 commit
+- `4a07a45` 面板乱码重写 + PROGRESS.md 建立
+- `a02d852` v1.0 发布就绪（自包含构建/CI/治理/包整理）
+
+## 下次开工（用户人工验收）清单
+
+1. 多装几种生态插件到隔离/真实 profile（市场/工具/UI 类都试），人工校验 dsh 正常启动运行 + dsh-ops scan/fix/gate 行为符合预期。
+2. 有问题修问题（回归测试 + PROGRESS 记录）。
+3. 通过后对外：repo public → GitHub topic `dsh-plugin` → 建 `NPM_TOKEN` secret → `pnpm --filter dsh-plugin-ops-core publish` + cli（或打 tag `v0.1.0` 触发 release workflow）→ awesome-dsh-plugin 收录申请。
+4. 继续 v0.3 part2（B1 内嵌 bundle → B2 explain）。
+5. v2.0 一体化规划。
 
 ## v0.3 剩余（下次会话起点）
 
@@ -58,10 +73,6 @@
 
 **B2 explain（LLM 解读）**：
 - 入口 `dsh-ops explain --profile web` + 面板按钮；读取 key：`DEEPSEEK_API_KEY` 环境 → `~/.dsh/.env`；POST chat/completions（`DEEPSEEK_BASE_URL` 可覆盖，默认 api.deepseek.com）；输入 = scan findings 精简 JSON + 规则上下文；输出 = 诊断总结 + 逐条修复建议；无 key → 静态提示。调用面只在用户显式触发（不进 scan/gate 关键路径）。
-
-## v1.0 A 线（全部未开始）
-
-A1 npm 包整理（去 private、files 校验、cli 需含 assets、名称核查 `dsh-plugin-ops`/`-core`/`-bundle`）→ A2 自包含单文件构建（自保 §7 承诺：esbuild bundle 进 core+deps，运行时零外部 require）→ A3 CI（typecheck/test/build/E2E/发布流水线）→ A4 治理文件 → A5 命名核查 → A6 开源切换（public + topic `dsh-plugin` + awesome 收录）。
 
 ## 约定与提醒（给未来会话）
 
