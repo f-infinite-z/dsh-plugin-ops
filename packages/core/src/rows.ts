@@ -16,9 +16,20 @@ function rowsOfFile(file: string, label: string): RowRef[] {
     const value: unknown = doc.toJS()
     if (!Array.isArray(value)) return []
     const refs: RowRef[] = []
-    for (const row of value) {
+    const pushRow = (row: unknown) => {
       if (typeof row === 'object' && row !== null) {
         refs.push({ source: label, row: row as PatchRow })
+      }
+    }
+    for (const item of value) {
+      if (typeof item === 'object' && item !== null) {
+        const record = item as Record<string, unknown>
+        // `insert` directives nest the real rows (applyEntryPatches semantics).
+        if (Array.isArray(record.insert)) {
+          for (const sub of record.insert) pushRow(sub)
+        } else {
+          pushRow(item)
+        }
       }
     }
     return refs

@@ -15,4 +15,6 @@ export { ruleBundleDeclaration, ruleDependencyDrift, ruleSessionMemory, ruleRegi
 export { rulePeerGap, rulePeerDrift } from './peers.js'
 export { rulePatchResolution } from './patchres.js'
 export { ruleStructure } from './structure.js'
+export { runSelfTest, type SelfTestResult } from './selftest.js'
+export { handlePanelApi, PanelApiError, isScanError, type PanelApiOptions, type RowView } from './panel-api.js'
 export type { Severity, RuleId, Finding, Fix, PackageState, PackageSnapshot, SnapshotDiffEntry, MemoryInfo, ScanReport } from './types.js'

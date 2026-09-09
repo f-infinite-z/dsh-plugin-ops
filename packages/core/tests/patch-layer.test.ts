@@ -63,4 +63,26 @@ describe('patch layer', () => {
       fixture.dispose()
     }
   })
+
+  it('appends into the official empty-[] placeholder without corrupting the file', () => {
+    const fixture = makeHome()
+    try {
+      const { paths } = fixture
+      mkdirSync(paths.profileDir, { recursive: true })
+      writeFileSync(`${paths.profileDir}/cordis.patch.yml`, '# official template header\n[]\n', 'utf8')
+
+      const result = appendDisabledRow(paths.profileDir, 'plugin-y')
+      expect(result.ok).toBe(true)
+      const state = readPatchFile(paths.profileDir)
+      expect(state.ok).toBe(true)
+      expect(state.rows).toContainEqual({ id: 'plugin-y', disabled: true })
+      const removal = removeDisabledRow(paths.profileDir, 'plugin-y')
+      expect(removal.ok).toBe(true)
+      const after = readPatchFile(paths.profileDir)
+      expect(after.ok).toBe(true)
+      expect(after.rows).toEqual([])
+    } finally {
+      fixture.dispose()
+    }
+  })
 })

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { parseArgs } from 'node:util'
-import { resolveDshPaths, readOpsConfig } from 'dsh-plugin-ops-core'
+import { resolveDshPaths, readOpsConfig, runSelfTest } from 'dsh-plugin-ops-core'
 import { runScanCommand } from './scan-cmd.js'
 import { runFixCommand } from './fix-cmd.js'
 import { runGateCommand } from './gate-cmd.js'
@@ -14,6 +14,7 @@ usage:
   dsh-ops gate  [--profile <name>] [--home <dir>] [--bypass] [--no-attribution]
                 [--boot-threshold-ms <n>] [--config <file>] [--] <dsh command...>
   dsh-ops serve [--home <dir>] [--port <n>] [--host <addr>] [--config <file>]
+  dsh-ops selftest
   dsh-ops help
 
 config: read from <DSH_HOME>/dsh-ops.yml by default (rules on/off, severity
@@ -110,6 +111,17 @@ async function main(): Promise<number> {
         config,
         dshCommand: positionals.length > 0 ? positionals : ['dsh', '--profile', values.profile],
       })
+    }
+    case 'selftest': {
+      const { results, ok } = await runSelfTest()
+      for (const result of results) {
+        process.stdout.write(`${result.ok ? 'PASS' : 'FAIL'}  ${result.caseName}\n`)
+        if (!result.ok) {
+          for (const line of result.detail.split('\n')) process.stdout.write(`      ${line}\n`)
+        }
+      }
+      process.stdout.write(`\nselftest: ${results.filter((r) => r.ok).length}/${results.length} cases passed\n`)
+      return ok ? 0 : 1
     }
     case 'serve': {
       const { values } = parse(rest)

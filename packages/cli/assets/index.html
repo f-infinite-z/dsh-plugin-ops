@@ -46,42 +46,48 @@
   <h1><span data-i18n="appTitle">dsh-ops</span> <span id="homeLabel" class="badge b-info"></span>
     <span class="spacer"></span>
     <select id="langSel" style="font-size:12px;padding:4px 8px">
-      <option value="zh">中文</option><option value="en">English</option>
+      <option value="zh">涓枃</option><option value="en">English</option>
     </select>
   </h1>
-  <div class="sub" data-i18n="subtitle">DeepSeek Harness 插件运维 · 本地面板（127.0.0.1）</div>
+  <div class="sub" data-i18n="subtitle">DeepSeek Harness 鎻掍欢杩愮淮 路 鏈湴闈㈡澘锛?27.0.0.1锛?/div>
 
   <div class="row">
     <select id="profile"></select>
-    <button id="btnScan" class="primary" data-i18n="btnScan">扫描</button>
-    <label style="font-size:12px;color:var(--dim)"><input type="checkbox" id="withUpdates" style="vertical-align:middle"> <span data-i18n="lblUpdates">含 registry 更新检查（慢）</span></label>
+    <button id="btnScan" class="primary" data-i18n="btnScan">鎵弿</button>
+    <label style="font-size:12px;color:var(--dim)"><input type="checkbox" id="withUpdates" style="vertical-align:middle"> <span data-i18n="lblUpdates">鍚?registry 鏇存柊妫€鏌ワ紙鎱級</span></label>
     <span id="scanState" style="color:var(--dim);font-size:12px"></span>
   </div>
 
   <div class="cards">
-    <div class="card"><div class="k" data-i18n="sevFatal">致命</div><div class="v" id="cFatal" style="color:var(--fatal)">-</div></div>
-    <div class="card"><div class="k" data-i18n="sevWarn">警告</div><div class="v" id="cWarn" style="color:var(--warn)">-</div></div>
-    <div class="card"><div class="k" data-i18n="sevInfo">信息</div><div class="v" id="cInfo" style="color:var(--info)">-</div></div>
-    <div class="card"><div class="k" data-i18n="overall">总体</div><div class="v" id="cOk">-</div></div>
+    <div class="card"><div class="k" data-i18n="sevFatal">鑷村懡</div><div class="v" id="cFatal" style="color:var(--fatal)">-</div></div>
+    <div class="card"><div class="k" data-i18n="sevWarn">璀﹀憡</div><div class="v" id="cWarn" style="color:var(--warn)">-</div></div>
+    <div class="card"><div class="k" data-i18n="sevInfo">淇℃伅</div><div class="v" id="cInfo" style="color:var(--info)">-</div></div>
+    <div class="card"><div class="k" data-i18n="overall">鎬讳綋</div><div class="v" id="cOk">-</div></div>
   </div>
 
   <div class="panel">
-    <h2 data-i18n="panelFindings">扫描结果</h2>
+    <h2 data-i18n="panelFindings">鎵弿缁撴灉</h2>
     <div id="findings"></div>
   </div>
 
   <div class="panel" id="fixPanel" style="display:none">
-    <h2 data-i18n="panelFix">可自动修复（lockfile 对齐）</h2>
-    <div id="fixPlan" class="empty" data-i18n="fixPlanHint">先扫描以生成修复计划…</div>
+    <h2 data-i18n="panelFix">鍙嚜鍔ㄤ慨澶嶏紙lockfile 瀵归綈锛?/h2>
+    <div id="fixPlan" class="empty" data-i18n="fixPlanHint">鍏堟壂鎻忎互鐢熸垚淇璁″垝鈥?/div>
     <div class="btn-row">
-      <button id="btnFixPreview" data-i18n="btnPreview">预览计划</button>
-      <button id="btnFixRun" class="primary" data-i18n="btnRun">执行修复</button>
+      <button id="btnFixPreview" data-i18n="btnPreview">棰勮璁″垝</button>
+      <button id="btnFixRun" class="primary" data-i18n="btnRun">鎵ц淇</button>
       <span id="fixState" style="color:var(--dim);font-size:12px;align-self:center"></span>
     </div>
   </div>
 
   <div class="panel">
-    <h2 data-i18n="panelTimeline">故障记忆时间线（最近 12 条）</h2>
+    <h2><span data-i18n="panelPlugins">鎻掍欢琛岀鐞嗭紙绗笁鏂癸紝鍙惎鐢?绂佺敤锛?/span> <span id="pluginsCount" style="float:right;font-weight:400"></span></h2>
+    <div style="color:var(--dim);font-size:12px;margin-bottom:8px" data-i18n="pluginsHint">鏀瑰姩鍐欏叆鐢ㄦ埛琛ヤ竵灞傦紝HMR 绾?1 绉掔敓鏁堬紱瀹樻柟琛屽彈淇濇姢</div>
+    <div id="plugins"></div>
+  </div>
+
+  <div class="panel">
+    <h2 data-i18n="panelTimeline">鏁呴殰璁板繂鏃堕棿绾匡紙鏈€杩?12 鏉★級</h2>
     <div id="timeline" class="timeline"></div>
   </div>
 
@@ -93,38 +99,42 @@ const state = { profiles: [], scan: null, lang: 'zh' }
 
 const I18N = {
   zh: {
-    appTitle: 'dsh-ops 面板', subtitle: 'DeepSeek Harness 插件运维 · 本地面板（127.0.0.1）',
-    btnScan: '扫描', lblUpdates: '含 registry 更新检查（慢）',
-    sevFatal: '致命', sevWarn: '警告', sevInfo: '信息', overall: '总体',
-    panelFindings: '扫描结果', panelFix: '可自动修复（lockfile 对齐）', panelTimeline: '故障记忆时间线（最近 12 条）',
-    fixPlanHint: '先扫描以生成修复计划…', btnPreview: '预览计划', btnRun: '执行修复',
-    noProfiles: '未发现 profile', scanning: '扫描中…', noFindings: '无任何发现',
-    scanFail: '扫描失败：', fixPreviewEmpty: '当前无致命漂移，无需修复', fixPreviewOk: '计划动作：',
-    fixConfirm: '将按 lockfile 对齐磁盘安装状态（pnpm install --frozen-lockfile --force）。继续？',
-    fixRunning: '执行中…', fixDone: '修复完成，重新扫描验证', fixFail: '修复失败：', fixPreviewOnly: '预览仅计算，未改动任何文件',
-    evSuccess: '成功', evFailure: '失败', evAttempt: '尝试', evBypass: '旁路', evFix: '修复',
-    tlEmpty: '暂无记录（gate 扫描会自动建立）', tlFail: '记忆读取失败',
-    scanningFor: '正在扫描',
-    sevLabel: { fatal: '致命', warn: '警告', info: '信息' },
-    overallOk: 'OK', overallBlocked: '阻断',
+    appTitle: 'dsh-ops 闈㈡澘', subtitle: 'DeepSeek Harness 鎻掍欢杩愮淮 路 鏈湴闈㈡澘锛?27.0.0.1锛?,
+    btnScan: '鎵弿', lblUpdates: '鍚?registry 鏇存柊妫€鏌ワ紙鎱級',
+    sevFatal: '鑷村懡', sevWarn: '璀﹀憡', sevInfo: '淇℃伅', overall: '鎬讳綋',
+    panelFindings: '鎵弿缁撴灉', panelFix: '鍙嚜鍔ㄤ慨澶嶏紙lockfile 瀵归綈锛?, panelTimeline: '鏁呴殰璁板繂鏃堕棿绾匡紙鏈€杩?12 鏉★級',
+    fixPlanHint: '鍏堟壂鎻忎互鐢熸垚淇璁″垝鈥?, btnPreview: '棰勮璁″垝', btnRun: '鎵ц淇',
+    noProfiles: '鏈彂鐜?profile', scanning: '鎵弿涓€?, noFindings: '鏃犱换浣曞彂鐜?,
+    scanFail: '鎵弿澶辫触锛?, fixPreviewEmpty: '褰撳墠鏃犺嚧鍛芥紓绉伙紝鏃犻渶淇', fixPreviewOk: '璁″垝鍔ㄤ綔锛?,
+    fixConfirm: '灏嗘寜 lockfile 瀵归綈纾佺洏瀹夎鐘舵€侊紙pnpm install --frozen-lockfile --force锛夈€傜户缁紵',
+    fixRunning: '鎵ц涓€?, fixDone: '淇瀹屾垚锛岄噸鏂版壂鎻忛獙璇?, fixFail: '淇澶辫触锛?, fixPreviewOnly: '棰勮浠呰绠楋紝鏈敼鍔ㄤ换浣曟枃浠?,
+    evSuccess: '鎴愬姛', evFailure: '澶辫触', evAttempt: '灏濊瘯', evBypass: '鏃佽矾', evFix: '淇',
+    tlEmpty: '鏆傛棤璁板綍锛坓ate 鎵弿浼氳嚜鍔ㄥ缓绔嬶級', tlFail: '璁板繂璇诲彇澶辫触',
+    scanningFor: '姝ｅ湪鎵弿',
+    panelPlugins: '鎻掍欢琛岀鐞嗭紙绗笁鏂癸紝鍙惎鐢?绂佺敤锛?, pluginsEmpty: '鏃犲彲绠＄悊鐨勭涓夋柟琛?, pluginsHint: '鏀瑰姩鍐欏叆鐢ㄦ埛琛ヤ竵灞傦紝HMR 绾?1 绉掔敓鏁堬紱瀹樻柟琛屽彈淇濇姢',
+    btnDisable: '绂佺敤', btnEnable: '鍚敤', pluginsSource: '鏉ユ簮', pluginsLoading: '鍔犺浇涓€?, pluginsFail: '鎻掍欢鍒楄〃鍔犺浇澶辫触锛?, pluginsToggleFail: '鎿嶄綔澶辫触锛?, pluginsToggleOk: '宸茬敓鏁堬紙HMR 绾?1s锛涢噸鍚悗浠嶄繚鐣欙級',
+    sevLabel: { fatal: '鑷村懡', warn: '璀﹀憡', info: '淇℃伅' },
+    overallOk: 'OK', overallBlocked: '闃绘柇',
     rule: {
-      'bundle-declaration': 'bundle 声明完整性', 'dependency-drift': '依赖漂移', 'session-memory': '故障记忆',
-      'registry-version': '版本更新', 'peer-gap': 'peer 缺口', 'patch-resolution': '补丁解析', structure: '包结构',
+      'bundle-declaration': 'bundle 澹版槑瀹屾暣鎬?, 'dependency-drift': '渚濊禆婕傜Щ', 'session-memory': '鏁呴殰璁板繂',
+      'registry-version': '鐗堟湰鏇存柊', 'peer-gap': 'peer 缂哄彛', 'patch-resolution': '琛ヤ竵瑙ｆ瀽', structure: '鍖呯粨鏋?,
     },
   },
   en: {
-    appTitle: 'dsh-ops Panel', subtitle: 'DeepSeek Harness plugin operations · local panel (127.0.0.1)',
+    appTitle: 'dsh-ops Panel', subtitle: 'DeepSeek Harness plugin operations 路 local panel (127.0.0.1)',
     btnScan: 'Scan', lblUpdates: 'Include registry update check (slow)',
     sevFatal: 'Fatal', sevWarn: 'Warn', sevInfo: 'Info', overall: 'Overall',
     panelFindings: 'Findings', panelFix: 'Auto-fixable (lockfile realign)', panelTimeline: 'Fault memory timeline (last 12)',
-    fixPlanHint: 'Run a scan to build a fix plan…', btnPreview: 'Preview plan', btnRun: 'Run fix',
-    noProfiles: 'No profiles found', scanning: 'Scanning…', noFindings: 'No findings',
+    fixPlanHint: 'Run a scan to build a fix plan鈥?, btnPreview: 'Preview plan', btnRun: 'Run fix',
+    noProfiles: 'No profiles found', scanning: 'Scanning鈥?, noFindings: 'No findings',
     scanFail: 'Scan failed: ', fixPreviewEmpty: 'Nothing fatal to realign', fixPreviewOk: 'Plan: ',
     fixConfirm: 'Realign the installed tree to the lockfile (pnpm install --frozen-lockfile --force). Continue?',
-    fixRunning: 'Running…', fixDone: 'Fix complete; re-scanning to verify', fixFail: 'Fix failed: ', fixPreviewOnly: 'Preview only; nothing was changed',
+    fixRunning: 'Running鈥?, fixDone: 'Fix complete; re-scanning to verify', fixFail: 'Fix failed: ', fixPreviewOnly: 'Preview only; nothing was changed',
     evSuccess: 'Success', evFailure: 'Failure', evAttempt: 'Attempt', evBypass: 'Bypass', evFix: 'Fix',
     tlEmpty: 'No records yet (gate scans create them)', tlFail: 'Could not read memory',
     scanningFor: 'Scanning',
+    panelPlugins: 'Plugin rows (third-party; enable/disable)', pluginsEmpty: 'No manageable third-party rows', pluginsHint: 'Changes write to the user patch layer; HMR applies in ~1s; official rows are protected',
+    btnDisable: 'Disable', btnEnable: 'Enable', pluginsSource: 'Source', pluginsLoading: 'Loading鈥?, pluginsFail: 'Failed to load plugin rows: ', pluginsToggleFail: 'Operation failed: ', pluginsToggleOk: 'Applied (HMR ~1s; persists across restarts)',
     sevLabel: { fatal: 'Fatal', warn: 'Warning', info: 'Info' },
     overallOk: 'OK', overallBlocked: 'Blocked',
     rule: {
@@ -178,14 +188,15 @@ async function loadProfiles() {
   if (state.profiles.length === 0) { $('scanState').textContent = t('noProfiles'); return }
   const saved = localStorage.getItem('dshops-profile')
   if (saved && state.profiles.some(p => p.name === saved)) sel.value = saved
-  sel.onchange = () => { localStorage.setItem('dshops-profile', sel.value); loadMemory() }
+  sel.onchange = () => { localStorage.setItem('dshops-profile', sel.value); loadMemory(); loadPlugins() }
   loadMemory()
+  loadPlugins()
 }
 
 async function doScan() {
   const profile = $('profile').value
   if (!profile) return
-  $('scanState').textContent = `${t('scanning')}…`
+  $('scanState').textContent = `${t('scanning')}鈥
   $('btnScan').disabled = true
   try {
     const report = await api(`/api/scan?profile=${encodeURIComponent(profile)}&updates=${$('withUpdates').checked}`)
@@ -218,7 +229,7 @@ function renderReport(report) {
     const d = document.createElement('div'); d.className = 'finding'
     d.innerHTML = `<span class="badge b-${f.severity}">${esc(sev)}</span>
       <div class="msg">${esc(f.message)}
-        <div class="meta">${esc(ruleLabel(f.ruleId))}${f.packageName ? ' · ' + esc(f.packageName) : ''}</div>
+        <div class="meta">${esc(ruleLabel(f.ruleId))}${f.packageName ? ' 路 ' + esc(f.packageName) : ''}</div>
         ${f.detail ? `<div class="det">${esc(f.detail)}</div>` : ''}</div>`
     box.appendChild(d)
   }
@@ -228,7 +239,7 @@ function renderFixPanel(report) {
   const alignable = report.findings.filter(f => f.severity === 'fatal' && f.fix.kind === 'align-lockfile')
   $('fixPanel').style.display = alignable.length > 0 ? '' : 'none'
   if (alignable.length === 0) return
-  $('fixPlan').textContent = `${t('fixPreviewOk')}pnpm install --frozen-lockfile --force (${alignable.length}) · ${report.profileDir}`
+  $('fixPlan').textContent = `${t('fixPreviewOk')}pnpm install --frozen-lockfile --force (${alignable.length}) 路 ${report.profileDir}`
 }
 
 async function previewFix() {
@@ -245,7 +256,7 @@ async function previewFix() {
 async function runFix() {
   if (!state.scan) return
   if (!confirm(t('fixConfirm'))) return
-  $('fixState').textContent = `${t('fixRunning')}…`
+  $('fixState').textContent = `${t('fixRunning')}鈥
   $('btnFixRun').disabled = true
   try {
     const p = $('profile').value
@@ -278,6 +289,45 @@ async function loadMemory() {
       tl.appendChild(d)
     }
   } catch { tl.innerHTML = `<div class="ev">${t('tlFail')}</div>` }
+}
+
+async function loadPlugins() {
+  const profile = $('profile').value
+  const box = $('plugins')
+  if (!profile) return
+  box.innerHTML = `<div class="empty">${t('pluginsLoading')}</div>`
+  try {
+    const data = await api(`/api/plugins?profile=${encodeURIComponent(profile)}`)
+    const manageable = data.rows.filter((r) => !r.protected)
+    const protectedCount = data.rows.length - manageable.length
+    $('pluginsCount').textContent = `${manageable.length} / ${data.rows.length} (${protectedCount} ${t('sevLabel')['info'] === 'Info' ? 'protected' : '鍙椾繚鎶?})`
+    box.innerHTML = ''
+    if (manageable.length === 0) { box.innerHTML = `<div class="empty">${t('pluginsEmpty')}</div>`; return }
+    for (const row of manageable) {
+      const d = document.createElement('div'); d.className = 'finding'
+      const label = row.disabled ? t('btnEnable') : t('btnDisable')
+      d.innerHTML = `<span class="badge ${row.disabled ? 'b-warn' : 'b-ok'}">${row.disabled ? (state.lang === 'zh' ? '宸茬鐢? : 'Disabled') : (state.lang === 'zh' ? '鍚敤涓? : 'Enabled')}</span>
+        <div class="msg">${esc(row.rowId)}${row.packageName ? ' 路 ' + esc(row.packageName) : ''}
+          <div class="meta">${t('pluginsSource')}: ${esc(row.source.split('/').pop())}</div></div>
+        <button data-row="${esc(row.rowId)}" data-enable="${row.disabled}">${label}</button>`
+      const btn = d.querySelector('button')
+      btn.onclick = async () => {
+        btn.disabled = true
+        try {
+          const action = btn.getAttribute('data-enable') === 'true' ? 'enable' : 'disable'
+          await api(`/api/plugins/${action}?profile=${encodeURIComponent(profile)}`, { method: 'POST', body: JSON.stringify({ rowId: btn.getAttribute('data-row') }) })
+          toast(t('pluginsToggleOk'))
+          loadPlugins()
+        } catch (err) {
+          btn.disabled = false
+          toast(t('pluginsToggleFail') + err.message, 6000)
+        }
+      }
+      box.appendChild(d)
+    }
+  } catch (err) {
+    box.innerHTML = `<div class="empty">${t('pluginsFail')}${esc(err.message)}</div>`
+  }
 }
 
 $('btnScan').onclick = doScan
