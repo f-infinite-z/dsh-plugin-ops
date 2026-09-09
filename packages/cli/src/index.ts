@@ -5,10 +5,12 @@ import { runScanCommand } from './scan-cmd.js'
 import { runFixCommand } from './fix-cmd.js'
 import { runGateCommand } from './gate-cmd.js'
 import { serve } from './serve.js'
+import { runCheckCommand } from './check-cmd.js'
 
 const USAGE = `dsh-ops — DeepSeek Harness plugin operations
 
 usage:
+  dsh-ops check [--home <dir>] [--json] [--config <file>] [--updates]
   dsh-ops scan  [--profile <name>] [--home <dir>] [--json] [--config <file>] [--skip-update-check]
   dsh-ops fix   [--profile <name>] [--home <dir>] [--dry-run] [--yes] [--config <file>]
   dsh-ops gate  [--profile <name>] [--home <dir>] [--bypass] [--no-attribution]
@@ -39,12 +41,13 @@ const OPTIONS = {
   'no-attribution': { type: 'boolean', default: false },
   config: { type: 'string' },
   'skip-update-check': { type: 'boolean', default: false },
+  updates: { type: 'boolean', default: false },
   port: { type: 'string' },
   host: { type: 'string', default: '127.0.0.1' },
   'boot-threshold-ms': { type: 'string' },
 } as const
 
-type Flags = { profile: string; home?: string; json?: boolean; 'dry-run'?: boolean; yes?: boolean; bypass?: boolean; 'no-attribution'?: boolean; config?: string; 'skip-update-check'?: boolean; port?: string; host?: string; 'boot-threshold-ms'?: string }
+type Flags = { profile: string; home?: string; json?: boolean; 'dry-run'?: boolean; yes?: boolean; bypass?: boolean; 'no-attribution'?: boolean; config?: string; 'skip-update-check'?: boolean; updates?: boolean; port?: string; host?: string; 'boot-threshold-ms'?: string }
 
 function parse(rawArgs: string[]): { values: Flags; positionals: string[] } {
   const { values, positionals } = parseArgs({
@@ -111,6 +114,13 @@ async function main(): Promise<number> {
         config,
         dshCommand: positionals.length > 0 ? positionals : ['dsh', '--profile', values.profile],
       })
+    }
+    case 'check': {
+      const { values } = parse(rest)
+      const paths = resolveDshPaths('web', values.home)
+      const config = loadConfig(values.config, paths.configFile)
+      if (config === null) return 2
+      return runCheckCommand({ paths, json: values.json ?? false, config, updates: values.updates ?? false })
     }
     case 'selftest': {
       const { results, ok } = await runSelfTest()

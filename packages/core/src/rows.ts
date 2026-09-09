@@ -54,14 +54,16 @@ export function allVisibleRows(profileDir: string, bundles: ResolvedBundle[]): R
 
 /**
  * Row ids that compose the given package. A row composes a package when its
- * `name` is the package (bare specifiers import through Node resolution) or
- * when its `id` names the package directly.
+ * `name` is the package or a subpath of it (bare specifiers import through
+ * Node resolution) or when its `id` names the package directly.
  */
 export function rowIdsForPackage(refs: RowRef[], packageName: string): string[] {
   const ids = new Set<string>()
   for (const ref of refs) {
     const row = ref.row
-    if (row.name === packageName || row.id === packageName) {
+    const name = row.name
+    const matches = name === packageName || name?.startsWith(`${packageName}/`) === true || row.id === packageName
+    if (matches) {
       const id = row.id ?? packageName
       ids.add(id)
     }

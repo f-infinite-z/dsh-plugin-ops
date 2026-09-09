@@ -101,6 +101,21 @@ describe('rule 5: patch resolution', () => {
     }
   })
 
+  it('accepts package subpath references when the package resolves', async () => {
+    const fixture = makeHome()
+    try {
+      writeProfile(fixture.paths, { dependencies: {}, bundles: [] })
+      writeInstalledPackages(fixture.paths, [{ name: '@deepseek-ai/dsh-web-app', version: '1.0.0', dirName: '@deepseek-ai/dsh-web-app' }])
+      mkdirSync(fixture.paths.profileDir, { recursive: true })
+      writeFileSync(join(fixture.paths.profileDir, 'cordis.patch.yml'),
+        "- id: startup\n  name: '@deepseek-ai/dsh-web-app/startup'\n", 'utf8')
+      const report = await scanProfile({ paths: fixture.paths, profileName: 'web', updateCheck: false })
+      expect(report.findings.some((f) => f.ruleId === 'patch-resolution' && f.severity === 'fatal')).toBe(false)
+    } finally {
+      fixture.dispose()
+    }
+  })
+
   it('skips disabled rows and cordis builtins', async () => {
     const fixture = makeHome()
     try {
