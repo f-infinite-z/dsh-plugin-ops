@@ -4,7 +4,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { handlePanelApi, PanelApiError, ScanError, type PanelApiOptions } from 'dsh-plugin-ops-core'
 import type { DshPaths, OpsConfig } from 'dsh-plugin-ops-core'
-import { resolveApiKey, buildSystemPrompt, chatTurn, buildChatContext, type ChatMessage } from './chat.js'
+import { resolveModelConfig, OpenAiCompatibleChannel, buildSystemPrompt, buildChatContext, type ChatMessage, type ModelChannel } from './chat.js'
 
 export interface ServeOptions {
   paths: DshPaths
@@ -88,16 +88,17 @@ export async function serve(options: ServeOptions): Promise<number> {
           json(res, 400, { error: 'no user messages' })
           return
         }
-        const apiKey = resolveApiKey(options.paths.home)
-        if (apiKey === null) {
-          json(res, 200, { ok: false, reply: '', error: 'no DEEPSEEK_API_KEY in environment or $DSH_HOME/.env' })
+        const config = resolveModelConfig(options.paths.home)
+        if (config === null) {
+          json(res, 200, { ok: false, reply: '', error: 'no provider key found (env, $DSH_HOME/.env, or .credentials.yaml refs); set DSH_OPS_LLM_API_KEY to override' })
           return
         }
         const context = await buildChatContext(options.paths, profile, options.config)
+        const channel: ModelChannel = new OpenAiCompatibleChannel(config)
         const controller = new AbortController()
         const timer = setTimeout(() => controller.abort(), 60000)
         try {
-          const result = await chatTurn(apiKey, buildSystemPrompt(context, lang), messages, controller.signal)
+          const result = await channel.complete(buildSystemPrompt(context, lang), messages, controller.signal)
           json(res, result.ok ? 200 : 502, { ok: result.ok, reply: result.reply, error: result.error })
         } finally {
           clearTimeout(timer)

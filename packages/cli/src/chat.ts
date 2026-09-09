@@ -13,45 +13,141 @@ export interface ChatContext {
   findingsJson: string
 }
 
-/**
- * Resolve the DeepSeek API key in the same order the harness itself uses:
- * ambient environment, the gitignored `$DSH_HOME/.env`, then the harness
- * credentials file (`$DSH_HOME/.credentials.yaml`, refs table). Returns null
- * when none of them carries a key.
- */
-export function resolveApiKey(home: string): string | null {
-  const fromEnv = process.env.DEEPSEEK_API_KEY
+export interface ChatReply {
+  reply: string
+  ok: boolean
+  error?: string
+}
+
+/** Provider key candidates, in probe order. The provider that owns the first
+ * found key also selects the default base URL (all OpenAI-compatible). */
+const PROVIDER_CANDIDATES: ReadonlyArray<{ env: string; baseUrl: string; defaultModel: string }> = [
+  { env: 'DEEPSEEK_API_KEY', baseUrl: 'https://api.deepseek.com', defaultModel: 'deepseek-chat' },
+  { env: 'ARK_API_KEY', baseUrl: 'https://ark.cn-beijing.volces.com/api/v3', defaultModel: 'deepseek-v3' },
+  { env: 'DASHSCOPE_API_KEY', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', defaultModel: 'qwen-plus' },
+  { env: 'OPENAI_API_KEY', baseUrl: 'https://api.openai.com/v1', defaultModel: 'gpt-4o-mini' },
+]
+
+export interface ResolvedModelConfig {
+  key: string
+  baseUrl: string
+  model: string
+}
+
+function secretFromEnvOrDotEnv(name: string, home: string): string | null {
+  const fromEnv = process.env[name]
   if (fromEnv !== undefined && fromEnv !== '') return fromEnv
   const envFile = join(home, '.env')
   if (existsSync(envFile)) {
     try {
       for (const line of readFileSync(envFile, 'utf8').split('\n')) {
-        const match = /^\s*DEEPSEEK_API_KEY\s*=\s*(.+?)\s*$/.exec(line)
+        const match = new RegExp(`^\\s*${name}\\s*=\\s*(.+?)\\s*$`).exec(line)
         if (match !== null && match[1] !== undefined && match[1] !== '') return match[1]!
       }
     } catch {
-      // fall through to the credentials file
-    }
-  }
-  const credentialsFile = join(home, '.credentials.yaml')
-  if (existsSync(credentialsFile)) {
-    try {
-      const doc = parseYaml(readFileSync(credentialsFile, 'utf8')) as { refs?: Record<string, unknown> } | null
-      const value = doc?.refs?.['DEEPSEEK_API_KEY']
-      if (typeof value === 'string' && value !== '') return value
-    } catch {
-      return null
+      // fall through
     }
   }
   return null
 }
 
-function baseUrl(): string {
-  return process.env.DEEPSEEK_BASE_URL ?? 'https://api.deepseek.com'
+function credentialsRefs(home: string): Record<string, unknown> | null {
+  const credentialsFile = join(home, '.credentials.yaml')
+  if (!existsSync(credentialsFile)) return null
+  try {
+    const doc = parseYaml(readFileSync(credentialsFile, 'utf8')) as { refs?: Record<string, unknown> } | null
+    return doc?.refs ?? null
+  } catch {
+    return null
+  }
 }
 
-function modelName(): string {
-  return process.env.DEEPSEEK_MODEL ?? 'deepseek-chat'
+/**
+ * Resolve the model configuration for the standalone panel channel. Probe
+ * order: an explicit override (`DSH_OPS_LLM_API_KEY` / `_BASE_URL` /
+ * `_MODEL`), then the first provider key found in the environment, the
+ * gitignored `$DSH_HOME/.env`, or the harness credentials file
+ * (`.credentials.yaml` refs — the same store the harness itself reads).
+ * Base URL and model default to that provider's OpenAI-compatible endpoint.
+ */
+export function resolveModelConfig(home: string): ResolvedModelConfig | null {
+  const refs = credentialsRefs(home)
+  const look = (name: string): string | null => {
+    const env = process.env[name]
+    if (env !== undefined && env !== '') return env
+    const dot = secretFromEnvOrDotEnv(name, home)
+    if (dot !== null) return dot
+    const ref = refs?.[name]
+    return typeof ref === 'string' && ref !== '' ? ref : null
+  }
+  const explicitKey = process.env.DSH_OPS_LLM_API_KEY
+  if (explicitKey !== undefined && explicitKey !== '') {
+    return {
+      key: explicitKey,
+      baseUrl: process.env.DSH_OPS_LLM_BASE_URL ?? 'https://api.deepseek.com',
+      model: process.env.DSH_OPS_LLM_MODEL ?? 'deepseek-chat',
+    }
+  }
+  for (const candidate of PROVIDER_CANDIDATES) {
+    const key = look(candidate.env)
+    if (key === null) continue
+    return {
+      key,
+      baseUrl: process.env.DSH_OPS_LLM_BASE_URL ?? candidate.baseUrl,
+      model: process.env.DSH_OPS_LLM_MODEL ?? candidate.defaultModel,
+    }
+  }
+  return null
+}
+
+/**
+ * Model channel seam. The standalone panel uses an OpenAI-compatible direct
+ * channel today; the embedded bundle host will provide the same seam over the
+ * official ctx.llm service when B1 lands, so panel UI and the /api/chat
+ * protocol do not change.
+ */
+export interface ModelChannel {
+  complete(system: string, messages: ChatMessage[], signal?: AbortSignal): Promise<ChatReply>
+}
+
+/** OpenAI-compatible chat-completions channel (DeepSeek, ARK, DashScope, ...). */
+export class OpenAiCompatibleChannel implements ModelChannel {
+  constructor(private readonly config: ResolvedModelConfig) {}
+
+  async complete(system: string, messages: ChatMessage[], signal?: AbortSignal): Promise<ChatReply> {
+    const init: RequestInit = {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${this.config.key}`,
+      },
+      body: JSON.stringify({
+        model: this.config.model,
+        messages: [{ role: 'system', content: system }, ...messages],
+        max_tokens: 800,
+        stream: false,
+      }),
+    }
+    if (signal !== undefined) init.signal = signal
+    try {
+      const response = await fetch(`${this.config.baseUrl}/chat/completions`, init)
+      if (!response.ok) {
+        const body = await response.text().catch(() => '')
+        return { reply: '', ok: false, error: `model API ${response.status}: ${body.slice(0, 300)}` }
+      }
+      const data = (await response.json()) as {
+        choices?: Array<{ message?: { content?: string } }>
+      }
+      const reply = data.choices?.[0]?.message?.content
+      if (reply === undefined) return { reply: '', ok: false, error: 'model API returned no content' }
+      return { reply, ok: true }
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        return { reply: '', ok: false, error: 'request timed out' }
+      }
+      return { reply: '', ok: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  }
 }
 
 export function buildSystemPrompt(context: ChatContext, lang: string): string {
@@ -77,56 +173,6 @@ ${language}
 
 Current scan report (JSON):
 ${context.findingsJson}`
-}
-
-export interface ChatReply {
-  reply: string
-  ok: boolean
-  error?: string
-}
-
-/**
- * One explicit chat turn against the DeepSeek chat-completions API. The
- * caller decides when this runs; it never participates in scan/gate paths.
- */
-export async function chatTurn(
-  apiKey: string,
-  system: string,
-  messages: ChatMessage[],
-  signal?: AbortSignal,
-): Promise<ChatReply> {
-  try {
-    const init: RequestInit = {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: modelName(),
-        messages: [{ role: 'system', content: system }, ...messages],
-        max_tokens: 800,
-        stream: false,
-      }),
-    }
-    if (signal !== undefined) init.signal = signal
-    const response = await fetch(`${baseUrl()}/chat/completions`, init)
-    if (!response.ok) {
-      const body = await response.text().catch(() => '')
-      return { reply: '', ok: false, error: `DeepSeek API ${response.status}: ${body.slice(0, 300)}` }
-    }
-    const data = (await response.json()) as {
-      choices?: Array<{ message?: { content?: string } }>
-    }
-    const reply = data.choices?.[0]?.message?.content
-    if (reply === undefined) return { reply: '', ok: false, error: 'DeepSeek API returned no content' }
-    return { reply, ok: true }
-  } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      return { reply: '', ok: false, error: 'request timed out' }
-    }
-    return { reply: '', ok: false, error: error instanceof Error ? error.message : String(error) }
-  }
 }
 
 /** Scan context snapshot for the chat system prompt. */
