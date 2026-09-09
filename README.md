@@ -8,8 +8,8 @@
 
 | 层 | 名称 | 说明 |
 |---|---|---|
-| 仓库目录 | `dsh-plugin-doctor`（早期名遗留，本地路径） | 仅本地目录名，计划保持 |
-| npm 包 | `dsh-plugin-ops`（CLI）/ `dsh-plugin-ops-core`（引擎） | 对外发布名（GitHub 仓库同名 `dsh-plugin-ops`） |
+| GitHub 仓库 / npm 包 | `dsh-plugin-ops`（CLI）/ `dsh-plugin-ops-core`（引擎） | 对外名统一 |
+| 本地目录 | `dsh-plugin-ops`（统一中） | 早期名 `dsh-plugin-doctor` 遗留；rename 需在仓库目录外的新 shell 执行 `Move-Item <workspace>\dsh-plugin-doctor <workspace>\dsh-plugin-ops` |
 | 命令 | `dsh-ops` | 安装后提供的 bin |
 
 ## 为什么做
