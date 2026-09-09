@@ -1,0 +1,19 @@
+{
+  "comment": "Real third-party plugin corpus for dsh-ops sandbox scans. Versions are pinned exactly so ecosystem drift cannot break the baseline.",
+  "samples": [
+    { "name": "dsh-lsp-actions", "version": "0.4.5", "tags": ["tool", "installed-by-user"] },
+    { "name": "dsh-mcp-connector", "version": "0.2.37", "tags": ["mcp", "installed-by-user"] },
+    { "name": "dsh-whale-widget", "version": "0.2.10", "tags": ["ui", "installed-by-user"] },
+    { "name": "dsh-plugin-mgr", "version": "0.2.8", "tags": ["manager", "ecosystem-representative"] },
+    { "name": "dsh-find-plugin", "version": "0.3.7", "tags": ["tool", "ecosystem-representative"] },
+    { "name": "dsh-plugin-install", "version": "0.3.10", "tags": ["manager", "ecosystem-representative"] }
+  ],
+  "broken_samples": [
+    {
+      "name": "@leetoners/dsh-ui-subagent-monitor",
+      "version": "0.2.0",
+      "tags": ["ui", "installed-by-user"],
+      "failure": "cannot be installed into a fresh profile: peerDependencies require @deepseek-ai/dsh-client-ui-layout@>=0.1.0-rc.0 etc., but the official package publishes rc-only versions; pnpm reports ERR_PNPM_NO_MATCHING_VERSION for >=0.1.0. Live ecosystem defect — target for the future peer-gap rule (rule 4)."
+    }
+  ]
+}
