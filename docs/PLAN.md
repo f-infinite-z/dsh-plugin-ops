@@ -102,6 +102,29 @@ dsh-plugin-ops/            ← 本仓库（独立，MIT，dsh-plugin topic）
 6. **上次会话故障记忆**：记录每次启动结果（成功/失败 + 失败 entry + 当时各包版本快照），下次 scan 输出"自上次成功后变化的包"清单——归因的基础数据。
 7. **结构完整性**：exports/main/types 指向文件存在、ESM 合规（dsh 要求 ESM-only；CJS-only 出口直接判 fatal）。
 
+### 4.5 实现策略：依赖、调用与借鉴（减少重复工作量）
+
+原则：**核心规则逻辑（差异化诊断本身）自研且保持小；工程外壳（profile 定位、CLI、registry 通信、patch 写盘、事务回滚）全部依赖/调用/借结构，不自己造**。分四档：
+
+**A 档 · 直接依赖（成熟库）**
+- `semver`（范围匹配/比较；规则 2/3/4）；`yaml`（patch 解析含 `!!js` 容错，官方 loader 同款；规则 5 + fix 写补丁层）；`@pnpm/lockfile-file`（pnpm-lock v9 读取；规则 2）；CLI 用 Node 内置 `util.parseArgs`（零依赖）；构建用 esbuild/tsup（自包含打包，自保 §7 第 1 层）。
+
+**B 档 · 直接调用（白嫖现成能力，不写逻辑）**
+- 规则 3（registry 版本对比）= profile cwd 下 spawn `pnpm outdated --format json`：`.npmrc`/镜像/代理/认证/缓存/超时/限流全套由 pnpm 承担——这是诊断工具约 60% 代码与 90% 网络鲁棒性 bug 的来源，全部省掉；
+- 依赖树辅助信息用 `pnpm ls --json`（省依赖闭包 BFS 自实现）。
+
+**C 档 · 同生态官方参考（行为对齐，不 import）**
+- `scripts/verify-cordis-config.ts` 的 `validateAppResolution` = 官方"patch 行引用必须可解析"门禁，规则 5 直接对齐其语义；
+- `app-boot/src/profile.ts` 的 `packageDirFromAnchor`（`resolve.paths` 探测 = Node 解析序）、`readProfileManifest`、双锚点语义 = 规则 1/4/5 的解析顺序手法（~20 行，不值得依赖整个包）；
+- 注意：遵守自保原则，解析全部走**文件格式**，不 import `@deepseek-ai/dsh-app-boot` 等运行时发布包。
+
+**D 档 · 竞品代码借鉴（MIT；抄片段需 THIRD_PARTY_NOTICES 声明）**
+- oxlyn/dsh-plugin-mgr：`registry.ts`（npm 查询栈/缓存，与 B 档二选一）、`patch-layer.ts`（补丁层串行写、空 `[]` 占位防 profile 启动失败、非法 YAML 拒绝写入）——fix 写 disabled 直接用其思路；
+- AlexYin console：`operations.ts`（plan→执行→校验→恢复的事务骨架）、`canary.ts`（隔离试运行）——v0.1 fix 事务 + v2 canary 参照；
+- Noob hub：import probe、patch auto-heal、depsOutdated（subpackage 版本同步警告）——v2 一体化参照。
+
+预期效果：v0.1 自研量集中在 7 条规则的判定核心 + 故障记忆 + 报告模型 + plan/fix 事务外壳；每条规则核心几十行。
+
 ### 4.3 fix 可写操作（全部先 plan 后执行、留备份、可回滚）
 
 - 预写 `disabled` 行到 profile 用户补丁层（停用故障/不兼容插件）；
@@ -118,7 +141,7 @@ dsh-ops gate → scan 通过 → exec dsh → dsh 退出非零/启动特征失�
   → 用户确认后写 disabled patch → 重跑 dsh（保持原参数）
 ```
 
-### 4.5 近期不做（后续一体化阶段纳入，见 §7 路线图）
+### 4.6 近期不做（后续一体化阶段纳入，见 §8 路线图）
 
 核心亮点立住之前，不为广度分心。以下功能竞品已验证思路，属一体化阶段的借鉴/集成清单：
 
