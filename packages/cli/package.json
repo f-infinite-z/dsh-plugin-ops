@@ -1,11 +1,31 @@
 {
   "name": "dsh-plugin-ops",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "type": "module",
-  "description": "DeepSeek Harness plugin operations CLI: scan, fix, gate 鈥?pre-boot health checks and failure attribution",
+  "description": "DeepSeek Harness plugin operations: pre-boot health gate (scan/fix/gate), fault memory, dependency governance, and a local web panel",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/f-infinite-z/dsh-plugin-ops.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://github.com/f-infinite-z/dsh-plugin-ops#readme",
+  "keywords": [
+    "deepseek",
+    "harness",
+    "dsh",
+    "dsh-plugin",
+    "cordis",
+    "plugin",
+    "health-check",
+    "diagnostics",
+    "agent"
+  ],
   "bin": {
-    "dsh-ops": "lib/index.js"
+    "dsh-ops": "dist/index.js"
   },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -17,20 +37,23 @@
     "./package.json": "./package.json"
   },
   "files": [
-    "lib"
+    "lib",
+    "dist"
   ],
   "engines": {
     "node": "^22.19.0 || >=24.0.0"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && node -e \"require('fs').cpSync('assets','lib/assets',{recursive:true})\"",
+    "build": "tsc -p tsconfig.json && node -e \"require('fs').cpSync('assets','lib/assets',{recursive:true})\" && tsup",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "clean": "node -e \"require('fs').rmSync('lib',{recursive:true,force:true})\""
+    "test": "vitest run",
+    "clean": "node -e \"require('fs').rmSync('lib',{recursive:true,force:true});require('fs').rmSync('dist',{recursive:true,force:true})\""
   },
   "dependencies": {
     "dsh-plugin-ops-core": "workspace:*"
   },
   "devDependencies": {
+    "tsup": "^8.5.1",
     "typescript": "^7.0.2"
   }
 }

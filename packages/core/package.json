@@ -1,9 +1,28 @@
 {
   "name": "dsh-plugin-ops-core",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "type": "module",
-  "description": "Shared engine for dsh-plugin-ops: profile readers, scan rules, report model, fix planner",
+  "description": "Shared engine for dsh-plugin-ops: profile readers, scan rules, fault memory, fix planner, panel API",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/f-infinite-z/dsh-plugin-ops.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/f-infinite-z/dsh-plugin-ops#readme",
+  "keywords": [
+    "deepseek",
+    "harness",
+    "dsh",
+    "dsh-plugin",
+    "cordis",
+    "plugin",
+    "health-check",
+    "diagnostics"
+  ],
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "exports": {
@@ -23,7 +42,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "clean": "node -e \u0022require(\u0027fs\u0027).rmSync(\u0027lib\u0027,{recursive:true,force:true})\u0022"
+    "clean": "node -e \"require('fs').rmSync('lib',{recursive:true,force:true})\""
   },
   "dependencies": {
     "@deepseek-ai/dsh-home-paths": "0.0.1-rc.3",

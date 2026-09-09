@@ -2,7 +2,15 @@
 
 > DeepSeek Harness 插件运维（Plugin Operations）：启动前预检拦截、失败归因与修复、依赖树治理——核心是"医生"，长期收敛为插件管理增强一体化。
 
-**状态：v0.1 核心已实现（规则 1/2/6 + gate 分级处置），尚未发布 npm；规划见 [docs/PLAN.md](docs/PLAN.md)。**
+**状态：v0.3 开发中（v1.0 发布就绪推进中）**；执行进度/卡点见 [docs/PROGRESS.md](docs/PROGRESS.md)，策略与决策见 [docs/PLAN.md](docs/PLAN.md)。
+
+## 安装（npm 发布后）
+
+```sh
+npm i -g dsh-plugin-ops        # 提供 dsh-ops 命令（自包含单文件）
+```
+
+仓库内开发构建见下方"用法（源码运行）"。
 
 ## 为什么做
 

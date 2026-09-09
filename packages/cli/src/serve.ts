@@ -36,8 +36,10 @@ function originAllowed(req: IncomingMessage, options: ServeOptions): boolean {
 
 function serveAssets(res: ServerResponse): void {
   const root = dirname(fileURLToPath(import.meta.url))
-  const html = join(root, 'assets', 'index.html')
-  if (!existsSync(html)) {
+  // dev (lib/assets) and bundled (dist, assets flattened by tsup publicDir) layouts.
+  const candidates = [join(root, 'assets', 'index.html'), join(root, 'index.html')]
+  const html = candidates.find((file) => existsSync(file))
+  if (html === undefined) {
     json(res, 500, { error: 'assets missing — rebuild the cli package (pnpm --filter dsh-plugin-ops build)' })
     return
   }

@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run typecheck
+      - run: pnpm run test
+      - run: pnpm run build
+      - name: selftest (bundled artifact)
+        run: node packages/cli/dist/index.js selftest
+      - name: offline e2e (scan-fix + gate)
+        run: |
+          node scripts/e2e/scan-fix.e2e.mjs
+          node scripts/e2e/gate.e2e.mjs
+        timeout-minutes: 15
+      - name: real-plugin sandbox e2e (network)
+        if: ${{ !cancelled() }}
+        run: node scripts/e2e/real-plugins.e2e.mjs
+        timeout-minutes: 30
+        continue-on-error: true
