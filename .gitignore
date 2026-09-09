@@ -7,3 +7,6 @@ lib/
 .env.*
 !.env.example
 coverage/
+# Internal docs (PLAN/PROGRESS) live outside the repo — never re-add.
+/docs/PLAN.md
+/docs/PROGRESS.md
