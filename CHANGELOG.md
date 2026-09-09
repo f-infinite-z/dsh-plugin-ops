@@ -1,7 +1,6 @@
 # Changelog
 
-All notable changes are tracked here. Versions follow the project milestone
-plan in [docs/PLAN.md](docs/PLAN.md).
+All notable changes are tracked here.
 
 ## Unreleased (local work, not yet published)
 

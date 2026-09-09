@@ -2,7 +2,7 @@
 
 > DeepSeek Harness 插件运维（Plugin Operations）：一条命令全量体检、启动前预检拦截、失败归因与恢复、依赖树治理——插件生态的"医生"，长期收敛为插件管理增强一体化。
 
-**状态：v0.3 开发中（v1.0 发布就绪）；执行进度/卡点见 [docs/PROGRESS.md](docs/PROGRESS.md)，策略与决策见 [docs/PLAN.md](docs/PLAN.md)。**
+**状态：v0.3 开发中（v1.0 发布就绪）；拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
 
 ## 命名（三层关系）
 
@@ -97,6 +97,6 @@ node scripts/e2e/real-plugins.e2e.mjs    # 真实第三方插件沙箱（需网�
 
 ## 参考
 
-- [docs/PLAN.md](docs/PLAN.md) 策略与决策 · [docs/PROGRESS.md](docs/PROGRESS.md) 进度与卡点
+- [docs/architecture.md](docs/architecture.md) 拦截/修复/记忆机制说明
 - 官方仓库：https://github.com/deepseek-ai/deepseek-harness
 - 许可证：MIT（见 [LICENSE](LICENSE)）

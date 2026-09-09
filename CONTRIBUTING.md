@@ -1,9 +1,9 @@
 # Contributing
 
 Thanks for helping! dsh-plugin-ops is a small, focused project; before opening
-a PR please read the plan so we agree on direction: [docs/PLAN.md](docs/PLAN.md)
-holds strategy and decisions, [docs/PROGRESS.md](docs/PROGRESS.md) tracks what
-is done and what is stuck.
+a PR please read [README.md](README.md) (capabilities, rules, architecture
+overview) and [docs/architecture.md](docs/architecture.md) (mechanisms) so we
+agree on direction.
 
 ## Scope guidance
 
@@ -32,7 +32,7 @@ node scripts/e2e/scan-fix.e2e.mjs     # needs network for real installs
 - Behavior change: update the owning rule/module tests (coverage is 100%-style
   per module in CI).
 - User-visible change: update README and the panel dictionaries (zh/en).
-- Every real bug deserves a regression test and a note in docs/PROGRESS.md.
+- Every real bug deserves a regression test and a short explanation in the PR body.
 - Commit messages summarize what and why; keep history linear via rebase.
 
 ## Editing files with non-ASCII content
