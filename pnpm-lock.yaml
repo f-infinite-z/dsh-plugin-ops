@@ -28,6 +28,9 @@ importers:
       dsh-plugin-ops-core:
         specifier: workspace:*
         version: link:../core
+      yaml:
+        specifier: ^2.9.0
+        version: 2.9.0
     devDependencies:
       tsup:
         specifier: ^8.5.1

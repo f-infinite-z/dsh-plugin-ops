@@ -4,6 +4,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { handlePanelApi, PanelApiError, ScanError, type PanelApiOptions } from 'dsh-plugin-ops-core'
 import type { DshPaths, OpsConfig } from 'dsh-plugin-ops-core'
+import { resolveApiKey, buildSystemPrompt, chatTurn, buildChatContext, type ChatMessage } from './chat.js'
 
 export interface ServeOptions {
   paths: DshPaths
@@ -76,6 +77,33 @@ export async function serve(options: ServeOptions): Promise<number> {
         return
       }
       const body = req.method === 'POST' ? await collectBody(req) : undefined
+      if (req.method === 'POST' && url.pathname === '/api/chat') {
+        const parsed = JSON.parse(body ?? '{}') as { profile?: unknown; lang?: unknown; messages?: unknown }
+        const profile = typeof parsed.profile === 'string' ? parsed.profile : 'web'
+        const lang = typeof parsed.lang === 'string' ? parsed.lang : 'zh'
+        const messages = Array.isArray(parsed.messages)
+          ? parsed.messages.filter((m): m is ChatMessage => typeof m === 'object' && m !== null && (m as ChatMessage).role === 'user' && typeof (m as ChatMessage).content === 'string').slice(-10)
+          : []
+        if (messages.length === 0) {
+          json(res, 400, { error: 'no user messages' })
+          return
+        }
+        const apiKey = resolveApiKey(options.paths.home)
+        if (apiKey === null) {
+          json(res, 200, { ok: false, reply: '', error: 'no DEEPSEEK_API_KEY in environment or $DSH_HOME/.env' })
+          return
+        }
+        const context = await buildChatContext(options.paths, profile, options.config)
+        const controller = new AbortController()
+        const timer = setTimeout(() => controller.abort(), 60000)
+        try {
+          const result = await chatTurn(apiKey, buildSystemPrompt(context, lang), messages, controller.signal)
+          json(res, result.ok ? 200 : 502, { ok: result.ok, reply: result.reply, error: result.error })
+        } finally {
+          clearTimeout(timer)
+        }
+        return
+      }
       const result = await handlePanelApi(req.method ?? 'GET', url, apiOptions, body)
       json(res, result.status, result.body)
     } catch (error) {
