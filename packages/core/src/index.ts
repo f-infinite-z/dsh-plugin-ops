@@ -2,7 +2,7 @@ export { resolveDshPaths, MEMORY_DIR_NAME, MEMORY_FILENAME, type DshPaths } from
 export { readProfileManifest, profileBundles, registryDependencies, resolveBundles, anchorFiles, type ProfileManifest, type ResolvedBundle, type BundleResolution } from './profile.js'
 export { packageDirFromAnchor, packageDirFromAnchors, readPackageManifest, type PackageManifest } from './package-tree.js'
 export { readLockedDirectDeps, hasLockfile, type LockedDirectDeps } from './lockfile.js'
-export { appendMemory, lastSuccessSnapshot, diffSnapshots, type MemoryEvent } from './memory.js'
+export { appendMemory, lastSuccessSnapshot, recentEvents, diffSnapshots, type MemoryEvent } from './memory.js'
 export { scanProfile, ScanError, declaredRegistryNames, type ScanInput } from './scan.js'
 export { renderHuman, renderJson, reportOk, countSeverities } from './report.js'
 export { readPatchFile, appendDisabledRow, removeDisabledRow, patchFileExists, PROFILE_PATCH_FILENAME, type PatchRow, type PatchFileState, type PatchWriteResult } from './patch-layer.js'

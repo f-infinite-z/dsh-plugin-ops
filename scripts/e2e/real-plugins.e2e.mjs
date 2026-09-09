@@ -59,6 +59,13 @@ function assert(condition, message) {
   if (!condition) throw new Error(message)
 }
 
+function replaceJsonAtomic(file, next) {
+  const tmp = `${file}.dshops-tmp`
+  writeFileSync(tmp, `${JSON.stringify(next, null, 2)}\n`, 'utf8')
+  rmSync(file, { force: true })
+  renameSync(tmp, file)
+}
+
 /** Guard: every mutation in this script must stay inside the temp sandbox. */
 function assertSandboxed(path) {
   const resolved = path.replace(/\\/g, '/')
@@ -98,7 +105,7 @@ try {
       if (!existsSync(pkgJson)) continue
       const manifest = readJson(pkgJson)
       if (!manifest.version) continue
-      writeFileSync(pkgJson, JSON.stringify({ ...manifest, version: `${manifest.version}-drift-test` }, null, 2), 'utf8')
+      replaceJsonAtomic(pkgJson, { ...manifest, version: `${manifest.version}-drift-test` })
     }
   }
   const drifted = runDshOps(home, 'scan', ['--skip-update-check'])

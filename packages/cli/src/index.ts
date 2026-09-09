@@ -4,6 +4,7 @@ import { resolveDshPaths, readOpsConfig } from 'dsh-plugin-ops-core'
 import { runScanCommand } from './scan-cmd.js'
 import { runFixCommand } from './fix-cmd.js'
 import { runGateCommand } from './gate-cmd.js'
+import { serve } from './serve.js'
 
 const USAGE = `dsh-ops — DeepSeek Harness plugin operations
 
@@ -12,6 +13,7 @@ usage:
   dsh-ops fix   [--profile <name>] [--home <dir>] [--dry-run] [--yes] [--config <file>]
   dsh-ops gate  [--profile <name>] [--home <dir>] [--bypass] [--no-attribution]
                 [--boot-threshold-ms <n>] [--config <file>] [--] <dsh command...>
+  dsh-ops serve [--home <dir>] [--port <n>] [--host <addr>] [--config <file>]
   dsh-ops help
 
 config: read from <DSH_HOME>/dsh-ops.yml by default (rules on/off, severity
@@ -36,10 +38,12 @@ const OPTIONS = {
   'no-attribution': { type: 'boolean', default: false },
   config: { type: 'string' },
   'skip-update-check': { type: 'boolean', default: false },
+  port: { type: 'string' },
+  host: { type: 'string', default: '127.0.0.1' },
   'boot-threshold-ms': { type: 'string' },
 } as const
 
-type Flags = { profile: string; home?: string; json?: boolean; 'dry-run'?: boolean; yes?: boolean; bypass?: boolean; 'no-attribution'?: boolean; config?: string; 'skip-update-check'?: boolean; 'boot-threshold-ms'?: string }
+type Flags = { profile: string; home?: string; json?: boolean; 'dry-run'?: boolean; yes?: boolean; bypass?: boolean; 'no-attribution'?: boolean; config?: string; 'skip-update-check'?: boolean; port?: string; host?: string; 'boot-threshold-ms'?: string }
 
 function parse(rawArgs: string[]): { values: Flags; positionals: string[] } {
   const { values, positionals } = parseArgs({
@@ -106,6 +110,18 @@ async function main(): Promise<number> {
         config,
         dshCommand: positionals.length > 0 ? positionals : ['dsh', '--profile', values.profile],
       })
+    }
+    case 'serve': {
+      const { values } = parse(rest)
+      const paths = resolveDshPaths('web', values.home)
+      const config = loadConfig(values.config, paths.configFile)
+      if (config === null) return 2
+      const port = values.port === undefined ? 8912 : Number(values.port)
+      if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+        process.stderr.write('invalid --port\n')
+        return 2
+      }
+      return serve({ paths, host: values.host ?? '127.0.0.1', port, config })
     }
     default:
       process.stderr.write(`unknown command ${JSON.stringify(command)}\n\n${USAGE}`)

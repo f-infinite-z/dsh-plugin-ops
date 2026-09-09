@@ -258,8 +258,13 @@ dsh-ops gate --profile web -- dsh --profile web
 8. 规则 7：**CJS 主入口 = fatal**（无 `"type": "module"` 且入口为 .js/.cjs，被 patch 行引用时）——对齐官方 named-export 契约（postmortem 0001：CJS 丢插件 namespace 致 inject 失效）。
 9. 规则 3：v0.2 实现，经 `pnpm outdated --format json`；advisory 级（warn：有更新；info：无法检查），**不阻断 gate**；结果缓存 5 分钟 TTL；超时降级不报错。
 
+### 已决（2026-09-09 可视化面板与测试安全）
+
+10. **双形态面板**：先做独立本地 Web 面板（`dsh-ops serve`，127.0.0.1 默认 8912，进程内直调 core 引擎，写操作仅白名单 align-lockfile 且同源校验），服务用户偏好切换的入口 A；官方 dsh 设置页内嵌 bundle 形态（入口 B）随 v1.0 npm 发布实现。两者共享同一 report/memory 数据面。
+11. **测试注入不得截断写 pnpm 安装树**：pnpm 的 `.pnpm` 文件与全局 store 是 hardlink——截断写（writeFileSync 原路径）会污染全局 store，后续任何 install 都会从损坏 store 提取坏版本。E2E 故障注入必须"原子替换"（写 tmp + 删原 + rename），并断言所有变更落在 temp 沙箱。真实环境曾因此被两次污染（`-drift-test` 版本残留），修复=清 `pnpm cache delete` + 删 `.pnpm` 损坏目录 + frozen 重装。
+
 ### 待议
 
-10. 语言：仓库文档是否中英双语（对标生态头部项目，开源前定稿）。
-11. dsh-ops 自身升级通道（§7 第 2 层 canary-then-switch）的具体触发形态：随 gate 每次跑 vs 独立 `self-update` 子命令（v1.0 前定）。
-12. `fix` 自动执行 vs 交互确认的边界细化：v0.1 哪些写操作可以无确认直接做（如 lockfile 对齐 vs 写 disabled）。
+12. 语言：仓库文档是否中英双语（对标生态头部项目，开源前定稿）。
+13. dsh-ops 自身升级通道（§7 第 2 层 canary-then-switch）的具体触发形态：随 gate 每次跑 vs 独立 `self-update` 子命令（v1.0 前定）。
+14. `fix` 自动执行 vs 交互确认的边界细化：v0.1 哪些写操作可以无确认直接做（如 lockfile 对齐 vs 写 disabled）。

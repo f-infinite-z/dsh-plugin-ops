@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dsh-ops 面板</title>
+<style>
+  :root {
+    --bg: #0f1115; --card: #171a21; --card2: #1e222b; --line: #2a2f3a;
+    --text: #e6e9ef; --dim: #8b93a3; --ok: #34d399; --warn: #fbbf24; --fatal: #f87171; --info: #60a5fa;
+    --accent: #4d6bfe;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, "Segoe UI", "Microsoft YaHei", sans-serif; padding: 24px; max-width: 1100px; margin: 0 auto; }
+  h1 { font-size: 18px; display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+  .sub { color: var(--dim); margin-bottom: 18px; font-size: 12px; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+  select, button { background: var(--card2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 7px 14px; font-size: 13px; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button:disabled { opacity: .45; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 18px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .card .k { color: var(--dim); font-size: 12px; margin-bottom: 6px; }
+  .card .v { font-size: 22px; font-weight: 600; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .b-fatal { background: #3a1616; color: var(--fatal); } .b-warn { background: #3a2f10; color: var(--warn); } .b-info { background: #10233a; color: var(--info); } .b-ok { background: #0d2f22; color: var(--ok); }
+  .panel { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 18px; }
+  .panel h2 { font-size: 14px; margin-bottom: 10px; color: var(--dim); font-weight: 600; }
+  .finding { display: flex; gap: 10px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid #22262f; }
+  .finding:last-child { border-bottom: none; }
+  .finding .msg { flex: 1; }
+  .finding .pkg { color: var(--dim); font-size: 12px; }
+  .finding .det { color: var(--dim); font-size: 12px; margin-top: 2px; }
+  .empty { color: var(--dim); padding: 10px 0; }
+  .timeline { font-size: 12px; color: var(--dim); }
+  .timeline .ev { padding: 5px 0; border-bottom: 1px solid #22262f; display: flex; gap: 8px; }
+  .mono { font-family: Consolas, monospace; }
+  .btn-row { display: flex; gap: 8px; margin-top: 10px; }
+  pre { white-space: pre-wrap; font-size: 12px; color: var(--dim); background: var(--card2); border-radius: 8px; padding: 10px; max-height: 300px; overflow: auto; }
+  .toast { position: fixed; right: 16px; bottom: 16px; background: var(--card2); border: 1px solid var(--line); padding: 10px 16px; border-radius: 10px; display: none; max-width: 420px; }
+</style>
+</head>
+<body>
+  <h1>dsh-ops 面板 <span id="homeLabel" class="badge b-info"></span></h1>
+  <div class="sub">DeepSeek Harness 插件运维 · 只读扫描 + 受控修复（127.0.0.1 本地服务）</div>
+
+  <div class="row">
+    <select id="profile"></select>
+    <button id="btnScan" class="primary">扫描</button>
+    <label style="font-size:12px;color:var(--dim)"><input type="checkbox" id="withUpdates" style="vertical-align:middle"> 含 registry 更新检查（慢）</label>
+    <span id="scanState" style="color:var(--dim);font-size:12px"></span>
+  </div>
+
+  <div class="cards">
+    <div class="card"><div class="k">fatal</div><div class="v" id="cFatal" style="color:var(--fatal)">-</div></div>
+    <div class="card"><div class="k">warn</div><div class="v" id="cWarn" style="color:var(--warn)">-</div></div>
+    <div class="card"><div class="k">info</div><div class="v" id="cInfo" style="color:var(--info)">-</div></div>
+    <div class="card"><div class="k">总体</div><div class="v" id="cOk">-</div></div>
+  </div>
+
+  <div class="panel">
+    <h2>扫描结果 <span id="scanTime" style="float:right;font-weight:400"></span></h2>
+    <div id="findings"></div>
+  </div>
+
+  <div class="panel" id="fixPanel" style="display:none">
+    <h2>可自动修复（lockfile 对齐：pnpm install --frozen-lockfile --force）</h2>
+    <div id="fixPlan" class="empty">先扫描以生成修复计划…</div>
+    <div class="btn-row">
+      <button id="btnFixPreview">预览计划</button>
+      <button id="btnFixRun" class="primary">执行修复</button>
+      <span id="fixState" style="color:var(--dim);font-size:12px;align-self:center"></span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>故障记忆时间线（最近 12 条）</h2>
+    <div id="timeline" class="timeline"></div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id)
+const state = { profiles: [], scan: null }
+
+async function api(path, opts) {
+  const res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(body.error || `${res.status} ${res.statusText}`)
+  return body
+}
+function toast(msg, ms = 3500) {
+  const t = $('toast'); t.textContent = msg; t.style.display = 'block'
+  setTimeout(() => { t.style.display = 'none' }, ms)
+}
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])) }
+
+async function loadProfiles() {
+  const info = await api('/api/info')
+  $('homeLabel').textContent = info.homeDisplay
+  state.profiles = info.profiles
+  const sel = $('profile')
+  sel.innerHTML = ''
+  for (const p of info.profiles) {
+    const opt = document.createElement('option')
+    opt.value = p.name; opt.textContent = p.name + (p.bundles?.length ? `（${p.bundles.length} bundle）` : '')
+    sel.appendChild(opt)
+  }
+  if (state.profiles.length === 0) { $('scanState').textContent = '未发现 profile'; return }
+  const saved = localStorage.getItem('dshops-profile')
+  if (saved && state.profiles.some(p => p.name === saved)) sel.value = saved
+  sel.onchange = () => { localStorage.setItem('dshops-profile', sel.value); loadMemory() }
+  loadMemory()
+}
+
+async function doScan() {
+  const profile = $('profile').value
+  if (!profile) return
+  $('scanState').textContent = '扫描中…'
+  $('btnScan').disabled = true
+  try {
+    const report = await api(`/api/scan?profile=${encodeURIComponent(profile)}&updates=${$('withUpdates').checked}`)
+    state.scan = report
+    renderReport(report)
+    $('scanTime').textContent = new Date().toLocaleTimeString()
+    $('scanState').textContent = ''
+    renderFixPanel(report)
+    loadMemory()
+  } catch (err) {
+    $('scanState').textContent = ''
+    toast('扫描失败：' + err.message, 6000)
+  } finally {
+    $('btnScan').disabled = false
+  }
+}
+
+function renderReport(report) {
+  const counts = { fatal: 0, warn: 0, info: 0 }
+  for (const f of report.findings) counts[f.severity]++
+  $('cFatal').textContent = counts.fatal
+  $('cWarn').textContent = counts.warn
+  $('cInfo').textContent = counts.info
+  const ok = counts.fatal === 0
+  $('cOk').textContent = ok ? 'OK' : 'BLOCKED'
+  $('cOk').style.color = ok ? 'var(--ok)' : 'var(--fatal)'
+  const box = $('findings'); box.innerHTML = ''
+  if (report.findings.length === 0) { box.innerHTML = '<div class="empty">无任何发现</div>'; return }
+  for (const f of report.findings) {
+    const d = document.createElement('div'); d.className = 'finding'
+    d.innerHTML = `<span class="badge b-${f.severity}">${f.severity.toUpperCase()}</span>
+      <div class="msg">${esc(f.message)}<div class="pkg">${f.ruleId}${f.packageName ? ' · ' + esc(f.packageName) : ''}</div>
+      ${f.detail ? `<div class="det">${esc(f.detail)}</div>` : ''}</div>`
+    box.appendChild(d)
+  }
+}
+
+function renderFixPanel(report) {
+  const alignable = report.findings.filter(f => f.severity === 'fatal' && f.fix.kind === 'align-lockfile')
+  $('fixPanel').style.display = alignable.length > 0 ? '' : 'none'
+  if (alignable.length === 0) return
+  $('fixPlan').textContent = `将执行 pnpm install --frozen-lockfile --force（修复 ${alignable.length} 条致命漂移），运行目录 ${report.profileDir}`
+}
+
+async function previewFix() {
+  if (!state.scan) return
+  $('fixState').textContent = ''
+  const p = $('profile').value
+  const plan = await api('/api/fix/preview?profile=' + encodeURIComponent(p))
+  $('fixPlan').textContent = `计划动作：${plan.actions.length} 项\n${plan.actions.join('\n')}`
+  $('fixState').textContent = '预览仅计算，未改动任何文件'
+}
+
+async function runFix() {
+  if (!state.scan) return
+  if (!confirm('将按 lockfile 对齐磁盘安装状态（pnpm install --frozen-lockfile --force）。继续？')) return
+  $('fixState').textContent = '执行中…'
+  $('btnFixRun').disabled = true
+  try {
+    const p = $('profile').value
+    const result = await api('/api/fix/execute?profile=' + encodeURIComponent(p), { method: 'POST' })
+    $('fixState').textContent = ''
+    toast(result.ok ? '修复完成，重新扫描验证' : '修复失败：' + result.detail, result.ok ? 2500 : 8000)
+    doScan()
+  } catch (err) {
+    $('fixState').textContent = ''
+    toast('修复失败：' + err.message, 8000)
+  } finally {
+    $('btnFixRun').disabled = false
+  }
+}
+
+async function loadMemory() {
+  const profile = $('profile').value
+  const tl = $('timeline')
+  try {
+    const data = await api(`/api/memory?profile=${encodeURIComponent(profile)}`)
+    tl.innerHTML = ''
+    if (data.events.length === 0) { tl.innerHTML = '<div class="ev">暂无记录（gate/scan 会自动建立）</div>'; return }
+    for (const ev of data.events) {
+      const d = document.createElement('div'); d.className = 'ev'
+      const label = { success: '成功', failure: '失败', attempt: '尝试', bypass: '旁路', fix: '修复' }[ev.type] || ev.type
+      const color = { success: 'var(--ok)', failure: 'var(--fatal)', bypass: 'var(--warn)' }[ev.type] || 'var(--dim)'
+      d.innerHTML = `<span style="color:${color};font-weight:600">${label}</span>
+        <span class="mono">${esc(new Date(ev.ts).toLocaleString())}</span>
+        <span>${esc(ev.detail || '')}</span>`
+      tl.appendChild(d)
+    }
+  } catch { tl.innerHTML = '<div class="ev">记忆读取失败</div>' }
+}
+
+$('btnScan').onclick = doScan
+$('btnFixPreview').onclick = previewFix
+$('btnFixRun').onclick = runFix
+loadProfiles()
+</script>
+</body>
+</html>

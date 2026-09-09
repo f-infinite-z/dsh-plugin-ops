@@ -31,7 +31,12 @@ node packages/cli/lib/index.js fix --profile web --dry-run
 
 # 启动门：预检通过才放行 dsh；fatal 先阻断，能自动修的先修后放行
 node packages/cli/lib/index.js gate --profile web -- dsh web
+
+# 可视化面板（本地 Web UI）：浏览器打开 http://127.0.0.1:8912
+node packages/cli/lib/index.js serve --port 8912
 ```
+
+面板功能：profile 切换、一键扫描（可选含 registry 更新检查）、fatal/warn 分类健康卡、故障记忆时间线、可自动修复项的预览与执行（仅白名单 align-lockfile 写操作、同源校验、127.0.0.1 默认绑定）。
 
 退出码：`0` 通过（或 dsh 自身退出码）/ `1` 仍有 fatal / `2` 用法或 profile 缺失 / `3` gate 被需人工处置的 fatal 阻断 / `4` 归因后用户放弃 / `5` 归因需 TTY。
 

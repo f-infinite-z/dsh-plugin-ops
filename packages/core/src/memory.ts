@@ -63,6 +63,12 @@ export function lastSuccessSnapshot(paths: DshPaths, profile: string): { at: str
   return null
 }
 
+/** Most recent events for one profile, oldest first. */
+export function recentEvents(paths: DshPaths, profile: string, limit = 20): MemoryEvent[] {
+  const events = readEvents(paths, profile)
+  return events.slice(-limit)
+}
+
 export function diffSnapshots(previous: PackageSnapshot, current: PackageSnapshot): SnapshotDiffEntry[] {
   const names = new Set([...Object.keys(previous.packages), ...Object.keys(current.packages)])
   const entries: SnapshotDiffEntry[] = []

@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync, readFileSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync, readFileSync, renameSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
@@ -43,8 +43,17 @@ const install = spawnSync('cmd.exe', ['/c', 'pnpm', 'install'], { cwd: webB, enc
 if (install.status !== 0) throw new Error(`fixture install failed: ${String(install.stderr).slice(0, 800)}`)
 
 const oddPkgDir = join(webB, 'node_modules', 'is-odd')
-const oddPkg = JSON.parse(readFileSync(join(oddPkgDir, 'package.json'), 'utf8'))
-writeFileSync(join(oddPkgDir, 'package.json'), JSON.stringify({ ...oddPkg, version: '9.9.9' }, null, 2), 'utf8')
+
+// Atomic replace: writing through the pnpm symlink with a truncating write
+// would corrupt the shared global store (hardlinks). Delete + rename instead.
+function replaceJsonAtomic(file, next) {
+  const tmp = `${file}.dshops-tmp`
+  writeFileSync(tmp, `${JSON.stringify(next, null, 2)}\n`, 'utf8')
+  rmSync(file, { force: true })
+  renameSync(tmp, file)
+}
+const oddOriginal = JSON.parse(readFileSync(join(oddPkgDir, 'package.json'), 'utf8'))
+replaceJsonAtomic(join(oddPkgDir, 'package.json'), { ...oddOriginal, version: '9.9.9' })
 
 const b = run(homeB, 'scan')
 console.log('B scan code:', b.code)
