@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { scanProfile, reportOk } from '../src/index.js'
 import { makeHome, writeProfile, writeInstalledPackages, writeLockfile } from './helpers.js'
 
@@ -168,6 +170,46 @@ describe('rule 2: dependency drift', () => {
       const finding = report.findings.find((f) => f.ruleId === 'dependency-drift' && f.packageName === 'pkg-a')
       expect(finding?.severity).toBe('warn')
       expect(finding?.message).toContain('not installed')
+    } finally {
+      fixture.dispose()
+    }
+  })
+
+  it('treats a peer-context lockfile version as equal to the bare installed version', async () => {
+    const fixture = makeHome()
+    try {
+      writeProfile(fixture.paths, { dependencies: { 'pkg-a': '^1.0.0' } })
+      writeInstalledPackages(fixture.paths, [{ name: 'pkg-a', version: '1.0.1' }])
+      // pnpm encodes the resolved peer context in the importer version.
+      writeFileSync(
+        join(fixture.paths.profileDir, 'pnpm-lock.yaml'),
+        "lockfileVersion: '9.0'\nsettings:\n  autoInstallPeers: false\nimporters:\n  .:\n    dependencies:\n      'pkg-a':\n        specifier: ^1.0.0\n        version: 1.0.1(react@18.3.1)\n",
+        'utf8',
+      )
+      const report = await scanProfile({ paths: fixture.paths, profileName: 'web' })
+      expect(reportOk(report)).toBe(true)
+      expect(report.findings.some((f) => f.severity === 'fatal')).toBe(false)
+    } finally {
+      fixture.dispose()
+    }
+  })
+
+  it('does not warn about closure-resolved box bundles missing from dependencies', async () => {
+    const fixture = makeHome()
+    try {
+      writeProfile(fixture.paths, { dependencies: {}, bundles: ['@deepseek-ai/dsh-base'] })
+      // The official box bundle lives only in the shared installation closure.
+      const boxDir = join(fixture.paths.sharedProfilesDir, '@deepseek-ai', 'dsh-base')
+      mkdirSync(boxDir, { recursive: true })
+      writeFileSync(join(boxDir, 'package.json'), JSON.stringify({
+        name: '@deepseek-ai/dsh-base', version: '0.1.0',
+        dsh: { bundle: { patch: 'cordis.patch.yml' } },
+      }), 'utf8')
+      writeFileSync(join(boxDir, 'cordis.patch.yml'), '- id: probe\n', 'utf8')
+      writeLockfile(fixture.paths, {})
+      const report = await scanProfile({ paths: fixture.paths, profileName: 'web' })
+      expect(reportOk(report)).toBe(true)
+      expect(report.findings.some((f) => f.message.includes('not declared in profile dependencies'))).toBe(false)
     } finally {
       fixture.dispose()
     }

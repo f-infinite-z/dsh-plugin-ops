@@ -1,11 +1,7 @@
 import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { readJsonFile } from './fsutil.js'
-import {
-  packageDirFromAnchors,
-  readPackageManifest,
-  type PackageManifest,
-} from './package-tree.js'
+import { packageDirFromAnchor, packageDirFromAnchors, readPackageManifest, type PackageManifest } from './package-tree.js'
 import type { DshPaths } from './paths.js'
 
 export interface ProfileManifest {
@@ -77,6 +73,8 @@ export interface ResolvedBundle {
   manifest: PackageManifest
   patch: string
   patchFileExists: boolean
+  /** 'profile' = resolved from the profile's own dependency tree; 'closure' = from the shared installation closure. */
+  from: 'profile' | 'closure'
 }
 
 export interface BundleResolution {
@@ -86,6 +84,7 @@ export interface BundleResolution {
 
 export function resolveBundles(paths: DshPaths, manifest: ProfileManifest): BundleResolution {
   const anchors = anchorFiles(paths)
+  const profileNodeModules = join(paths.profileDir, 'node_modules')
   const resolved: ResolvedBundle[] = []
   const problems: { name: string; message: string }[] = []
   for (const name of profileBundles(manifest)) {
@@ -104,7 +103,23 @@ export function resolveBundles(paths: DshPaths, manifest: ProfileManifest): Bund
       problems.push({ name, message: 'package declares no dsh.bundle.patch (bundle-less package listed as a layer)' })
       continue
     }
-    resolved.push({ name, dir, manifest: bundleManifest, patch, patchFileExists: existsSync(join(dir, patch)) })
+    resolved.push({
+      name,
+      dir,
+      manifest: bundleManifest,
+      patch,
+      patchFileExists: existsSync(join(dir, patch)),
+      // The shared installation closure sits on the profile's own resolution
+      // chain, so the first anchor can already hit a box bundle. Judge by
+      // physical location instead: only packages physically inside the
+      // profile's node_modules are profile-local.
+      from: isWithin(dir, profileNodeModules) ? 'profile' : 'closure',
+    })
   }
   return { resolved, problems }
+}
+
+function isWithin(child: string, parent: string): boolean {
+  const relative = child.slice(parent.length).replace(/\\/g, '/')
+  return (child === parent || relative.startsWith('/')) && !relative.startsWith('../')
 }

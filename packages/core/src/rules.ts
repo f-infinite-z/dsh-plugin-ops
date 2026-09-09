@@ -25,6 +25,15 @@ export function trackedPackageNames(ctx: RuleContext, resolved: ResolvedBundle[]
   return [...names].sort()
 }
 
+/**
+ * Bundles resolved from the shared installation closure (the official box
+ * bundles) are not expected in the profile's own dependencies; only
+ * profile-local packages must be declared there.
+ */
+export function bundleSources(resolved: ResolvedBundle[]): Map<string, 'profile' | 'closure'> {
+  return new Map(resolved.map((bundle) => [bundle.name, bundle.from]))
+}
+
 function installedVersion(ctx: RuleContext, name: string): { version: string | null; declaredInDeps: boolean } {
   const dir = packageDirFromAnchors(ctx.anchors, name)
   const manifest = dir === null ? null : readPackageManifest(dir)
@@ -62,6 +71,7 @@ export function ruleBundleDeclaration(ctx: RuleContext): Finding[] {
 export function ruleDependencyDrift(ctx: RuleContext, resolved: ResolvedBundle[]): Finding[] {
   const findings: Finding[] = []
   const { missing: lockMissing, incompatible: lockIncompatible, versions: locked } = ctx.locked
+  const sources = bundleSources(resolved)
 
   if (lockMissing) {
     findings.push({
@@ -86,7 +96,7 @@ export function ruleDependencyDrift(ctx: RuleContext, resolved: ResolvedBundle[]
     const lockedVersion = locked[name] ?? null
     const { version: installed, declaredInDeps } = installedVersion(ctx, name)
 
-    if (!declaredInDeps) {
+    if (!declaredInDeps && sources.get(name) !== 'closure') {
       findings.push({
         ruleId: 'dependency-drift',
         severity: 'warn',

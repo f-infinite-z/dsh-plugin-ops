@@ -24,6 +24,16 @@ interface LockfileLike {
 }
 
 /**
+ * The importer's locked version may carry a peer-context suffix
+ * (`0.2.37(react@18.3.1)`); the disk manifest only records the bare version,
+ * so the comparison key strips anything from the first `(`.
+ */
+function bareVersion(version: string): string {
+  const cut = version.indexOf('(')
+  return cut === -1 ? version : version.slice(0, cut)
+}
+
+/**
  * Read the profile's pnpm-lock.yaml and extract direct dependency lock
  * versions. An unsupported lockfile format is reported as `incompatible`
  * (caller degrades conservatively) rather than thrown, per the self-reliance
@@ -46,7 +56,7 @@ export async function readLockedDirectDeps(profileDir: string): Promise<LockedDi
         if (!group) continue
         for (const [name, version] of Object.entries(group)) {
           if (!version.startsWith('link:') && !version.startsWith('file:')) {
-            versions[name] = version
+            versions[name] = bareVersion(version)
           }
         }
       }
