@@ -75,7 +75,7 @@ ignorePackages:
 
 - **核心逻辑在 dsh 插件树之外**（独立 wrapper 进程 + 只读文件解析），dsh 崩溃不影响诊断，诊断失败不拦 dsh（fail-open 只适用于自身故障）。
 - **自包含构建**：发布物为 tsup 单文件，运行时零 node_modules —— 没有依赖树就没有依赖树可漂。
-- 规则消息单语英文（CLI/JSON/面板单一事实）；面板 UI 词典化中英切换。
+- 规则消息单语英文（CLI/JSON/面板单一事实）；面板 UI 词典化中英切换。dsh-ops serve 面板含诊断对话（ModelChannel 通道：显式 DSH_OPS_LLM_API_KEY/_BASE_URL/_MODEL 覆盖，或探测 DEEPSEEK/ARK/DASHSCOPE/OPENAI 的 env/.env/.credentials.yaml 凭据；内嵌形态将复用官方 ctx.llm seam）。
 - 写操作白名单 + 同源校验 + 自动备份；故障注入测试有 temp 沙箱路径断言。
 
 ## 开发
