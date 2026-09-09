@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>dsh-ops 面板</title>
+<title>dsh-ops</title>
 <style>
   :root {
     --bg: #0f1115; --card: #171a21; --card2: #1e222b; --line: #2a2f3a;
@@ -30,52 +30,57 @@
   .finding { display: flex; gap: 10px; align-items: baseline; padding: 8px 0; border-bottom: 1px solid #22262f; }
   .finding:last-child { border-bottom: none; }
   .finding .msg { flex: 1; }
-  .finding .pkg { color: var(--dim); font-size: 12px; }
+  .finding .meta { color: var(--dim); font-size: 12px; margin-top: 2px; }
   .finding .det { color: var(--dim); font-size: 12px; margin-top: 2px; }
   .empty { color: var(--dim); padding: 10px 0; }
   .timeline { font-size: 12px; color: var(--dim); }
   .timeline .ev { padding: 5px 0; border-bottom: 1px solid #22262f; display: flex; gap: 8px; }
   .mono { font-family: Consolas, monospace; }
   .btn-row { display: flex; gap: 8px; margin-top: 10px; }
-  pre { white-space: pre-wrap; font-size: 12px; color: var(--dim); background: var(--card2); border-radius: 8px; padding: 10px; max-height: 300px; overflow: auto; }
   .toast { position: fixed; right: 16px; bottom: 16px; background: var(--card2); border: 1px solid var(--line); padding: 10px 16px; border-radius: 10px; display: none; max-width: 420px; }
+  .spacer { flex: 1; }
 </style>
 </head>
 <body>
-  <h1>dsh-ops 面板 <span id="homeLabel" class="badge b-info"></span></h1>
-  <div class="sub">DeepSeek Harness 插件运维 · 只读扫描 + 受控修复（127.0.0.1 本地服务）</div>
+  <h1><span data-i18n="appTitle">dsh-ops</span> <span id="homeLabel" class="badge b-info"></span>
+    <span class="spacer"></span>
+    <select id="langSel" style="font-size:12px;padding:4px 8px">
+      <option value="zh">中文</option><option value="en">English</option>
+    </select>
+  </h1>
+  <div class="sub" data-i18n="subtitle">DeepSeek Harness 插件运维 · 本地面板（127.0.0.1）</div>
 
   <div class="row">
     <select id="profile"></select>
-    <button id="btnScan" class="primary">扫描</button>
-    <label style="font-size:12px;color:var(--dim)"><input type="checkbox" id="withUpdates" style="vertical-align:middle"> 含 registry 更新检查（慢）</label>
+    <button id="btnScan" class="primary" data-i18n="btnScan">扫描</button>
+    <label style="font-size:12px;color:var(--dim)"><input type="checkbox" id="withUpdates" style="vertical-align:middle"> <span data-i18n="lblUpdates">含 registry 更新检查（慢）</span></label>
     <span id="scanState" style="color:var(--dim);font-size:12px"></span>
   </div>
 
   <div class="cards">
-    <div class="card"><div class="k">fatal</div><div class="v" id="cFatal" style="color:var(--fatal)">-</div></div>
-    <div class="card"><div class="k">warn</div><div class="v" id="cWarn" style="color:var(--warn)">-</div></div>
-    <div class="card"><div class="k">info</div><div class="v" id="cInfo" style="color:var(--info)">-</div></div>
-    <div class="card"><div class="k">总体</div><div class="v" id="cOk">-</div></div>
+    <div class="card"><div class="k" data-i18n="sevFatal">致命</div><div class="v" id="cFatal" style="color:var(--fatal)">-</div></div>
+    <div class="card"><div class="k" data-i18n="sevWarn">警告</div><div class="v" id="cWarn" style="color:var(--warn)">-</div></div>
+    <div class="card"><div class="k" data-i18n="sevInfo">信息</div><div class="v" id="cInfo" style="color:var(--info)">-</div></div>
+    <div class="card"><div class="k" data-i18n="overall">总体</div><div class="v" id="cOk">-</div></div>
   </div>
 
   <div class="panel">
-    <h2>扫描结果 <span id="scanTime" style="float:right;font-weight:400"></span></h2>
+    <h2 data-i18n="panelFindings">扫描结果</h2>
     <div id="findings"></div>
   </div>
 
   <div class="panel" id="fixPanel" style="display:none">
-    <h2>可自动修复（lockfile 对齐：pnpm install --frozen-lockfile --force）</h2>
-    <div id="fixPlan" class="empty">先扫描以生成修复计划…</div>
+    <h2 data-i18n="panelFix">可自动修复（lockfile 对齐）</h2>
+    <div id="fixPlan" class="empty" data-i18n="fixPlanHint">先扫描以生成修复计划…</div>
     <div class="btn-row">
-      <button id="btnFixPreview">预览计划</button>
-      <button id="btnFixRun" class="primary">执行修复</button>
+      <button id="btnFixPreview" data-i18n="btnPreview">预览计划</button>
+      <button id="btnFixRun" class="primary" data-i18n="btnRun">执行修复</button>
       <span id="fixState" style="color:var(--dim);font-size:12px;align-self:center"></span>
     </div>
   </div>
 
   <div class="panel">
-    <h2>故障记忆时间线（最近 12 条）</h2>
+    <h2 data-i18n="panelTimeline">故障记忆时间线（最近 12 条）</h2>
     <div id="timeline" class="timeline"></div>
   </div>
 
@@ -83,7 +88,67 @@
 
 <script>
 const $ = (id) => document.getElementById(id)
-const state = { profiles: [], scan: null }
+const state = { profiles: [], scan: null, lang: 'zh' }
+
+const I18N = {
+  zh: {
+    appTitle: 'dsh-ops 面板', subtitle: 'DeepSeek Harness 插件运维 · 本地面板（127.0.0.1）',
+    btnScan: '扫描', lblUpdates: '含 registry 更新检查（慢）',
+    sevFatal: '致命', sevWarn: '警告', sevInfo: '信息', overall: '总体',
+    panelFindings: '扫描结果', panelFix: '可自动修复（lockfile 对齐）', panelTimeline: '故障记忆时间线（最近 12 条）',
+    fixPlanHint: '先扫描以生成修复计划…', btnPreview: '预览计划', btnRun: '执行修复',
+    noProfiles: '未发现 profile', scanning: '扫描中…', noFindings: '无任何发现',
+    scanFail: '扫描失败：', fixPreviewEmpty: '当前无致命漂移，无需修复', fixPreviewOk: '计划动作：',
+    fixConfirm: '将按 lockfile 对齐磁盘安装状态（pnpm install --frozen-lockfile --force）。继续？',
+    fixRunning: '执行中…', fixDone: '修复完成，重新扫描验证', fixFail: '修复失败：', fixPreviewOnly: '预览仅计算，未改动任何文件',
+    evSuccess: '成功', evFailure: '失败', evAttempt: '尝试', evBypass: '旁路', evFix: '修复',
+    tlEmpty: '暂无记录（gate 扫描会自动建立）', tlFail: '记忆读取失败',
+    scanningFor: '正在扫描',
+    sevLabel: { fatal: '致命', warn: '警告', info: '信息' },
+    overallOk: 'OK', overallBlocked: '阻断',
+    rule: {
+      'bundle-declaration': 'bundle 声明完整性', 'dependency-drift': '依赖漂移', 'session-memory': '故障记忆',
+      'registry-version': '版本更新', 'peer-gap': 'peer 缺口', 'patch-resolution': '补丁解析', structure: '包结构',
+    },
+  },
+  en: {
+    appTitle: 'dsh-ops Panel', subtitle: 'DeepSeek Harness plugin operations · local panel (127.0.0.1)',
+    btnScan: 'Scan', lblUpdates: 'Include registry update check (slow)',
+    sevFatal: 'Fatal', sevWarn: 'Warn', sevInfo: 'Info', overall: 'Overall',
+    panelFindings: 'Findings', panelFix: 'Auto-fixable (lockfile realign)', panelTimeline: 'Fault memory timeline (last 12)',
+    fixPlanHint: 'Run a scan to build a fix plan…', btnPreview: 'Preview plan', btnRun: 'Run fix',
+    noProfiles: 'No profiles found', scanning: 'Scanning…', noFindings: 'No findings',
+    scanFail: 'Scan failed: ', fixPreviewEmpty: 'Nothing fatal to realign', fixPreviewOk: 'Plan: ',
+    fixConfirm: 'Realign the installed tree to the lockfile (pnpm install --frozen-lockfile --force). Continue?',
+    fixRunning: 'Running…', fixDone: 'Fix complete; re-scanning to verify', fixFail: 'Fix failed: ', fixPreviewOnly: 'Preview only; nothing was changed',
+    evSuccess: 'Success', evFailure: 'Failure', evAttempt: 'Attempt', evBypass: 'Bypass', evFix: 'Fix',
+    tlEmpty: 'No records yet (gate scans create them)', tlFail: 'Could not read memory',
+    scanningFor: 'Scanning',
+    sevLabel: { fatal: 'Fatal', warn: 'Warning', info: 'Info' },
+    overallOk: 'OK', overallBlocked: 'Blocked',
+    rule: {
+      'bundle-declaration': 'Bundle declaration', 'dependency-drift': 'Dependency drift', 'session-memory': 'Session memory',
+      'registry-version': 'Version updates', 'peer-gap': 'Peer gaps', 'patch-resolution': 'Patch resolution', structure: 'Structure',
+    },
+  },
+}
+
+function t(key) { return I18N[state.lang][key] ?? key }
+function ruleLabel(id) {
+  const map = I18N[state.lang].rule
+  return map[id] ?? id
+}
+
+function applyI18n() {
+  document.documentElement.lang = state.lang
+  document.title = t('appTitle')
+  for (const el of document.querySelectorAll('[data-i18n]')) {
+    const key = el.getAttribute('data-i18n')
+    if (key) el.textContent = t(key)
+  }
+  if (state.scan) renderReport(state.scan)
+  loadMemory()
+}
 
 async function api(path, opts) {
   const res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts })
@@ -92,23 +157,24 @@ async function api(path, opts) {
   return body
 }
 function toast(msg, ms = 3500) {
-  const t = $('toast'); t.textContent = msg; t.style.display = 'block'
-  setTimeout(() => { t.style.display = 'none' }, ms)
+  const el = $('toast'); el.textContent = msg; el.style.display = 'block'
+  setTimeout(() => { el.style.display = 'none' }, ms)
 }
 function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])) }
 
 async function loadProfiles() {
   const info = await api('/api/info')
-  $('homeLabel').textContent = info.homeDisplay
+  $('homeLabel').textContent = info.home
   state.profiles = info.profiles
   const sel = $('profile')
   sel.innerHTML = ''
   for (const p of info.profiles) {
     const opt = document.createElement('option')
-    opt.value = p.name; opt.textContent = p.name + (p.bundles?.length ? `（${p.bundles.length} bundle）` : '')
+    opt.value = p.name
+    opt.textContent = p.name + (p.bundles?.length ? ` (${p.bundles.length})` : '')
     sel.appendChild(opt)
   }
-  if (state.profiles.length === 0) { $('scanState').textContent = '未发现 profile'; return }
+  if (state.profiles.length === 0) { $('scanState').textContent = t('noProfiles'); return }
   const saved = localStorage.getItem('dshops-profile')
   if (saved && state.profiles.some(p => p.name === saved)) sel.value = saved
   sel.onchange = () => { localStorage.setItem('dshops-profile', sel.value); loadMemory() }
@@ -118,19 +184,18 @@ async function loadProfiles() {
 async function doScan() {
   const profile = $('profile').value
   if (!profile) return
-  $('scanState').textContent = '扫描中…'
+  $('scanState').textContent = `${t('scanning')}…`
   $('btnScan').disabled = true
   try {
     const report = await api(`/api/scan?profile=${encodeURIComponent(profile)}&updates=${$('withUpdates').checked}`)
     state.scan = report
     renderReport(report)
-    $('scanTime').textContent = new Date().toLocaleTimeString()
     $('scanState').textContent = ''
     renderFixPanel(report)
     loadMemory()
   } catch (err) {
     $('scanState').textContent = ''
-    toast('扫描失败：' + err.message, 6000)
+    toast(t('scanFail') + err.message, 6000)
   } finally {
     $('btnScan').disabled = false
   }
@@ -143,15 +208,17 @@ function renderReport(report) {
   $('cWarn').textContent = counts.warn
   $('cInfo').textContent = counts.info
   const ok = counts.fatal === 0
-  $('cOk').textContent = ok ? 'OK' : 'BLOCKED'
+  $('cOk').textContent = ok ? t('overallOk') : t('overallBlocked')
   $('cOk').style.color = ok ? 'var(--ok)' : 'var(--fatal)'
   const box = $('findings'); box.innerHTML = ''
-  if (report.findings.length === 0) { box.innerHTML = '<div class="empty">无任何发现</div>'; return }
+  if (report.findings.length === 0) { box.innerHTML = `<div class="empty">${t('noFindings')}</div>`; return }
   for (const f of report.findings) {
+    const sev = t('sevLabel')[f.severity] ?? f.severity
     const d = document.createElement('div'); d.className = 'finding'
-    d.innerHTML = `<span class="badge b-${f.severity}">${f.severity.toUpperCase()}</span>
-      <div class="msg">${esc(f.message)}<div class="pkg">${f.ruleId}${f.packageName ? ' · ' + esc(f.packageName) : ''}</div>
-      ${f.detail ? `<div class="det">${esc(f.detail)}</div>` : ''}</div>`
+    d.innerHTML = `<span class="badge b-${f.severity}">${esc(sev)}</span>
+      <div class="msg">${esc(f.message)}
+        <div class="meta">${esc(ruleLabel(f.ruleId))}${f.packageName ? ' · ' + esc(f.packageName) : ''}</div>
+        ${f.detail ? `<div class="det">${esc(f.detail)}</div>` : ''}</div>`
     box.appendChild(d)
   }
 }
@@ -160,7 +227,7 @@ function renderFixPanel(report) {
   const alignable = report.findings.filter(f => f.severity === 'fatal' && f.fix.kind === 'align-lockfile')
   $('fixPanel').style.display = alignable.length > 0 ? '' : 'none'
   if (alignable.length === 0) return
-  $('fixPlan').textContent = `将执行 pnpm install --frozen-lockfile --force（修复 ${alignable.length} 条致命漂移），运行目录 ${report.profileDir}`
+  $('fixPlan').textContent = `${t('fixPreviewOk')}pnpm install --frozen-lockfile --force (${alignable.length}) · ${report.profileDir}`
 }
 
 async function previewFix() {
@@ -168,24 +235,26 @@ async function previewFix() {
   $('fixState').textContent = ''
   const p = $('profile').value
   const plan = await api('/api/fix/preview?profile=' + encodeURIComponent(p))
-  $('fixPlan').textContent = `计划动作：${plan.actions.length} 项\n${plan.actions.join('\n')}`
-  $('fixState').textContent = '预览仅计算，未改动任何文件'
+  $('fixPlan').textContent = plan.actions.length === 0
+    ? t('fixPreviewEmpty')
+    : `${t('fixPreviewOk')}\n${plan.actions.join('\n')}`
+  $('fixState').textContent = t('fixPreviewOnly')
 }
 
 async function runFix() {
   if (!state.scan) return
-  if (!confirm('将按 lockfile 对齐磁盘安装状态（pnpm install --frozen-lockfile --force）。继续？')) return
-  $('fixState').textContent = '执行中…'
+  if (!confirm(t('fixConfirm'))) return
+  $('fixState').textContent = `${t('fixRunning')}…`
   $('btnFixRun').disabled = true
   try {
     const p = $('profile').value
     const result = await api('/api/fix/execute?profile=' + encodeURIComponent(p), { method: 'POST' })
     $('fixState').textContent = ''
-    toast(result.ok ? '修复完成，重新扫描验证' : '修复失败：' + result.detail, result.ok ? 2500 : 8000)
+    toast(result.ok ? t('fixDone') : t('fixFail') + result.detail, result.ok ? 2500 : 8000)
     doScan()
   } catch (err) {
     $('fixState').textContent = ''
-    toast('修复失败：' + err.message, 8000)
+    toast(t('fixFail') + err.message, 8000)
   } finally {
     $('btnFixRun').disabled = false
   }
@@ -197,22 +266,30 @@ async function loadMemory() {
   try {
     const data = await api(`/api/memory?profile=${encodeURIComponent(profile)}`)
     tl.innerHTML = ''
-    if (data.events.length === 0) { tl.innerHTML = '<div class="ev">暂无记录（gate/scan 会自动建立）</div>'; return }
+    if (data.events.length === 0) { tl.innerHTML = `<div class="ev">${t('tlEmpty')}</div>`; return }
     for (const ev of data.events) {
-      const d = document.createElement('div'); d.className = 'ev'
-      const label = { success: '成功', failure: '失败', attempt: '尝试', bypass: '旁路', fix: '修复' }[ev.type] || ev.type
+      const label = { success: t('evSuccess'), failure: t('evFailure'), attempt: t('evAttempt'), bypass: t('evBypass'), fix: t('evFix') }[ev.type] || ev.type
       const color = { success: 'var(--ok)', failure: 'var(--fatal)', bypass: 'var(--warn)' }[ev.type] || 'var(--dim)'
-      d.innerHTML = `<span style="color:${color};font-weight:600">${label}</span>
-        <span class="mono">${esc(new Date(ev.ts).toLocaleString())}</span>
+      const d = document.createElement('div'); d.className = 'ev'
+      d.innerHTML = `<span style="color:${color};font-weight:600">${esc(label)}</span>
+        <span class="mono">${esc(new Date(ev.ts).toLocaleString(state.lang === 'zh' ? 'zh-CN' : 'en-GB'))}</span>
         <span>${esc(ev.detail || '')}</span>`
       tl.appendChild(d)
     }
-  } catch { tl.innerHTML = '<div class="ev">记忆读取失败</div>' }
+  } catch { tl.innerHTML = `<div class="ev">${t('tlFail')}</div>` }
 }
 
 $('btnScan').onclick = doScan
 $('btnFixPreview').onclick = previewFix
 $('btnFixRun').onclick = runFix
+$('langSel').onchange = (e) => {
+  state.lang = e.target.value
+  localStorage.setItem('dshops-lang', state.lang)
+  applyI18n()
+}
+state.lang = localStorage.getItem('dshops-lang') || 'zh'
+$('langSel').value = state.lang
+applyI18n()
 loadProfiles()
 </script>
 </body>
