@@ -60,12 +60,15 @@ export function rulePatchResolution(ctx: RuleContext, resolved: ResolvedBundle[]
     const { pkg } = splitBareSpecifier(name)
     const dir = packageDirFromAnchors(ctx.anchors, pkg)
     if (dir === null) {
+      const isOfficial = pkg.startsWith('@deepseek-ai/')
       findings.push({
         ruleId: 'patch-resolution',
         severity: 'fatal',
         ...(row.id !== undefined ? { packageName: row.id } : {}),
         message: `patch row ${JSON.stringify(row.id ?? name)} references package ${pkg} that does not resolve from the profile tree`,
-        detail: `declared in ${ref.source}; install the package or fix the row`,
+        detail: isOfficial
+          ? `declared in ${ref.source}. Official packages resolve through the shared plugin closure, which is mirrored at dsh boot; if you just upgraded dsh, start it once so the closure syncs (then re-scan), otherwise reinstall dsh.`
+          : `declared in ${ref.source}; install the package or fix the row`,
         fix: { kind: 'none' },
       })
     }
