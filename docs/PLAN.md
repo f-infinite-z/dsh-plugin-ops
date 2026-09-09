@@ -90,16 +90,21 @@ dsh-plugin-ops/            ← 本仓库（独立，MIT，dsh-plugin topic）
 | `dsh-ops fix --profile <name> [--dry-run]` | 对可自动修复项生成 plan → 用户确认 → 执行 → 校验 → 可回滚（写操作全部留备份） |
 | `dsh-ops gate --profile <name> -- <dsh 启动命令...>` | 先 scan：fatal 阻断并打印修复指引；通过则 exec dsh；**dsh 启动失败（退出码/日志特征）时进入归因流程** |
 
-### 4.2 扫描规则集（v0.1 草案）
+### 4.2 扫描规则集（分块路线）
 
-静态确定性规则，全部可离线解释：
+静态确定性规则，全部可离线解释。
+
+**v0.1 实现（核心 1/2/6）：**
 
 1. **bundle 声明完整性**：`dsh.profile.bundles` 中每个包可解析、package.json 存在、`dsh.bundle.patch` 指向存在的文件（对齐官方启动期 fail-loud 语义，但提前到启动前）。
-2. **依赖漂移**：profile package.json 声明的 range vs pnpm-lock.yaml 锁定 vs 磁盘实际安装版本 三方不一致。
-3. **registry 版本对比**：npm registry 最新版 vs 安装版（有网才查；标记为 advisory 级，缓存，不阻断）。
-4. **peer 缺口**：每个包的 peerDependencies 在解析序（profile node_modules → `$DSH_HOME/profiles/node_modules` fallback 闭包）中是否可命中；重点盯 `@deepseek-ai/cordis` 与 `cordis` 的**双实例风险**（安装闭包内同时存在两份同 scope 核心包）。
-5. **patch 解析悬空**：补丁 YAML 行引用的裸包名在该 profile 的解析链中不可达（对齐官方 `verify-cordis-config` 语义的运行时版）。
+2. **依赖漂移**：profile package.json 声明的 range vs pnpm-lock.yaml 锁定 vs 磁盘实际安装版本 三方不一致（lockfile 读取用 `@pnpm/lockfile-file`，见 §4.5）。
 6. **上次会话故障记忆**：记录每次启动结果（成功/失败 + 失败 entry + 当时各包版本快照），下次 scan 输出"自上次成功后变化的包"清单——归因的基础数据。
+
+**v0.2 及以后（规则 3/4/5/7，先留档）：**
+
+3. **registry 版本对比**：npm registry 最新版 vs 安装版（有网才查；advisory 级，缓存，不阻断）。npm 相关一律后置到 V1 正式开源后再做。
+4. **peer 缺口**：每个包的 peerDependencies 在解析序（profile node_modules → `$DSH_HOME/profiles/node_modules` fallback 闭包）中是否可命中；重点盯 `@deepseek-ai/cordis` 与 `cordis` 的**双实例风险**。
+5. **patch 解析悬空**：补丁 YAML 行引用的裸包名在该 profile 的解析链中不可达（对齐官方 `verify-cordis-config` 语义的运行时版）。
 7. **结构完整性**：exports/main/types 指向文件存在、ESM 合规（dsh 要求 ESM-only；CJS-only 出口直接判 fatal）。
 
 ### 4.5 实现策略：依赖、调用与借鉴（减少重复工作量）
@@ -125,21 +130,38 @@ dsh-plugin-ops/            ← 本仓库（独立，MIT，dsh-plugin topic）
 
 预期效果：v0.1 自研量集中在 7 条规则的判定核心 + 故障记忆 + 报告模型 + plan/fix 事务外壳；每条规则核心几十行。
 
-### 4.3 fix 可写操作（全部先 plan 后执行、留备份、可回滚）
+### 4.3 fix 可写操作（v0.1 只做"容易修复"面；全部先 plan 后执行、留备份、可回滚）
 
-- 预写 `disabled` 行到 profile 用户补丁层（停用故障/不兼容插件）；
-- 建议精确锁定（`package.json` range → `save-exact` + 重装，或仅输出建议命令）；
-- 恢复上次成功快照（`gate` 失败归因后提供"回退到 N 个版本前"计划）。
+**v0.1 自动可修集（本地、可逆、无网络）**：
+- 规则 2 的"磁盘与 lockfile 失配"：以 lockfile 锁定为准，`pnpm install`（或 `--frozen-lockfile` 校验）对齐磁盘；
+- gate 失败归因后的"禁用差异包"：预写 `disabled` 行到 profile 用户补丁层（竞品已验证的写盘通道，见 §4.5 D 档），随时可删行恢复。
 
-### 4.4 gate 失败归因闭环（v0.1 最小版）
+**v0.1 不做自动修复（复杂 → 醒目提示 + 建议行动）**：
+- bundle 声明缺失/不可解析（建议 `dsh plugin remove` 或按提示处置，需用户决策）；
+- 精确锁定 range、恢复历史快照等 → v0.2 起。
+
+### 4.4 gate 策略：先阻断，分级处置（v0.1 定稿）
 
 ```
-dsh-ops gate → scan 通过 → exec dsh → dsh 退出非零/启动特征失败
-  → 读取故障记忆：本次与上次成功的差异（新增/更新/启用的包）
-  → 候选罪魁清单（按差异 + 日志中的 entry id 排序）
-  → 交互式：禁用它重试？回退版本？跳过直接退出？
-  → 用户确认后写 disabled patch → 重跑 dsh（保持原参数）
+dsh-ops gate --profile web -- dsh --profile web
+  ① scan（规则 1/2/6）→ 无 fatal → 放行 exec dsh
+  ② 有 fatal：
+     ├─ 属于自动可修集（§4.3）→ 自动修复（记录到故障记忆）→ 复扫
+     │    └─ 复扫无 fatal → 放行 exec dsh
+     │    └─ 仍 fatal → ③
+     ├─ 复杂错误 → ③
+  ③ 阻断 + 醒目提示：
+     - 原因（哪条规则、哪个包、三方状态差异）
+     - 建议行动：提示用户处置（如建议暂时卸载该插件或禁用其报错功能）
+     - 用户处置后重跑 gate；或显式 --bypass 逃生舱放行（记入故障记忆，不静默）
+  ④ dsh 启动失败（退出码/日志特征）→ 读故障记忆归因：
+     - 列出"自上次成功后变化/新启用"的包（按差异 + 日志 entry id 排序）
+     - 交互式确认 → 自动写 disabled（§4.3 自动可修集）→ 重跑 dsh（保持原参数）
 ```
+
+- v0.1 无后台静默跳过：fatal 一律先阻断（显式处置或 `--bypass` 才放行）；
+- `--bypass` 非逃生暗门：打印醒目告警并记录到故障记忆；
+- headless/sdk/acp 等非交互 profile 暂不支持（v0.1 只做 web，见 §8）。
 
 ### 4.6 近期不做（后续一体化阶段纳入，见 §8 路线图）
 
@@ -192,8 +214,8 @@ dsh-ops gate → scan 通过 → exec dsh → dsh 退出非零/启动特征失�
 
 ### 第 3 层 · 运行自保
 
-- **fail-open 默认**：dsh-ops 自身 crash/超时 → gate 放行 dsh 原样启动并显著警告（"医生挂了，病人照常进门"）；`--strict` 才转 fail-closed。
-- 护栏：扫描超时、registry 请求超时与缓存、输出上限；错误不吞，但绝不误导启动决策。
+- **自保故障与产品判定的边界**：本层的 fail-open 只适用于"**dsh-ops 自身** crash/超时/不可解析"——此时 gate 放行 dsh 原样启动并显著警告（"医生挂了，病人照常进门"），因为医生出错不能阻止病人进医院；**scan 判定出的插件 fatal 是产品功能，按 §4.4 先阻断**，不属 fail-open 范畴。
+- 护栏：扫描超时、输出上限；错误不吞，但绝不误导启动决策。
 
 ### 第 4 层 · 生态自保（对 dsh 官方演进）
 
@@ -206,9 +228,9 @@ dsh-ops gate → scan 通过 → exec dsh → dsh 退出非零/启动特征失�
 
 | 里程碑 | 内容 | 验收 |
 |---|---|---|
-| v0.1 | wrapper CLI：scan 7 类规则 / fix（disabled+锁定）/ gate 失败归因最小闭环；故障记忆 JSONL | 人为制造 5 类故障样本全被 scan 检出、gate 能归因并恢复；无 key、无 dsh 本体改动 |
-| v0.2 | 依赖树深诊（双 cordis 实例定位、peer 缺口逐包解释）、规则可配置化（Config 文件）、报告离线缓存与 diff | 覆盖竞品空白矩阵的"依赖治理"行 |
-| v1.0 | bundle 产物：设置页健康看板（scan 结果可视）、模型解读（可选） | 产品用户可见闭环 |
+| v0.1 | wrapper CLI（web profile）：scan 规则 1/2/6、fix 自动可修集（lockfile 对齐 + 写 disabled）、gate 先阻断分级处置 + 失败归因闭环、故障记忆 JSONL；仅本地开发运行，不发 npm | 人为制造的故障样本（声明缺失、三方漂移、装后损坏）被 scan 检出；gate 阻断→自动修→放行、复杂→醒目提示、`--bypass` 逃生舱均生效；无 key、无 dsh 本体改动 |
+| v0.2 | 规则 3/4/5/7（registry 对比经 `pnpm outdated`、peer 缺口与双 cordis 实例、patch 悬空、结构完整性）、headless/sdk/acp profile 适配、规则可配置化（Config 文件）、报告离线缓存与 diff | 覆盖竞品空白矩阵的"依赖治理"行；全 profile 支持 |
+| v1.0 | npm 发布 + 正式开源 + bundle 产物（设置页健康看板、模型解读可选） | 产品用户可见闭环；npm 相关全部在此里程碑起做 |
 | v2.0 | **一体化整合**：把竞品已验证的功能按我们的架构吸收为完整插件管理增强——启停/卸载/更新检查与一键更新（事务化、并入故障记忆）、市场/目录接入、安装/升级 canary 与适配门（站在 AlexYin/Noob 思路之上，但以 dsh-ops 的启动防护为核心入口） | 单入口覆盖"启动前-启动失败-日常变更-生态发现"全生命周期 |
 | 后续研究 | 插件子进程/容器隔离运行可行性（dsh 无现成 seam，需独立设计 IPC+ctx 代理或等官方演进）；作者侧发布冒烟 CI/兼容矩阵模板 | 研究笔记 + 原型 |
 
@@ -219,11 +241,18 @@ dsh-ops gate → scan 通过 → exec dsh → dsh 退出非零/启动特征失�
 - 验证路径：真实故障样本库（test fixtures）公开，作为生态诊断正确性的可信度来源。
 - 与官方关系：不依赖官方 PR；若 `--preflight` hook 进官方路线，保持 wrapper 兼容（wrapper 是超集）。
 
-## 10. 开放问题（待与决策者商议）
+## 10. 决策记录与开放问题
 
-1. 命名/仓库名与 npm 占用核查。
-2. v0.1 规则集取舍（7 类全做还是先做 1/2/6 三类核心）。
-3. `gate` 默认策略：fatal 即阻断（可能误伤离线/特殊环境）vs 默认放行 + 醒目警告 + `--strict` 开关。
-4. registry 查询的网络策略（代理/镜像/超时/缓存窗口）。
-5. 支持矩阵：先 web profile 还是 headless/sdk 全 profile。
-6. 语言：仓库文档中英双语（对标生态头部项目）。
+### 已决（2026-09-09 范围定稿）
+
+1. 命名：**dsh-plugin-ops**（仓库/npm 包名统一；GitHub topic `dsh-plugin` 待开源时打标）。npm 占用核查推迟到 v1.0 发布前。
+2. v0.1 规则取舍：只做 **1/2/6**（bundle 声明完整性 / 依赖漂移 / 故障记忆）；3/4/5/7 进 v0.2。
+3. `gate` 策略：**先阻断、分级处置**——自动可修集（lockfile 对齐、写 disabled）自动修复后放行；复杂错误阻断 + 醒目提示 + 建议行动（如建议暂时卸载该插件或禁用其报错功能）；显式 `--bypass` 逃生舱（记录，不静默）。dsh-ops 自身故障仍按 §7 第 3 层 fail-open。
+4. npm：**v1.0 正式开源后才做发布与 registry 相关**；v0.2 的 registry 对比走 `pnpm outdated`（网络策略由 pnpm 承担，细节 v0.2 再定）。
+5. 平台矩阵：**v0.1 只做 web profile**；headless/sdk/acp 适配（无交互面、故障特征不同）放 v0.2。
+
+### 待议
+
+6. 语言：仓库文档是否中英双语（对标生态头部项目，开源前定稿）。
+7. dsh-ops 自身升级通道（§7 第 2 层 canary-then-switch）的具体触发形态：随 gate 每次跑 vs 独立 `self-update` 子命令（v1.0 前定）。
+8. `fix` 自动执行 vs 交互确认的边界细化：v0.1 哪些写操作可以无确认直接做（如 lockfile 对齐 vs 写 disabled）。
