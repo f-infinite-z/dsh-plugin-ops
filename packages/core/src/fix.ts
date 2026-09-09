@@ -16,9 +16,12 @@ export interface RunResult extends SpawnResult {
   output: string
 }
 
-export function runCommand(bin: string, args: string[], cwd: string): Promise<RunResult> {
+export function runCommand(bin: string, args: string[], cwd: string, timeoutMs?: number): Promise<RunResult> {
   return new Promise((resolve, reject) => {
     const child = spawn(bin, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'], shell: false })
+    const timer = timeoutMs === undefined ? undefined : setTimeout(() => {
+      killProcessTree(child.pid ?? 0)
+    }, timeoutMs)
     let output = ''
     child.stdout.on('data', (chunk: Buffer) => {
       output += chunk.toString()
@@ -27,22 +30,37 @@ export function runCommand(bin: string, args: string[], cwd: string): Promise<Ru
       output += chunk.toString()
     })
     child.on('error', reject)
-    child.on('close', (code, signal) => resolve({ code, signal, output }))
+    child.on('close', (code, signal) => {
+      if (timer !== undefined) clearTimeout(timer)
+      resolve({ code, signal, output })
+    })
   })
+}
+
+function killProcessTree(pid: number): void {
+  if (process.platform === 'win32') {
+    spawn('taskkill', ['/pid', String(pid), '/T', '/F'], { stdio: 'ignore' })
+  } else {
+    process.kill(pid, 'SIGTERM')
+  }
 }
 
 /**
  * Run pnpm in the profile directory. Windows has no executable `pnpm` on
  * PATH, only `pnpm.cmd`, so the command goes through `cmd.exe /c` with a
  * constant argument list (never user input), which also avoids the
- * shell-option deprecation path.
+ * shell-option deprecation path. `timeoutMs` kills the whole process tree and
+ * resolves with `code: null` instead of hanging forever.
  */
-function runPnpm(args: string[], cwd: string): Promise<RunResult> {
+export function runPnpm(args: string[], cwd: string, timeoutMs?: number): Promise<RunResult> {
   if (process.platform !== 'win32') {
-    return runCommand('pnpm', args, cwd)
+    return runCommand('pnpm', args, cwd, timeoutMs)
   }
   return new Promise((resolve, reject) => {
     const child = spawn('cmd.exe', ['/d', '/s', '/c', `pnpm ${args.join(' ')}`], { cwd, stdio: ['ignore', 'pipe', 'pipe'], shell: false })
+    const timer = timeoutMs === undefined ? undefined : setTimeout(() => {
+      killProcessTree(child.pid ?? 0)
+    }, timeoutMs)
     let output = ''
     child.stdout.on('data', (chunk: Buffer) => {
       output += chunk.toString()
@@ -51,7 +69,10 @@ function runPnpm(args: string[], cwd: string): Promise<RunResult> {
       output += chunk.toString()
     })
     child.on('error', reject)
-    child.on('close', (code, signal) => resolve({ code, signal, output }))
+    child.on('close', (code, signal) => {
+      if (timer !== undefined) clearTimeout(timer)
+      resolve({ code, signal, output })
+    })
   })
 }
 

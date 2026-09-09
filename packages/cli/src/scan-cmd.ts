@@ -1,16 +1,23 @@
-import { scanProfile, renderHuman, renderJson, ScanError, reportOk, countSeverities } from 'dsh-plugin-ops-core'
+import { scanProfile, renderHuman, renderJson, ScanError, reportOk, countSeverities, type OpsConfig } from 'dsh-plugin-ops-core'
 import type { DshPaths } from 'dsh-plugin-ops-core'
 
 export interface ScanCommandOptions {
   paths: DshPaths
   profileName: string
   json: boolean
+  config: OpsConfig
+  updateCheck: boolean
 }
 
 export async function runScanCommand(options: ScanCommandOptions): Promise<number> {
   let report
   try {
-    report = await scanProfile({ paths: options.paths, profileName: options.profileName })
+    report = await scanProfile({
+      paths: options.paths,
+      profileName: options.profileName,
+      config: options.config,
+      updateCheck: options.updateCheck,
+    })
   } catch (error) {
     if (error instanceof ScanError) {
       process.stderr.write(`scan: ${error.message}\n`)
@@ -23,8 +30,6 @@ export async function runScanCommand(options: ScanCommandOptions): Promise<numbe
   } else {
     process.stdout.write(renderHuman(report))
   }
-  const counts = countSeverities(report)
-  if (!reportOk(report)) return 1
-  void counts
-  return 0
+  void countSeverities(report)
+  return reportOk(report) ? 0 : 1
 }

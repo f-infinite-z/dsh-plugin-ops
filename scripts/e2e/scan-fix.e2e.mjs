@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url'
 const cliIndex = fileURLToPath(new URL('../../packages/cli/lib/index.js', import.meta.url))
 
 function run(home, cmd, extra = []) {
+  extra = [...extra, '--skip-update-check']
   const r = spawnSync('node', [cliIndex, cmd, '--profile', 'web', '--home', home, ...extra], { encoding: 'utf8' })
   return { code: r.status, out: r.stdout, err: r.stderr }
 }

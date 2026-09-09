@@ -1,6 +1,13 @@
 export type Severity = 'fatal' | 'warn' | 'info'
 
-export type RuleId = 'bundle-declaration' | 'dependency-drift' | 'session-memory'
+export type RuleId =
+  | 'bundle-declaration'
+  | 'dependency-drift'
+  | 'session-memory'
+  | 'registry-version'
+  | 'peer-gap'
+  | 'patch-resolution'
+  | 'structure'
 
 export type Fix =
   | { kind: 'none' }

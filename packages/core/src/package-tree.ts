@@ -29,9 +29,13 @@ export function packageDirFromAnchors(anchorFiles: readonly string[], packageNam
 export interface PackageManifest {
   name?: unknown
   version?: unknown
+  type?: unknown
+  main?: unknown
+  types?: unknown
+  exports?: unknown
   dependencies?: Record<string, string>
   peerDependencies?: Record<string, string>
-  dsh?: { bundle?: { patch?: unknown }; profile?: unknown }
+  dsh?: { bundle?: { patch?: unknown }; profile?: unknown; client?: unknown }
 }
 
 export function readPackageManifest(dir: string): PackageManifest | null {

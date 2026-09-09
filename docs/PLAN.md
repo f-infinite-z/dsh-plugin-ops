@@ -251,8 +251,15 @@ dsh-ops gate --profile web -- dsh --profile web
 4. npm：**v1.0 正式开源后才做发布与 registry 相关**；v0.2 的 registry 对比走 `pnpm outdated`（网络策略由 pnpm 承担，细节 v0.2 再定）。
 5. 平台矩阵：**v0.1 只做 web profile**；headless/sdk/acp 适配（无交互面、故障特征不同）放 v0.2。
 
+### 已决（2026-09-09 v0.2 定稿）
+
+6. v0.2 平台矩阵：scan/fix 文件级天然全 profile；**gate 归因仅长驻型 profile**（web/sdk/sdk-minimal/acp/自定义，含 `patchReload: live`），**headless 一次性任务型只预检放行 + 退出码透传**（任务失败 ≠ 启动失败）；`--no-attribution` 显式覆盖。
+7. 规则 4 严重度：**cordis/核心包双实例 = fatal**（模块身份分裂，官方为此有 moduleFallback）；**其余 peer 缺口 = warn**（静态判定不完全，真实 import 失败在加载时暴露）。
+8. 规则 7：**CJS 主入口 = fatal**（无 `"type": "module"` 且入口为 .js/.cjs，被 patch 行引用时）——对齐官方 named-export 契约（postmortem 0001：CJS 丢插件 namespace 致 inject 失效）。
+9. 规则 3：v0.2 实现，经 `pnpm outdated --format json`；advisory 级（warn：有更新；info：无法检查），**不阻断 gate**；结果缓存 5 分钟 TTL；超时降级不报错。
+
 ### 待议
 
-6. 语言：仓库文档是否中英双语（对标生态头部项目，开源前定稿）。
-7. dsh-ops 自身升级通道（§7 第 2 层 canary-then-switch）的具体触发形态：随 gate 每次跑 vs 独立 `self-update` 子命令（v1.0 前定）。
-8. `fix` 自动执行 vs 交互确认的边界细化：v0.1 哪些写操作可以无确认直接做（如 lockfile 对齐 vs 写 disabled）。
+10. 语言：仓库文档是否中英双语（对标生态头部项目，开源前定稿）。
+11. dsh-ops 自身升级通道（§7 第 2 层 canary-then-switch）的具体触发形态：随 gate 每次跑 vs 独立 `self-update` 子命令（v1.0 前定）。
+12. `fix` 自动执行 vs 交互确认的边界细化：v0.1 哪些写操作可以无确认直接做（如 lockfile 对齐 vs 写 disabled）。

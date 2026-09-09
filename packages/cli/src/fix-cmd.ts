@@ -1,5 +1,5 @@
 import { createInterface } from 'node:readline/promises'
-import { scanProfile, alignToLockfile, renderHuman, reportOk, countSeverities, appendMemory, ScanError, type Finding } from 'dsh-plugin-ops-core'
+import { scanProfile, alignToLockfile, renderHuman, reportOk, countSeverities, appendMemory, ScanError, type Finding, type OpsConfig } from 'dsh-plugin-ops-core'
 import type { DshPaths } from 'dsh-plugin-ops-core'
 
 export interface FixCommandOptions {
@@ -7,6 +7,7 @@ export interface FixCommandOptions {
   profileName: string
   dryRun: boolean
   yes: boolean
+  config: OpsConfig
 }
 
 function hasAlignable(report: { findings: Finding[] }): boolean {
@@ -16,7 +17,7 @@ function hasAlignable(report: { findings: Finding[] }): boolean {
 export async function runFixCommand(options: FixCommandOptions): Promise<number> {
   let report
   try {
-    report = await scanProfile({ paths: options.paths, profileName: options.profileName })
+    report = await scanProfile({ paths: options.paths, profileName: options.profileName, config: options.config, updateCheck: false })
   } catch (error) {
     if (error instanceof ScanError) {
       process.stderr.write(`fix: ${error.message}\n`)
@@ -60,7 +61,7 @@ export async function runFixCommand(options: FixCommandOptions): Promise<number>
     type: 'fix', ts: new Date().toISOString(), profile: options.profileName, kind: 'align-lockfile', detail: result.detail,
   })
 
-  const rescan = await scanProfile({ paths: options.paths, profileName: options.profileName })
+  const rescan = await scanProfile({ paths: options.paths, profileName: options.profileName, config: options.config, updateCheck: false })
   process.stdout.write(`\nfix applied; re-scan:\n${renderHuman(rescan)}`)
   return reportOk(rescan) ? 0 : 1
 }

@@ -59,6 +59,12 @@ function assert(condition, message) {
   if (!condition) throw new Error(message)
 }
 
+/** Guard: every mutation in this script must stay inside the temp sandbox. */
+function assertSandboxed(path) {
+  const resolved = path.replace(/\\/g, '/')
+  assert(resolved.startsWith(tmpdir().replace(/\\/g, '/')), `refusing to mutate outside the temp sandbox: ${path}`)
+}
+
 // ---- build the sandbox ------------------------------------------------------
 const home = mkdtempSync(join(tmpdir(), 'ops-samples-'))
 const web = join(home, 'profiles', 'sandbox')
@@ -72,13 +78,14 @@ try {
   console.log(`reconciled ${bundleNames.length} bundle layer(s): ${bundleNames.join(', ') || '(none)'}`)
 
   // ---- baseline scan: a clean pinned install must carry no fatal ------------
-  const base = runDshOps(home, 'scan')
+  const base = runDshOps(home, 'scan', ['--skip-update-check'])
   console.log('baseline scan exit:', base.code)
   console.log(base.out)
   assert(base.code === 0, `baseline expected clean, got ${base.code}\n${base.out}\n${base.err}`)
   const baseline = base.out
 
   // ---- injection 1: drift the installed version of every sample ------------
+  assertSandboxed(join(web, 'node_modules'))
   for (const entry of readdirSync(join(web, 'node_modules'), { withFileTypes: true })) {
     if (!entry.isDirectory() && !entry.isSymbolicLink()) continue
     const candidates = entry.name.startsWith('@')
@@ -94,15 +101,15 @@ try {
       writeFileSync(pkgJson, JSON.stringify({ ...manifest, version: `${manifest.version}-drift-test` }, null, 2), 'utf8')
     }
   }
-  const drifted = runDshOps(home, 'scan')
+  const drifted = runDshOps(home, 'scan', ['--skip-update-check'])
   assert(drifted.code === 1, `drift injection expected fatal exit 1, got ${drifted.code}\n${drifted.out}`)
   assert(drifted.out.includes('deviates from locked'), 'drift injection should report deviation findings')
   console.log('\n[injection 1] version drift detected OK')
 
   // fix realigns everything
-  const fixed = runDshOps(home, 'fix', ['--yes'])
+  const fixed = runDshOps(home, 'fix', ['--yes', '--skip-update-check'])
   assert(fixed.code === 0, `fix expected 0, got ${fixed.code}\n${fixed.out}${fixed.err}`)
-  const cleanAfterFix = runDshOps(home, 'scan')
+  const cleanAfterFix = runDshOps(home, 'scan', ['--skip-update-check'])
   assert(cleanAfterFix.code === 0, `rescan after fix expected 0, got ${cleanAfterFix.code}`)
   console.log('[injection 1] fix realigned the sandbox OK')
 
@@ -114,14 +121,14 @@ try {
       return join(web, 'node_modules', ...someBundle.split('/'), manifest.dsh.bundle.patch)
     })()
     rmSync(patchPath, { force: true })
-    const broken = runDshOps(home, 'scan')
+    const broken = runDshOps(home, 'scan', ['--skip-update-check'])
     assert(broken.code === 1, `missing-patch injection expected fatal, got ${broken.code}\n${broken.out}`)
     assert(broken.out.includes('missing'), 'missing-patch injection should report a missing patch file')
     console.log(`[injection 2] missing patch file (${someBundle}) detected OK`)
     // restore
     const manifest = readJson(join(web, 'node_modules', ...someBundle.split('/'), 'package.json'))
     writeFileSync(join(web, 'node_modules', ...someBundle.split('/'), manifest.dsh.bundle.patch), '- id: probe\n', 'utf8')
-    const restored = runDshOps(home, 'scan')
+    const restored = runDshOps(home, 'scan', ['--skip-update-check'])
     assert(restored.code === 0, `restored scan expected 0, got ${restored.code}`)
     console.log('[injection 2] restoration OK')
   } else {

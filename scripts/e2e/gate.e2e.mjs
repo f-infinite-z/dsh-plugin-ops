@@ -84,10 +84,26 @@ writeFileSync(join(oddPkgDir, 'package.json'), JSON.stringify({ ...oddPkg, versi
 const g5 = gate(homeG5, ['--', 'node', fakeDshOk])
 console.log('G5 code:', g5.code)
 if (g5.code !== 0) throw new Error(`G5 expected 0 after auto-fix + launch, got ${g5.code}`)
-const rescan = spawnSync('node', [cliIndex, 'scan', '--profile', 'web', '--home', homeG5], { encoding: 'utf8' })
+const rescan = spawnSync('node', [cliIndex, 'scan', '--profile', 'web', '--home', homeG5, '--skip-update-check'], { encoding: 'utf8' })
 if (!rescan.stdout.includes('OK: no fatal findings')) throw new Error(`G5 rescan not clean: ${rescan.stdout.slice(0, 400)}`)
 
-for (const home of [homeG1, homeG2, homeG3, homeG4, homeG5]) rmSync(home, { recursive: true, force: true })
+// G6: one-shot profile (headless) fast-fails -> exit code passed through, no attribution
+const homeG6 = mkdtempSync(join(tmpdir(), 'ops-g6-'))
+writeProfile(join(homeG6, 'profiles', 'headless'), {})
+const g6 = spawnSync('node', [cliIndex, 'gate', '--profile', 'headless', '--home', homeG6, '--skip-update-check', '--', 'node', fakeDshFail], { encoding: 'utf8', timeout: 60000 })
+console.log('G6 code:', g6.status)
+if (g6.status !== 7) throw new Error(`G6 expected 7 (task code passthrough, no attribution), got ${g6.status}`)
+if (!(g6.stderr ?? '').includes('one-shot')) throw new Error(`G6 expected a one-shot note on stderr: ${String(g6.stderr).slice(0, 300)}`)
+if (memoryLines(homeG6).some((e) => e.type === 'failure' && e.detail.includes('boot'))) throw new Error('G6 must not record a boot failure')
+
+// G7: --no-attribution on a long-running profile skips attribution too
+const homeG7 = mkdtempSync(join(tmpdir(), 'ops-g7-'))
+writeProfile(join(homeG7, 'profiles', 'web'), {})
+const g7 = spawnSync('node', [cliIndex, 'gate', '--profile', 'web', '--home', homeG7, '--skip-update-check', '--no-attribution', '--', 'node', fakeDshFail], { encoding: 'utf8', timeout: 60000 })
+console.log('G7 code:', g7.status)
+if (g7.status !== 7) throw new Error(`G7 expected 7 with --no-attribution, got ${g7.status}`)
+
+for (const home of [homeG1, homeG2, homeG3, homeG4, homeG5, homeG6, homeG7]) rmSync(home, { recursive: true, force: true })
 rmSync(fakeDshOk, { force: true })
 rmSync(fakeDshFail, { force: true })
-console.log('\nGATE E2E OK: pass-through, failure record, block, bypass, auto-fix-then-launch')
+console.log('\nGATE E2E OK: pass-through, failure record, block, bypass, auto-fix-then-launch, headless passthrough')

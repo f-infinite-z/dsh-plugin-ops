@@ -4,19 +4,33 @@ import {
   scanProfile, renderHuman, reportOk, alignToLockfile, appendMemory, ScanError,
   readProfileManifest, resolveBundles, allVisibleRows, rowIdsForPackage,
   lastSuccessSnapshot, diffSnapshots, disableRow,
-  type Finding, type ScanReport, type DshPaths,
+  type Finding, type ScanReport, type DshPaths, type OpsConfig,
 } from 'dsh-plugin-ops-core'
 
 export interface GateCommandOptions {
   paths: DshPaths
   profileName: string
   bypass: boolean
+  /** skip boot-failure attribution even for long-running profiles. */
+  noAttribution: boolean
   bootThresholdMs: number
+  config: OpsConfig
   dshCommand: string[]
 }
 
+/**
+ * One-shot profiles exit fast on success; a fast non-zero exit means the task
+ * failed, not that boot did. Attribution is only meaningful for long-running
+ * profiles (web, sdk, acp, custom live profiles). `headless` is the shipped
+ * one-shot template.
+ */
+export function attributionEnabled(options: GateCommandOptions): boolean {
+  if (options.noAttribution) return false
+  return options.profileName !== 'headless'
+}
+
 async function currentReport(options: GateCommandOptions): Promise<ScanReport> {
-  return scanProfile({ paths: options.paths, profileName: options.profileName })
+  return scanProfile({ paths: options.paths, profileName: options.profileName, config: options.config, updateCheck: false })
 }
 
 export async function runGateCommand(options: GateCommandOptions): Promise<number> {
@@ -84,6 +98,10 @@ export async function runGateCommand(options: GateCommandOptions): Promise<numbe
   }
 
   appendMemory(options.paths, { type: 'failure', ts: new Date().toISOString(), profile: options.profileName, detail: `exited ${dshCode} after ${elapsed}ms` })
+  if (!attributionEnabled(options)) {
+    process.stderr.write(`\ndsh exited ${dshCode} after ${elapsed}ms; profile ${options.profileName} is one-shot, so the exit code is the task result, not a boot signal (pass --no-attribution to silence this note)\n`)
+    return dshCode
+  }
   return attributeAndRecover(options, report, dshCode)
 }
 

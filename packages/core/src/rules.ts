@@ -10,6 +10,7 @@ import {
 import { packageDirFromAnchors, readPackageManifest } from './package-tree.js'
 import type { LockedDirectDeps } from './lockfile.js'
 import { lastSuccessSnapshot, diffSnapshots } from './memory.js'
+import type { OutdatedState } from './outdated.js'
 
 export interface RuleContext {
   profileName: string
@@ -17,6 +18,40 @@ export interface RuleContext {
   manifest: ProfileManifest
   anchors: string[]
   locked: LockedDirectDeps
+}
+
+/**
+ * Rule 3: registry version comparison (advisory). Runs through pnpm outdated
+ * so registry plumbing stays out of this codebase; a failed check degrades to
+ * an info finding, never blocks, and never crashes the scan.
+ */
+export function ruleRegistryVersion(outdated: OutdatedState): Finding[] {
+  if (outdated.checkedAt === null) {
+    return [{
+      ruleId: 'registry-version',
+      severity: 'info',
+      message: 'registry version check unavailable (offline, timeout, or no pnpm); skipped',
+      fix: { kind: 'none' },
+    }]
+  }
+  if (outdated.entries.length === 0) {
+    return [{
+      ruleId: 'registry-version',
+      severity: 'info',
+      message: `all packages up to date (checked ${outdated.checkedAt})`,
+      fix: { kind: 'none' },
+    }]
+  }
+  return outdated.entries.map((entry) => ({
+    ruleId: 'registry-version',
+    severity: 'warn',
+    packageName: entry.name,
+    message: entry.current === null
+      ? `not installed, latest is ${entry.latest}`
+      : `installed ${entry.current}, latest is ${entry.latest}`,
+    detail: 'update through dsh plugin (pnpm) when convenient; advisory only',
+    fix: { kind: 'none' },
+  }))
 }
 
 export function trackedPackageNames(ctx: RuleContext, resolved: ResolvedBundle[]): string[] {

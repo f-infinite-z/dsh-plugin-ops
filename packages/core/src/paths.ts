@@ -1,5 +1,6 @@
 import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
 import { join } from 'node:path'
+import { DEFAULT_CONFIG_FILENAME } from './config.js'
 
 export const MEMORY_DIR_NAME = 'dsh-ops'
 export const MEMORY_FILENAME = 'memory.jsonl'
@@ -12,6 +13,7 @@ export interface DshPaths {
   memoryDir: string
   memoryFile: string
   sharedProfilesDir: string
+  configFile: string
 }
 
 export function resolveDshPaths(profileName: string, configuredHome?: string): DshPaths {
@@ -26,5 +28,6 @@ export function resolveDshPaths(profileName: string, configuredHome?: string): D
     memoryDir: join(home, 'cache', MEMORY_DIR_NAME),
     memoryFile: join(home, 'cache', MEMORY_DIR_NAME, MEMORY_FILENAME),
     sharedProfilesDir: join(profilesDir, 'node_modules'),
+    configFile: join(home, DEFAULT_CONFIG_FILENAME),
   }
 }
