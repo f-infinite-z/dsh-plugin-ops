@@ -114,16 +114,23 @@ function removeInstalledPackage(profileDir: string, packageName: string): string
 
 /**
  * Realign the installed tree to the lockfile (`pnpm install --frozen-lockfile
- * --force`). Packages reported as drifted are deleted first so pnpm
- * reinstalls them from the locked tree; pnpm otherwise trusts modules.yaml
- * and leaves mutated files in place. Fails when the lockfile disagrees with
- * the manifest — that case is reported to the user instead of mutating the
- * lock.
+ * --force`). Packages reported as drifted are deleted first, and pnpm's
+ * `modules.yaml` state file is dropped: pnpm decides "already up to date"
+ * from that file without checking that every package directory still exists,
+ * so a forced install otherwise leaves the deleted packages missing. The
+ * relink reads from the content-addressable store; nothing is re-downloaded.
+ * Fails when the lockfile disagrees with the manifest — that case is reported
+ * to the user instead of mutating the lock.
  */
 export async function alignToLockfile(profileDir: string, driftPackages: string[] = []): Promise<AlignResult> {
   const removed: string[] = []
   for (const name of driftPackages) {
     removed.push(...removeInstalledPackage(profileDir, name))
+  }
+  const modulesState = join(profileDir, 'node_modules', '.modules.yaml')
+  if (driftPackages.length > 0 && existsSync(modulesState)) {
+    rmSync(modulesState, { force: true })
+    removed.push(modulesState)
   }
   const result = await runPnpm(['install', '--frozen-lockfile', '--force'], profileDir)
   const reinstalled = driftPackages.length === 0
