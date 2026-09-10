@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import { createInterface } from 'node:readline/promises'
 import {
-  scanProfile, renderHuman, reportOk, alignToLockfile, appendMemory, ScanError,
+  scanProfile, renderHuman, reportOk, alignToLockfile, appendMemory, recordFixKnowledge, ScanError,
   readProfileManifest, resolveBundles, allVisibleRows, rowIdsForPackage,
   lastSuccessSnapshot, diffSnapshots, disableRow,
   type Finding, type ScanReport, type DshPaths, type OpsConfig,
@@ -59,6 +59,13 @@ export async function runGateCommand(options: GateCommandOptions): Promise<numbe
     const fix = await alignToLockfile(options.paths.profileDir, drifted)
     if (fix.ok) {
       appendMemory(options.paths, { type: 'fix', ts: new Date().toISOString(), profile: options.profileName, kind: 'align-lockfile', detail: fix.detail })
+      recordFixKnowledge(options.paths, {
+        profile: options.profileName,
+        source: 'gate',
+        findings: autoFixable,
+        action: 'align-lockfile',
+        detail: fix.detail,
+      })
       report = await currentReport(options)
       process.stdout.write(renderHuman(report))
     } else {

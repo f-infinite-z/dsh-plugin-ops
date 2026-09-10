@@ -109,6 +109,13 @@
     <div class="panel col-chat">
       <h2><span data-i18n="chatTitle">诊断对话（DeepSeek）</span> <span id="chatState" style="float:right;font-weight:400;color:var(--warn);font-size:12px"></span></h2>
       <div style="color:var(--dim);font-size:12px;margin-bottom:8px" data-i18n="chatHint">基于当前 profile 的实时扫描结果；建议的修复请用上方白名单按钮执行</div>
+      <div class="row" style="margin-bottom:8px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dim);cursor:pointer">
+          <input type="checkbox" id="ragToggle">
+          <span data-i18n="ragToggle">增强检索（知识库）</span>
+        </label>
+        <button id="btnDeposit" style="margin-left:auto" data-i18n="btnDeposit">沉淀为知识</button>
+      </div>
       <div id="chatMsgs" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;overflow:auto">
         <div class="finding" style="border:none"><div class="msg" style="color:var(--dim)"><span data-i18n="chatWelcome">我是诊断助手。已载入当前 profile 的扫描结果，想问什么？</span></div></div>
       </div>
@@ -120,6 +127,17 @@
   </div>
 
   <div class="panel">
+    <h2><span data-i18n="panelKnowledge">知识库（插件排障经验）</span> <span id="knowledgeCount" style="float:right;font-weight:400"></span></h2>
+    <div style="color:var(--dim);font-size:12px;margin-bottom:8px" data-i18n="knowledgeHint">bug 与修复经验沉淀为 md；开关开启时诊断对话自动检索命中条目</div>
+    <div class="row" style="margin-bottom:8px">
+      <input id="knowledgeSearch" type="text" style="flex:1;background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:8px 12px" data-i18n-placeholder="knowledgePlaceholder">
+      <button id="btnKnowledgeSearch" data-i18n="btnSearch">搜索</button>
+      <button id="btnKnowledgeAll" data-i18n="btnShowAll">全部</button>
+    </div>
+    <div id="knowledgeList"></div>
+  </div>
+
+  <div class="panel">
     <h2 data-i18n="panelTimeline">故障记忆时间线（最近 12 条）</h2>
     <div id="timeline" class="timeline"></div>
   </div>
@@ -128,7 +146,7 @@
 
 <script>
 const $ = (id) => document.getElementById(id)
-const state = { profiles: [], scan: null, lang: 'zh', chatHistory: [], pluginRows: [], pluginPage: 0, pluginFilter: 'all' }
+const state = { profiles: [], scan: null, lang: 'zh', chatHistory: [], pluginRows: [], pluginPage: 0, pluginFilter: 'all', rag: false, knowledge: [] }
 const PLUGIN_PAGE_SIZE = 10
 
 const I18N = {
@@ -155,6 +173,12 @@ const I18N = {
     chatTitle: '诊断对话（DeepSeek）', chatHint: '基于当前 profile 的实时扫描结果；建议的修复请用上方白名单按钮执行',
     chatPlaceholder: '问：这些警告是什么意思？该怎么处理？', chatSend: '发送', chatThinking: '思考中…',
     chatNoKey: '未配置 DEEPSEEK_API_KEY（环境变量或 $DSH_HOME/.env）', chatFail: '对话失败：', chatWelcome: '我是诊断助手。已载入当前 profile 的扫描结果，想问什么？',
+    ragToggle: '增强检索（知识库）', btnDeposit: '沉淀为知识',
+    panelKnowledge: '知识库（插件排障经验）', knowledgeHint: 'bug 与修复经验沉淀为 md；开关开启时诊断对话自动检索命中条目',
+    knowledgePlaceholder: '搜索：错误信息 / 包名 / 规则…', btnSearch: '搜索', btnShowAll: '全部',
+    knowledgeEmpty: '暂无知识条目（修复成功或对话沉淀后自动积累）', knowledgeSearchEmpty: '无命中条目', knowledgeFail: '知识库加载失败：',
+    depositOk: '已沉淀为知识条目', depositFail: '沉淀失败：', depositNoChat: '先进行一轮对话再沉淀',
+    btnDelete: '删除', knowledgeTimes: '出现 {n} 次', knowledgeScore: '匹配度',
     sevLabel: { fatal: '致命', warn: '警告', info: '信息' },
     overallOk: 'OK', overallBlocked: '阻断',
     rule: {
@@ -185,6 +209,12 @@ const I18N = {
     chatTitle: 'Diagnosis chat (DeepSeek)', chatHint: 'Based on a live scan of the current profile; use the whitelisted buttons above to apply suggested fixes',
     chatPlaceholder: 'Ask: what do these warnings mean? How do I fix them?', chatSend: 'Send', chatThinking: 'Thinking…',
     chatNoKey: 'No DEEPSEEK_API_KEY configured (env or $DSH_HOME/.env)', chatFail: 'Chat failed: ', chatWelcome: 'Diagnosis assistant here. The current profile scan is loaded — what would you like to know?',
+    ragToggle: 'Enhanced retrieval (knowledge base)', btnDeposit: 'Deposit as knowledge',
+    panelKnowledge: 'Knowledge base (plugin troubleshooting)', knowledgeHint: 'Bugs and fixes deposit as Markdown; the toggle retrieves matching entries for the chat',
+    knowledgePlaceholder: 'Search: error text / package / rule…', btnSearch: 'Search', btnShowAll: 'All',
+    knowledgeEmpty: 'No entries yet (fixes and deposits accumulate here)', knowledgeSearchEmpty: 'No matches', knowledgeFail: 'Failed to load knowledge: ',
+    depositOk: 'Deposited as a knowledge entry', depositFail: 'Deposit failed: ', depositNoChat: 'Chat once before depositing',
+    btnDelete: 'Delete', knowledgeTimes: 'seen {n}×', knowledgeScore: 'score',
     sevLabel: { fatal: 'Fatal', warn: 'Warning', info: 'Info' },
     overallOk: 'OK', overallBlocked: 'Blocked',
     rule: {
@@ -426,6 +456,90 @@ function renderPlugins() {
   $('btnPluginNext').disabled = state.pluginPage >= totalPages - 1
 }
 
+async function loadKnowledge() {
+  try {
+    const res = await api('/api/knowledge')
+    state.knowledge = res.entries || []
+    renderKnowledge(state.knowledge, false)
+  } catch (err) {
+    toast(t('knowledgeFail') + err.message, 6000)
+  }
+}
+
+async function searchKnowledge() {
+  const q = $('knowledgeSearch').value.trim()
+  if (!q) { loadKnowledge(); return }
+  try {
+    const res = await api('/api/knowledge?q=' + encodeURIComponent(q) + '&limit=10')
+    renderKnowledge(res.hits || [], true)
+  } catch (err) {
+    toast(t('knowledgeFail') + err.message, 6000)
+  }
+}
+
+function renderKnowledge(items, isSearch) {
+  const box = $('knowledgeList')
+  box.innerHTML = ''
+  $('knowledgeCount').textContent = String(items.length)
+  if (items.length === 0) {
+    const d = document.createElement('div')
+    d.className = 'empty'
+    d.textContent = isSearch ? t('knowledgeSearchEmpty') : t('knowledgeEmpty')
+    box.appendChild(d)
+    return
+  }
+  for (const item of items) {
+    const meta = []
+    if (item.occurrences !== undefined) meta.push(t('knowledgeTimes').replace('{n}', String(item.occurrences)))
+    if (isSearch && item.score !== undefined) meta.push(t('knowledgeScore') + ': ' + item.score)
+    if (item.source) meta.push(item.source)
+    if (item.createdAt) meta.push(String(item.createdAt).slice(0, 10))
+    const d = document.createElement('div')
+    d.className = 'finding'
+    d.style.flexDirection = 'column'
+    d.style.alignItems = 'flex-start'
+    d.innerHTML = `<div style="display:flex;gap:8px;align-items:center;width:100%">
+        <strong style="font-size:13px">${esc(item.title)}</strong>
+        <span style="color:var(--dim);font-size:11px">${esc(meta.join(' · '))}</span>
+        <button style="margin-left:auto;font-size:11px;padding:2px 8px">${esc(t('btnDelete'))}</button>
+      </div>
+      ${item.tags && item.tags.length ? `<div style="color:var(--dim);font-size:11px">${esc(item.tags.join(', '))}</div>` : ''}
+      <div class="msg" style="white-space:pre-wrap;font-size:12px">${esc((item.symptom || '') + (item.fix ? '\n→ ' + item.fix : ''))}</div>`
+    d.querySelector('button').onclick = () => removeKnowledge(item.id)
+    box.appendChild(d)
+  }
+}
+
+async function removeKnowledge(id) {
+  try {
+    await api('/api/knowledge/delete', { method: 'POST', body: JSON.stringify({ id }) })
+    loadKnowledge()
+  } catch (err) {
+    toast(t('knowledgeFail') + err.message, 6000)
+  }
+}
+
+async function depositChat() {
+  if (state.chatHistory.length === 0) { toast(t('depositNoChat')); return }
+  $('btnDeposit').disabled = true
+  try {
+    const res = await api('/api/knowledge/deposit', {
+      method: 'POST',
+      body: JSON.stringify({ lang: state.lang, messages: state.chatHistory }),
+    })
+    if (res.ok) {
+      toast(t('depositOk') + (res.id ? ` (${res.id})` : ''), 5000)
+      loadKnowledge()
+    } else {
+      toast(t('depositFail') + (res.error || res.problem || ''), 6000)
+    }
+  } catch (err) {
+    toast(t('depositFail') + err.message, 6000)
+  } finally {
+    $('btnDeposit').disabled = false
+  }
+}
+
 async function sendChat() {
   const profile = $('profile').value
   const input = $('chatInput')
@@ -438,7 +552,7 @@ async function sendChat() {
   try {
     const res = await api('/api/chat', {
       method: 'POST',
-      body: JSON.stringify({ profile, lang: state.lang, messages: [...state.chatHistory, { role: 'user', content: text }] }),
+      body: JSON.stringify({ profile, lang: state.lang, rag: state.rag, messages: [...state.chatHistory, { role: 'user', content: text }] }),
     })
     state.chatHistory = [...state.chatHistory, { role: 'user', content: text }]
     $('chatState').textContent = ''
@@ -475,6 +589,11 @@ $('btnFixPreview').onclick = previewFix
 $('btnFixRun').onclick = runFix
 $('btnChat').onclick = sendChat
 $('chatInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat() })
+$('btnDeposit').onclick = depositChat
+$('btnKnowledgeSearch').onclick = searchKnowledge
+$('btnKnowledgeAll').onclick = loadKnowledge
+$('knowledgeSearch').addEventListener('keydown', (e) => { if (e.key === 'Enter') searchKnowledge() })
+$('ragToggle').onchange = (e) => { state.rag = e.target.checked; localStorage.setItem('dshops-rag', state.rag ? '1' : '0') }
 $('pluginFilter').onchange = (e) => { state.pluginFilter = e.target.value; state.pluginPage = 0; renderPlugins() }
 $('btnPluginPrev').onclick = () => { if (state.pluginPage > 0) { state.pluginPage--; renderPlugins() } }
 $('btnPluginNext').onclick = () => { state.pluginPage++; renderPlugins() }
@@ -485,8 +604,11 @@ $('langSel').onchange = (e) => {
 }
 state.lang = localStorage.getItem('dshops-lang') || 'zh'
 $('langSel').value = state.lang
+state.rag = localStorage.getItem('dshops-rag') === '1'
+$('ragToggle').checked = state.rag
 applyI18n()
 loadProfiles()
+loadKnowledge()
 </script>
 </body>
 </html>

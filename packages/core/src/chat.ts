@@ -13,6 +13,8 @@ export interface ChatMessage {
 export interface ChatContext {
   profile: string
   findingsJson: string
+  /** Pre-rendered knowledge-base hits (see knowledge.formatKnowledgeContext). */
+  knowledge?: string
 }
 
 export interface ChatReply {
@@ -65,6 +67,20 @@ function credentialsRefs(home: string): Record<string, unknown> | null {
 }
 
 /**
+ * Resolve one secret by name: inherited process environment, the gitignored
+ * `$DSH_HOME/.env`, then the harness credentials file (`.credentials.yaml`
+ * refs — the same store the harness itself reads).
+ */
+export function lookupSecret(name: string, home: string): string | null {
+  const env = process.env[name]
+  if (env !== undefined && env !== '') return env
+  const dot = secretFromEnvOrDotEnv(name, home)
+  if (dot !== null) return dot
+  const ref = credentialsRefs(home)?.[name]
+  return typeof ref === 'string' && ref !== '' ? ref : null
+}
+
+/**
  * Resolve the model configuration for the direct (non-harness) channel. Probe
  * order: an explicit override (`DSH_OPS_LLM_API_KEY` / `_BASE_URL` /
  * `_MODEL`), then the first provider key found in the environment, the
@@ -73,15 +89,7 @@ function credentialsRefs(home: string): Record<string, unknown> | null {
  * Base URL and model default to that provider's OpenAI-compatible endpoint.
  */
 export function resolveModelConfig(home: string): ResolvedModelConfig | null {
-  const refs = credentialsRefs(home)
-  const look = (name: string): string | null => {
-    const env = process.env[name]
-    if (env !== undefined && env !== '') return env
-    const dot = secretFromEnvOrDotEnv(name, home)
-    if (dot !== null) return dot
-    const ref = refs?.[name]
-    return typeof ref === 'string' && ref !== '' ? ref : null
-  }
+  const look = (name: string): string | null => lookupSecret(name, home)
   const explicitKey = process.env.DSH_OPS_LLM_API_KEY
   if (explicitKey !== undefined && explicitKey !== '') {
     return {
@@ -156,6 +164,15 @@ export function buildSystemPrompt(context: ChatContext, lang: string): string {
   const language = lang === 'zh'
     ? '用简体中文回答。'
     : 'Answer in English.'
+  const knowledgeSection = context.knowledge === undefined || context.knowledge === ''
+    ? ''
+    : `
+
+## 历史相似问题（知识库命中，优先参考）
+
+${context.knowledge}
+
+以上是从历史排障经验中检索到的条目：若其中某条与当前问题相符，优先按其根因与修复思路解释；若都不适用，再按常规方式分析，不要强行套用。`
   return `You are the diagnosis assistant inside dsh-ops, a DeepSeek Harness plugin
 health tool. The user is looking at a scan report for profile
 "${context.profile}" and wants to understand and fix problems.
@@ -174,7 +191,7 @@ ${language}
 - Keep the answer under 250 words unless asked for detail.
 
 Current scan report (JSON):
-${context.findingsJson}`
+${context.findingsJson}${knowledgeSection}`
 }
 
 /** Scan context snapshot for the chat system prompt. */

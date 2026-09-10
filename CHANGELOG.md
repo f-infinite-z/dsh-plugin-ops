@@ -2,6 +2,28 @@
 
 All notable changes are tracked here.
 
+## 0.2.0 — 2026-09-10
+
+### RAG knowledge base for the diagnosis chat
+
+- **Knowledge deposit**: troubleshooting experience (bug symptom, cause, fix)
+  lands as human-readable Markdown under `$DSH_HOME/cache/dsh-ops/knowledge/`.
+  Two capture paths: a "deposit as knowledge" button that summarizes the
+  current chat via the model, and automatic recording after successful
+  `fix`/`gate` repairs.
+- **Hybrid retrieval**: BM25 (self-contained, offline, CJK bigrams) runs by
+  default; when an embedding key is configured the lexical top candidates are
+  re-ranked by blending normalized BM25 with cosine similarity. Any embedding
+  failure silently degrades to BM25.
+- **Repeated problems merge**: identical tag sets (or titles) update the
+  existing entry — occurrences +1, symptoms unioned, last seen refreshed —
+  instead of appending duplicates; frequent entries rank slightly higher.
+- **Panels** (`serve` and the embedded bundle) gain an "enhanced retrieval"
+  toggle plus a knowledge manager (list / search / delete); when the toggle is
+  on, the chat retrieves matching entries into the system prompt.
+- New panel API: `GET /api/knowledge` (list / search), `POST /api/knowledge`,
+  `POST /api/knowledge/delete`, `POST /api/knowledge/deposit`.
+
 ## 0.1.2 — 2026-09-10
 
 - `fix` now rebuilds `node_modules` before realigning. pnpm trusts its

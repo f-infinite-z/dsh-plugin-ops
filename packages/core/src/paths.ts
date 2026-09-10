@@ -4,6 +4,7 @@ import { DEFAULT_CONFIG_FILENAME } from './config.js'
 
 export const MEMORY_DIR_NAME = 'dsh-ops'
 export const MEMORY_FILENAME = 'memory.jsonl'
+export const KNOWLEDGE_DIR_NAME = 'knowledge'
 
 export interface DshPaths {
   home: string
@@ -12,6 +13,7 @@ export interface DshPaths {
   profileManifest: string
   memoryDir: string
   memoryFile: string
+  knowledgeDir: string
   sharedProfilesDir: string
   configFile: string
 }
@@ -20,13 +22,15 @@ export function resolveDshPaths(profileName: string, configuredHome?: string): D
   const home = resolveDshHome(configuredHome)
   const profilesDir = join(home, 'profiles')
   const profileDir = join(profilesDir, profileName)
+  const memoryDir = join(home, 'cache', MEMORY_DIR_NAME)
   return {
     home,
     profilesDir,
     profileDir,
     profileManifest: join(profileDir, 'package.json'),
-    memoryDir: join(home, 'cache', MEMORY_DIR_NAME),
-    memoryFile: join(home, 'cache', MEMORY_DIR_NAME, MEMORY_FILENAME),
+    memoryDir,
+    memoryFile: join(memoryDir, MEMORY_FILENAME),
+    knowledgeDir: join(memoryDir, KNOWLEDGE_DIR_NAME),
     sharedProfilesDir: join(profilesDir, 'node_modules'),
     configFile: join(home, DEFAULT_CONFIG_FILENAME),
   }

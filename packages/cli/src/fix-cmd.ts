@@ -1,5 +1,5 @@
 import { createInterface } from 'node:readline/promises'
-import { scanProfile, alignToLockfile, renderHuman, reportOk, countSeverities, appendMemory, ScanError, type Finding, type OpsConfig } from 'dsh-plugin-ops-core'
+import { scanProfile, alignToLockfile, renderHuman, reportOk, countSeverities, appendMemory, recordFixKnowledge, ScanError, type Finding, type OpsConfig } from 'dsh-plugin-ops-core'
 import type { DshPaths } from 'dsh-plugin-ops-core'
 
 export interface FixCommandOptions {
@@ -69,6 +69,13 @@ export async function runFixCommand(options: FixCommandOptions): Promise<number>
   }
   appendMemory(options.paths, {
     type: 'fix', ts: new Date().toISOString(), profile: options.profileName, kind: 'align-lockfile', detail: result.detail,
+  })
+  recordFixKnowledge(options.paths, {
+    profile: options.profileName,
+    source: 'fix',
+    findings: report.findings.filter((finding) => finding.severity === 'fatal'),
+    action: 'align-lockfile',
+    detail: result.detail,
   })
 
   const rescan = await scanProfile({ paths: options.paths, profileName: options.profileName, config: options.config, updateCheck: false })

@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { existsSync, readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { handlePanelApi, PanelApiError, ScanError, type PanelApiOptions } from 'dsh-plugin-ops-core'
+import { handlePanelApi, PanelApiError, ScanError, retrieveKnowledge, formatKnowledgeContext, buildDepositPrompt, parseDepositReply, upsertKnowledge, type PanelApiOptions } from 'dsh-plugin-ops-core'
 import type { DshPaths, OpsConfig } from 'dsh-plugin-ops-core'
 import { resolveModelConfig, OpenAiCompatibleChannel, buildSystemPrompt, buildChatContext, type ChatMessage, type ModelChannel } from './chat.js'
 
@@ -78,9 +78,10 @@ export async function serve(options: ServeOptions): Promise<number> {
       }
       const body = req.method === 'POST' ? await collectBody(req) : undefined
       if (req.method === 'POST' && url.pathname === '/api/chat') {
-        const parsed = JSON.parse(body ?? '{}') as { profile?: unknown; lang?: unknown; messages?: unknown }
+        const parsed = JSON.parse(body ?? '{}') as { profile?: unknown; lang?: unknown; messages?: unknown; rag?: unknown }
         const profile = typeof parsed.profile === 'string' ? parsed.profile : 'web'
         const lang = typeof parsed.lang === 'string' ? parsed.lang : 'zh'
+        const rag = parsed.rag === true
         const messages = Array.isArray(parsed.messages)
           ? parsed.messages.filter((m): m is ChatMessage => typeof m === 'object' && m !== null && ((m as ChatMessage).role === 'user' || (m as ChatMessage).role === 'assistant') && typeof (m as ChatMessage).content === 'string').slice(-10)
           : []
@@ -94,12 +95,54 @@ export async function serve(options: ServeOptions): Promise<number> {
           return
         }
         const context = await buildChatContext(options.paths, profile, options.config)
+        if (rag) {
+          const lastUser = [...messages].reverse().find((message) => message.role === 'user')
+          const query = `${lastUser?.content ?? ''}\n${context.findingsJson}`
+          const hits = await retrieveKnowledge(options.paths, query, 3)
+          if (hits.length > 0) context.knowledge = formatKnowledgeContext(hits)
+        }
         const channel: ModelChannel = new OpenAiCompatibleChannel(config)
         const controller = new AbortController()
         const timer = setTimeout(() => controller.abort(), 60000)
         try {
           const result = await channel.complete(buildSystemPrompt(context, lang), messages, controller.signal)
           json(res, result.ok ? 200 : 502, { ok: result.ok, reply: result.reply, error: result.error })
+        } finally {
+          clearTimeout(timer)
+        }
+        return
+      }
+      if (req.method === 'POST' && url.pathname === '/api/knowledge/deposit') {
+        const parsed = JSON.parse(body ?? '{}') as { lang?: unknown; messages?: unknown }
+        const lang = typeof parsed.lang === 'string' ? parsed.lang : 'zh'
+        const messages = Array.isArray(parsed.messages)
+          ? parsed.messages.filter((m): m is ChatMessage => typeof m === 'object' && m !== null && ((m as ChatMessage).role === 'user' || (m as ChatMessage).role === 'assistant') && typeof (m as ChatMessage).content === 'string').slice(-12)
+          : []
+        if (messages.length === 0) {
+          json(res, 400, { error: 'no messages to deposit' })
+          return
+        }
+        const config = resolveModelConfig(options.paths.home)
+        if (config === null) {
+          json(res, 200, { ok: false, error: 'no provider key found; configure a model to summarize the conversation' })
+          return
+        }
+        const channel: ModelChannel = new OpenAiCompatibleChannel(config)
+        const controller = new AbortController()
+        const timer = setTimeout(() => controller.abort(), 60000)
+        try {
+          const result = await channel.complete(buildDepositPrompt(messages, lang), [], controller.signal)
+          if (!result.ok) {
+            json(res, 502, { ok: false, error: result.error })
+            return
+          }
+          const draft = parseDepositReply(result.reply)
+          if (draft === null) {
+            json(res, 502, { ok: false, error: 'model reply was not a parsable knowledge entry' })
+            return
+          }
+          const written = upsertKnowledge(options.paths, { ...draft, source: 'chat' })
+          json(res, written.ok ? 200 : 500, { ok: written.ok, id: written.id, problem: written.problem })
         } finally {
           clearTimeout(timer)
         }

@@ -5,9 +5,14 @@ import {
   PanelApiError,
   ScanError,
   buildChatContext,
+  buildDepositPrompt,
   buildSystemPrompt,
+  formatKnowledgeContext,
   handlePanelApi,
+  parseDepositReply,
   resolveDshPaths,
+  retrieveKnowledge,
+  upsertKnowledge,
   type ChatMessage,
   type ModelChannel,
   type OpsConfig,
@@ -95,6 +100,10 @@ export function createHostHandler(options: HostHandlerOptions): (req: IncomingMe
         await handleChat(res, options, paths, url, body)
         return
       }
+      if (req.method === 'POST' && apiPath === '/api/knowledge/deposit') {
+        await handleDeposit(res, options, paths, body)
+        return
+      }
       const apiUrl = new URL(url)
       apiUrl.pathname = apiPath
       const result = await handlePanelApi(req.method ?? 'GET', apiUrl, apiOptions, body)
@@ -114,9 +123,10 @@ async function handleChat(
   url: URL,
   body: string | undefined,
 ): Promise<void> {
-  const parsed = JSON.parse(body ?? '{}') as { profile?: unknown; lang?: unknown; messages?: unknown }
+  const parsed = JSON.parse(body ?? '{}') as { profile?: unknown; lang?: unknown; messages?: unknown; rag?: unknown }
   const profile = typeof parsed.profile === 'string' && parsed.profile !== '' ? parsed.profile : options.profile
   const lang = typeof parsed.lang === 'string' ? parsed.lang : 'zh'
+  const rag = parsed.rag === true
   const messages = Array.isArray(parsed.messages)
     ? parsed.messages
         .filter((m): m is ChatMessage => typeof m === 'object' && m !== null
@@ -138,11 +148,62 @@ async function handleChat(
     return
   }
   const context = await buildChatContext(paths, profile, options.config)
+  if (rag) {
+    const lastUser = [...messages].reverse().find((message) => message.role === 'user')
+    const query = `${lastUser?.content ?? ''}\n${context.findingsJson}`
+    const hits = await retrieveKnowledge(paths, query, 3)
+    if (hits.length > 0) context.knowledge = formatKnowledgeContext(hits)
+  }
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 60000)
   try {
     const result = await channel.complete(buildSystemPrompt(context, lang), messages, controller.signal)
     json(res, result.ok ? 200 : 502, { ok: result.ok, reply: result.reply, error: result.error })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/** Summarize the current troubleshooting chat into one knowledge entry. */
+async function handleDeposit(
+  res: ServerResponse,
+  options: HostHandlerOptions,
+  paths: ReturnType<typeof resolveDshPaths>,
+  body: string | undefined,
+): Promise<void> {
+  const parsed = JSON.parse(body ?? '{}') as { lang?: unknown; messages?: unknown }
+  const lang = typeof parsed.lang === 'string' ? parsed.lang : 'zh'
+  const messages = Array.isArray(parsed.messages)
+    ? parsed.messages
+        .filter((m): m is ChatMessage => typeof m === 'object' && m !== null
+          && ((m as ChatMessage).role === 'user' || (m as ChatMessage).role === 'assistant')
+          && typeof (m as ChatMessage).content === 'string')
+        .slice(-12)
+    : []
+  if (messages.length === 0) {
+    json(res, 400, { error: 'no messages to deposit' })
+    return
+  }
+  const channel = options.channel()
+  if (channel === null) {
+    json(res, 200, { ok: false, error: 'no model channel available; configure a model to summarize the conversation' })
+    return
+  }
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 60000)
+  try {
+    const result = await channel.complete(buildDepositPrompt(messages, lang), [], controller.signal)
+    if (!result.ok) {
+      json(res, 502, { ok: false, error: result.error })
+      return
+    }
+    const draft = parseDepositReply(result.reply)
+    if (draft === null) {
+      json(res, 502, { ok: false, error: 'model reply was not a parsable knowledge entry' })
+      return
+    }
+    const written = upsertKnowledge(paths, { ...draft, source: 'chat' })
+    json(res, written.ok ? 200 : 500, { ok: written.ok, id: written.id, problem: written.problem })
   } finally {
     clearTimeout(timer)
   }

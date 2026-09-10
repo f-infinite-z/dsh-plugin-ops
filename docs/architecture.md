@@ -82,7 +82,15 @@ attempt → success(版本快照) | failure(详情) | bypass | fix(动作)
 - core 发布物为自包含单文件（依赖全部内联）：host 半边在 dsh 插件树内 import 它，任何外部依赖缺口都会中止整树，因此不把依赖树带进 profile。
 - 两者共享 `core/panel-api` 的路由白名单——不做第二套逻辑。
 
-## 6. 自保（为什么能信任看门人）
+## 6. 知识库与增强检索（RAG）
+
+- **沉积**：`$DSH_HOME/cache/dsh-ops/knowledge/*.md`（frontmatter + 症状/根因/修复/备注，人类可读可手编）。两个入口：面板"沉淀为知识"（模型总结当前对话）；`fix`/`gate` 成功修复后自动记录 fatal findings。
+- **合并**：相同 tags（或相同标题）的重复问题**更新同一条目**（occurrences+1、症状并集、lastSeenAt 刷新），不做流水账；高频问题检索时轻微加权。
+- **检索**：BM25（自研、离线、CJK bigram 分词）默认可用；配置了 embedding key（`DSH_OPS_EMBEDDING_*` 或 OPENAI/DASHSCOPE）时对候选做向量重排（归一化 BM25 与余弦混合），失败静默降级 BM25。
+- **注入**：面板"增强检索"开关开启时，诊断对话检索 top-K 条目注入 system prompt（历史经验优先参考，不强制套用）。
+- **自保**：知识库是纯 Markdown + 本地索引缓存，无外部依赖；无 key 时纯 BM25 完整可用。
+
+## 7. 自保（为什么能信任看门人）
 
 - 拦截者不 import dsh 任何运行时（只读文件格式解析）→ dsh 崩了它照常诊断。
 - 它自身 crash/超时 → gate **放行 dsh 原样启动** + 显著警告（fail-open 仅适用于 dsh-ops 自身故障；scan 判定的插件 fatal 是产品功能，按先阻断处置）。

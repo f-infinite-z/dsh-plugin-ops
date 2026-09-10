@@ -34,6 +34,20 @@ export interface Dict {
   chatSend: string
   chatThinking: string
   chatNoChannel: string
+  ragToggle: string
+  btnDeposit: string
+  depositOk: string
+  depositFail: string
+  depositNoChat: string
+  knowledge: string
+  knowledgeHint: string
+  knowledgePlaceholder: string
+  search: string
+  showAll: string
+  knowledgeEmpty: string
+  knowledgeSearchEmpty: string
+  delete: string
+  times: string
   loadFail: string
   profile: string
   home: string
@@ -74,6 +88,20 @@ export const DICTS: Record<Lang, Dict> = {
     chatSend: '发送',
     chatThinking: '思考中…',
     chatNoChannel: '未找到可用模型通道（dsh 未提供 llm 服务且未配置 API key）',
+    ragToggle: '增强检索（知识库）',
+    btnDeposit: '沉淀为知识',
+    depositOk: '已沉淀为知识条目',
+    depositFail: '沉淀失败：',
+    depositNoChat: '先进行一轮对话再沉淀',
+    knowledge: '知识库（插件排障经验）',
+    knowledgeHint: 'bug 与修复经验沉淀为 md；开关开启时诊断对话自动检索命中条目',
+    knowledgePlaceholder: '搜索：错误信息 / 包名 / 规则…',
+    search: '搜索',
+    showAll: '全部',
+    knowledgeEmpty: '暂无知识条目（修复成功或对话沉淀后自动积累）',
+    knowledgeSearchEmpty: '无命中条目',
+    delete: '删除',
+    times: '出现 {n} 次',
     loadFail: '加载失败：',
     profile: 'Profile',
     home: 'DSH_HOME',
@@ -112,6 +140,20 @@ export const DICTS: Record<Lang, Dict> = {
     chatSend: 'Send',
     chatThinking: 'Thinking…',
     chatNoChannel: 'No model channel available (dsh exposes no llm service and no API key is configured)',
+    ragToggle: 'Enhanced retrieval (knowledge base)',
+    btnDeposit: 'Deposit as knowledge',
+    depositOk: 'Deposited as a knowledge entry',
+    depositFail: 'Deposit failed: ',
+    depositNoChat: 'Chat once before depositing',
+    knowledge: 'Knowledge base (plugin troubleshooting)',
+    knowledgeHint: 'Bugs and fixes deposit as Markdown; the toggle retrieves matching entries for the chat',
+    knowledgePlaceholder: 'Search: error text / package / rule…',
+    search: 'Search',
+    showAll: 'All',
+    knowledgeEmpty: 'No entries yet (fixes and deposits accumulate here)',
+    knowledgeSearchEmpty: 'No matches',
+    delete: 'Delete',
+    times: 'seen {n}×',
     loadFail: 'Load failed: ',
     profile: 'Profile',
     home: 'DSH_HOME',

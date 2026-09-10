@@ -45,6 +45,18 @@ interface ChatMsg {
   content: string
 }
 
+interface KnowledgeItem {
+  id: string
+  title: string
+  source?: string
+  createdAt?: string
+  occurrences?: number
+  tags?: string[]
+  symptom?: string
+  fix?: string
+  score?: number
+}
+
 type Filter = 'all' | 'fatal' | 'warn' | 'ok'
 
 async function api<T>(path: string, init?: { method?: string; body?: string }): Promise<T> {
@@ -137,6 +149,9 @@ export function HealthSection(): ReactNode {
   const [chat, setChat] = useState<ChatMsg[]>([])
   const [chatInput, setChatInput] = useState('')
   const [chatState, setChatState] = useState('')
+  const [rag, setRag] = useState(false)
+  const [knowledge, setKnowledge] = useState<KnowledgeItem[]>([])
+  const [knowledgeQuery, setKnowledgeQuery] = useState('')
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
 
@@ -162,6 +177,19 @@ export function HealthSection(): ReactNode {
     }
   }, [])
 
+  const loadKnowledge = useCallback(async (): Promise<void> => {
+    try {
+      const res = await api<{ entries: KnowledgeItem[] }>('/api/knowledge')
+      setKnowledge(res.entries)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }, [])
+
+  useEffect(() => {
+    if (typeof localStorage !== 'undefined' && localStorage.getItem('dshops-rag') === '1') setRag(true)
+  }, [])
+
   useEffect(() => {
     let cancelled = false
     void (async () => {
@@ -172,6 +200,7 @@ export function HealthSection(): ReactNode {
         const initial = infoRes.defaultProfile ?? infoRes.profiles[0]?.name ?? 'web'
         setProfile(initial)
         await load(initial)
+        await loadKnowledge()
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e))
       }
@@ -179,7 +208,7 @@ export function HealthSection(): ReactNode {
     return () => {
       cancelled = true
     }
-  }, [load])
+  }, [load, loadKnowledge])
 
   const changeProfile = (name: string): void => {
     setProfile(name)
@@ -234,7 +263,7 @@ export function HealthSection(): ReactNode {
     try {
       const res = await api<{ ok: boolean; reply: string; error?: string }>('/api/chat', {
         method: 'POST',
-        body: JSON.stringify({ profile, lang, messages: next }),
+        body: JSON.stringify({ profile, lang, rag, messages: next }),
       })
       if (res.ok) {
         setChat([...next, { role: 'assistant', content: res.reply }])
@@ -246,6 +275,60 @@ export function HealthSection(): ReactNode {
     } finally {
       setBusy('')
       setChatState((state) => (state === t.chatThinking ? '' : state))
+    }
+  }
+
+  const toggleRag = (next: boolean): void => {
+    setRag(next)
+    if (typeof localStorage !== 'undefined') localStorage.setItem('dshops-rag', next ? '1' : '0')
+  }
+
+  const searchKnowledge = async (): Promise<void> => {
+    const query = knowledgeQuery.trim()
+    if (query === '') {
+      await loadKnowledge()
+      return
+    }
+    setError('')
+    try {
+      const res = await api<{ hits: KnowledgeItem[] }>(`/api/knowledge?q=${encodeURIComponent(query)}&limit=10`)
+      setKnowledge(res.hits)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  const removeKnowledge = async (id: string): Promise<void> => {
+    try {
+      await api('/api/knowledge/delete', { method: 'POST', body: JSON.stringify({ id }) })
+      await loadKnowledge()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  const deposit = async (): Promise<void> => {
+    if (chat.length === 0) {
+      setChatState(t.depositNoChat)
+      return
+    }
+    setBusy('deposit')
+    setChatState('')
+    try {
+      const res = await api<{ ok: boolean; id?: string; error?: string }>('/api/knowledge/deposit', {
+        method: 'POST',
+        body: JSON.stringify({ lang, messages: chat }),
+      })
+      if (res.ok) {
+        setChatState(t.depositOk)
+        await loadKnowledge()
+      } else {
+        setChatState(res.error ?? t.depositFail)
+      }
+    } catch (e) {
+      setChatState(`${t.depositFail}${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setBusy('')
     }
   }
 
@@ -365,6 +448,66 @@ export function HealthSection(): ReactNode {
       </div>
 
       <div className="dshops-card">
+        <h3>
+          {t.knowledge} <span className="dshops-dim">{t.knowledgeHint}</span>
+        </h3>
+        <div className="dshops-chatbar" style={{ marginTop: 0, marginBottom: 8 }}>
+          <input
+            className="dshops-input"
+            value={knowledgeQuery}
+            placeholder={t.knowledgePlaceholder}
+            onChange={(e) => setKnowledgeQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void searchKnowledge()
+            }}
+          />
+          <button className="dshops-btn" onClick={() => void searchKnowledge()}>
+            {t.search}
+          </button>
+          <button
+            className="dshops-btn"
+            onClick={() => {
+              setKnowledgeQuery('')
+              void loadKnowledge()
+            }}
+          >
+            {t.showAll}
+          </button>
+        </div>
+        <div className="dshops-list">
+          {knowledge.map((item) => (
+            <div key={item.id} className="dshops-item">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <strong style={{ fontSize: 12 }}>{item.title}</strong>
+                <span className="dshops-dim" style={{ fontSize: 11 }}>
+                  {[
+                    item.occurrences === undefined ? '' : format(t.times, { n: item.occurrences }),
+                    item.score === undefined ? '' : `${t.search}: ${item.score}`,
+                    item.source ?? '',
+                    item.createdAt === undefined ? '' : item.createdAt.slice(0, 10),
+                  ]
+                    .filter((text) => text !== '')
+                    .join(' · ')}
+                </span>
+                <button className="dshops-btn" style={{ marginLeft: 'auto' }} onClick={() => void removeKnowledge(item.id)}>
+                  {t.delete}
+                </button>
+              </div>
+              {item.tags !== undefined && item.tags.length > 0 && (
+                <div className="dshops-dim" style={{ fontSize: 11 }}>
+                  {item.tags.join(', ')}
+                </div>
+              )}
+              <div style={{ fontSize: 12, whiteSpace: 'pre-wrap' }}>
+                {(item.symptom ?? '') + (item.fix !== undefined && item.fix !== '' ? `\n→ ${item.fix}` : '')}
+              </div>
+            </div>
+          ))}
+          {knowledge.length === 0 && <div className="dshops-dim">{t.knowledgeEmpty}</div>}
+        </div>
+      </div>
+
+      <div className="dshops-card">
         <h3>{t.timeline}</h3>
         <div className="dshops-list">
           {events.map((event, index) => (
@@ -380,6 +523,15 @@ export function HealthSection(): ReactNode {
         <h3>
           {t.chat} <span className="dshops-dim">{t.chatHint}</span>
         </h3>
+        <div className="dshops-head" style={{ marginBottom: 8 }}>
+          <label className="dshops-dim" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer' }}>
+            <input type="checkbox" checked={rag} onChange={(e) => toggleRag(e.target.checked)} />
+            {t.ragToggle}
+          </label>
+          <button className="dshops-btn" style={{ marginLeft: 'auto' }} disabled={busy !== ''} onClick={() => void deposit()}>
+            {busy === 'deposit' ? t.chatThinking : t.btnDeposit}
+          </button>
+        </div>
         <div className="dshops-chat">
           {chat.length === 0 && <div className="dshops-msg dshops-msg-assistant dshops-dim">{t.chatWelcome}</div>}
           {chat.map((message, index) => (

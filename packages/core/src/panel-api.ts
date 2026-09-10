@@ -9,6 +9,13 @@ import { appendMemory } from './memory.js'
 import { reportOk } from './report.js'
 import { allVisibleRows } from './rows.js'
 import { appendDisabledRow, removeDisabledRow } from './patch-layer.js'
+import {
+  deleteKnowledge,
+  listKnowledge,
+  recordFixKnowledge,
+  retrieveKnowledge,
+  upsertKnowledge,
+} from './knowledge.js'
 import type { DshPaths, OpsConfig } from './index.js'
 
 /**
@@ -160,6 +167,7 @@ export async function handlePanelApi(
     const result = await alignToLockfile(paths.profileDir, drifted)
     if (result.ok) {
       appendMemory(paths, { type: 'fix', ts: new Date().toISOString(), profile, kind: 'align-lockfile', detail: result.detail })
+      recordFixKnowledge(paths, { profile, source: 'fix', findings: alignable, action: 'align-lockfile', detail: result.detail })
     }
     return { status: result.ok ? 200 : 500, body: { ok: result.ok, detail: result.detail } }
   }
@@ -188,6 +196,73 @@ export async function handlePanelApi(
     if (!result.ok) throw new PanelApiError(result.problem ?? 'enable failed', 500)
     appendMemory(paths, { type: 'fix', ts: new Date().toISOString(), profile, kind: 'write-disabled', detail: `enabled row ${rowId}` })
     return { status: 200, body: { ok: true, backup: result.backup } }
+  }
+
+  if (method === 'GET' && pathname === '/api/knowledge') {
+    const paths = pathsFor(options, profile)
+    const query = url.searchParams.get('q') ?? ''
+    if (query.trim() !== '') {
+      const rawLimit = Number(url.searchParams.get('limit') ?? '5')
+      const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(Math.trunc(rawLimit), 1), 20) : 5
+      const hits = await retrieveKnowledge(paths, query, limit)
+      return {
+        status: 200,
+        body: {
+          hits: hits.map((hit) => ({
+            id: hit.entry.id,
+            title: hit.entry.title,
+            tags: hit.entry.tags,
+            occurrences: hit.entry.occurrences,
+            score: Number(hit.score.toFixed(4)),
+            bm25: Number(hit.bm25.toFixed(4)),
+            vector: hit.vector === null ? null : Number(hit.vector.toFixed(4)),
+            symptom: hit.entry.symptom,
+            cause: hit.entry.cause,
+            fix: hit.entry.fix,
+          })),
+        },
+      }
+    }
+    const entries = listKnowledge(paths)
+      .slice(0, 100)
+      .map((entry) => ({
+        id: entry.id,
+        title: entry.title,
+        source: entry.source,
+        createdAt: entry.createdAt,
+        occurrences: entry.occurrences,
+        lastSeenAt: entry.lastSeenAt,
+        tags: entry.tags,
+        symptom: entry.symptom,
+        fix: entry.fix,
+      }))
+    return { status: 200, body: { entries } }
+  }
+
+  if (method === 'POST' && pathname === '/api/knowledge') {
+    const paths = pathsFor(options, profile)
+    const body = await readJsonBody(rawBody)
+    const source = body.source
+    const result = upsertKnowledge(paths, {
+      title: String(body.title ?? ''),
+      source: source === 'chat' || source === 'fix' || source === 'gate' ? source : 'manual',
+      tags: Array.isArray(body.tags) ? body.tags.filter((tag): tag is string => typeof tag === 'string') : [],
+      symptom: String(body.symptom ?? ''),
+      cause: String(body.cause ?? ''),
+      fix: String(body.fix ?? ''),
+      notes: typeof body.notes === 'string' ? body.notes : '',
+    })
+    if (!result.ok) throw new PanelApiError(result.problem ?? 'knowledge write failed', 400)
+    return { status: 200, body: { ok: true, id: result.id } }
+  }
+
+  if (method === 'POST' && pathname === '/api/knowledge/delete') {
+    const paths = pathsFor(options, profile)
+    const body = await readJsonBody(rawBody)
+    const id = String(body.id ?? '')
+    if (id === '') throw new PanelApiError('id is required', 400)
+    if (!deleteKnowledge(paths, id)) throw new PanelApiError('knowledge entry not found', 404)
+    return { status: 200, body: { ok: true } }
   }
 
   return { status: 404, body: { error: `no route for ${method} ${pathname}` } }

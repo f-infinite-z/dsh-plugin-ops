@@ -17,5 +17,26 @@ export { rulePatchResolution } from './patchres.js'
 export { ruleStructure } from './structure.js'
 export { runSelfTest, type SelfTestResult } from './selftest.js'
 export { handlePanelApi, PanelApiError, isScanError, type PanelApiOptions, type RowView } from './panel-api.js'
-export { resolveModelConfig, OpenAiCompatibleChannel, buildSystemPrompt, buildChatContext, type ChatMessage, type ChatContext, type ChatReply, type ModelChannel, type ResolvedModelConfig } from './chat.js'
+export { resolveModelConfig, lookupSecret, OpenAiCompatibleChannel, buildSystemPrompt, buildChatContext, type ChatMessage, type ChatContext, type ChatReply, type ModelChannel, type ResolvedModelConfig } from './chat.js'
+export {
+  listKnowledge,
+  readKnowledge,
+  writeKnowledge,
+  upsertKnowledge,
+  deleteKnowledge,
+  retrieveKnowledge,
+  bm25Search,
+  tokenize,
+  recordFixKnowledge,
+  formatKnowledgeContext,
+  buildDepositPrompt,
+  parseDepositReply,
+  resolveEmbeddingConfig,
+  type KnowledgeEntry,
+  type KnowledgeHit,
+  type KnowledgeSource,
+  type KnowledgeInput,
+  type EmbeddingConfig,
+  type DepositDraft,
+} from './knowledge.js'
 export type { Severity, RuleId, Finding, Fix, PackageState, PackageSnapshot, SnapshotDiffEntry, MemoryInfo, ScanReport } from './types.js'
