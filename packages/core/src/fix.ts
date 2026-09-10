@@ -127,10 +127,20 @@ export async function alignToLockfile(profileDir: string, driftPackages: string[
   for (const name of driftPackages) {
     removed.push(...removeInstalledPackage(profileDir, name))
   }
-  const modulesState = join(profileDir, 'node_modules', '.modules.yaml')
-  if (driftPackages.length > 0 && existsSync(modulesState)) {
-    rmSync(modulesState, { force: true })
-    removed.push(modulesState)
+  if (driftPackages.length > 0) {
+    // pnpm's fast path trusts its own state and skips installing deleted
+    // packages; removing the virtual store and the modules state forces the
+    // full relink from the content-addressable store (nothing is re-downloaded).
+    const virtualStore = join(profileDir, 'node_modules', '.pnpm')
+    if (existsSync(virtualStore)) {
+      rmSync(virtualStore, { recursive: true, force: true })
+      removed.push(virtualStore)
+    }
+    const modulesState = join(profileDir, 'node_modules', '.modules.yaml')
+    if (existsSync(modulesState)) {
+      rmSync(modulesState, { force: true })
+      removed.push(modulesState)
+    }
   }
   const result = await runPnpm(['install', '--frozen-lockfile', '--force'], profileDir)
   const reinstalled = driftPackages.length === 0
