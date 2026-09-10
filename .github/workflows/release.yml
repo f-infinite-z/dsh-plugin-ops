@@ -23,10 +23,20 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm run test
       - run: pnpm run build
-      - name: publish core, cli, then bundle (dependency order)
+      - name: publish core, cli, then bundle (dependency order, skip existing)
         run: |
-          pnpm --filter dsh-plugin-ops-core publish --no-git-checks
-          pnpm --filter dsh-plugin-ops publish --no-git-checks
-          pnpm --filter dsh-plugin-ops-bundle publish --no-git-checks
+          publish_if_missing() {
+            pkg="$1"
+            dir="$2"
+            version=$(node -p "require('./packages/$dir/package.json').version")
+            if npm view "$pkg@$version" version >/dev/null 2>&1; then
+              echo "$pkg@$version already published; skipping"
+            else
+              pnpm --filter "$pkg" publish --no-git-checks
+            fi
+          }
+          publish_if_missing dsh-plugin-ops-core core
+          publish_if_missing dsh-plugin-ops cli
+          publish_if_missing dsh-plugin-ops-bundle bundle
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

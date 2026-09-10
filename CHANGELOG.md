@@ -2,6 +2,11 @@
 
 All notable changes are tracked here.
 
+## 0.1.1 — 2026-09-10
+
+- Republish: the 0.1.0 CLI tarball did not become available on the registry
+  CDN; all three packages are republished as 0.1.1. No functional changes.
+
 ## 0.1.0 — 2026-09-10
 
 First public release: the startup-lifecycle guard for DeepSeek Harness plugins.
