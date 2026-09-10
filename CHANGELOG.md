@@ -2,6 +2,23 @@
 
 All notable changes are tracked here.
 
+## 0.1.2 — 2026-09-10
+
+- `fix` now rebuilds `node_modules` before realigning. pnpm trusts its
+  workspace/module state files (`.pnpm-workspace-state-v1.json`,
+  `.modules.yaml`, `.pnpm/lock.yaml`) and skipped reinstalling deleted or
+  mutated packages even under `--force`, so drift repair silently did
+  nothing on POSIX hardlink layouts (Windows passed only by accident, where
+  pnpm copies across volumes). The rebuild links from the
+  content-addressable store; nothing is re-downloaded.
+- CI: build before typecheck/test, because fresh checkouts resolve workspace
+  types through built artifacts.
+- CI: e2e scripts are cross-platform (`pnpm` through `cmd.exe` only on
+  Windows); the drift fixture write is atomic so the pnpm store is never
+  corrupted through hardlinks.
+- Release workflow skips versions already present on the registry, so tag
+  pushes are safe to re-run.
+
 ## 0.1.1 — 2026-09-10
 
 - Republish: the 0.1.0 CLI tarball did not become available on the registry
