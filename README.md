@@ -1,103 +1,110 @@
 # dsh-plugin-ops
 
-> DeepSeek Harness 插件运维（Plugin Operations）：一条命令全量体检、启动前预检拦截、失败归因与恢复、依赖树治理——插件生态的"医生"，长期收敛为插件管理增强一体化。
+English | [中文](README.zh.md)
 
-**状态：v0.3 开发中（v1.0 发布就绪）；拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
+> DeepSeek Harness plugin operations: one-command health check, pre-boot gate, failure attribution and recovery, dependency-tree governance — the doctor for the plugin ecosystem, converging into an integrated plugin-management suite.
 
-## 命名（三层关系）
+**Status: v0.1.1 published on npm. Interception, repair, and memory mechanics: [docs/architecture.md](docs/architecture.md).**
 
-| 层 | 名称 | 说明 |
+## Names
+
+| Layer | Name | Notes |
 |---|---|---|
-| GitHub 仓库 / npm 包 | `dsh-plugin-ops`（CLI）/ `dsh-plugin-ops-core`（引擎） | 对外名统一 |
-| 本地目录 | 任意（早期名 `dsh-plugin-doctor` 遗留） | 目录名不影响发布物与命令 |
-| 命令 | `dsh-ops` | 安装后提供的 bin |
+| GitHub repository / npm packages | `dsh-plugin-ops` (CLI), `dsh-plugin-ops-core` (engine), `dsh-plugin-ops-bundle` (embedded bundle) | one public name across all |
+| Command | `dsh-ops` | the bin installed by the CLI package |
 
-## 为什么做
+## Why
 
-DeepSeek Harness（dsh）插件生态自 2026-08 起爆发式增长，但 dsh 的加载模型是：静态补丁全部应用 → 插件行并发激活 → **任一插件失败即整树中止启动**。装几个插件后，"昨天还能开、今天启动失败"成为常态。
+The DeepSeek Harness (dsh) plugin ecosystem has grown explosively since August 2026, but the loading model is: static patches apply first → plugin rows activate concurrently → **any single failure aborts the whole tree**. After installing a few plugins, "it booted yesterday but not today" becomes routine.
 
-现有生态工具（多个市场/管理器）只做**变更时防护**（安装/更新时试运行）与运行期观测；**没有项目做每次启动前的整体预检与失败后的自动归因恢复**。dsh-plugin-ops 补上这环。
+Existing ecosystem tools cover **change-time protection** (dry runs during install/update) and runtime observation; **none do whole-tree pre-boot checks and automatic attribution after a failed boot**. dsh-plugin-ops fills that gap.
 
-## 快速开始
+## Quick start
 
 ```sh
-npm i -g dsh-plugin-ops        # npm 发布后；仓库内开发用源码（见下）
-dsh-ops check                  # 一条命令扫全部 profile（无网络，秒级）
-dsh-ops scan --profile web     # 单 profile 深扫（--json 机器可读；--skip-update-check 免网络）
-dsh-ops fix --profile web      # 修复：lockfile 对齐（--dry-run 预览 / --yes 免确认）
-dsh-ops gate -- dsh web        # 启动门：预检通过才放行 dsh；失败自动归因
-dsh-ops serve                  # 本地 Web 面板 http://127.0.0.1:8912（中英可切）
-dsh-ops selftest               # 自检：内置故障样本跑全规则
+npm i -g dsh-plugin-ops
+dsh-ops check                  # scan every profile (offline, seconds)
+dsh-ops scan --profile web     # deep scan one profile (--json for machines)
+dsh-ops fix --profile web      # lockfile realign (--dry-run to preview)
+dsh-ops gate -- dsh web        # pre-boot gate; attribute failures automatically
+dsh-ops serve                  # local web panel at http://127.0.0.1:8912 (zh/en)
+dsh-ops selftest               # run built-in fault samples through all rules
 ```
 
-`check` 输出每个 profile 一行总评 + 逐条 fatal 修复提示；`--json` 适合交给对话里的模型解读。
+`check` prints one summary line per profile plus per-finding fix hints; `--json` is model-friendly.
 
-## 扫描规则（7 条，全部静态确定性）
+## Scan rules (7, fully static and deterministic)
 
-| # | 规则 | 严重度 | 作用 |
+| # | Rule | Severity | What it catches |
 |---|---|---|---|
-| 1 | bundle 声明完整性 | fatal | 层列表里的包不可解析 / 无 `dsh.bundle.patch` / patch 文件缺失 |
-| 2 | 依赖三方漂移 | fatal/自动修 | package.json 声明 vs pnpm-lock.yaml 锁定 vs 磁盘实际 |
-| 3 | registry 版本对比 | warn | 经 `pnpm outdated`，有更新提示；advisory 不阻断 |
-| 4 | peer 缺口/双实例 | 双实例 fatal | 声明了不存在的 peer；框架核心出现两份物理副本 |
-| 5 | patch 行解析悬空 | fatal | 补丁引用的包（含子路径）不可解析 |
-| 6 | 故障记忆 | info/warn | 自上次成功启动后变化的包清单（归因基础） |
-| 7 | 结构完整性 | fatal/warn | 缺默认入口 / CJS 入口（Loader 需 ESM 命名导出）/ 缺 types/client |
+| 1 | Bundle declaration integrity | fatal | layer package unresolvable / no `dsh.bundle.patch` / patch file missing |
+| 2 | Three-way dependency drift | fatal / auto-fix | package.json declaration vs pnpm-lock.yaml vs disk |
+| 3 | Registry version comparison | warn | updates via `pnpm outdated`; advisory, never blocks |
+| 4 | Peer gaps / double instances | double instance fatal | peers that cannot resolve; two physical copies of framework core |
+| 5 | Patch-row resolution | fatal | packages referenced by patch rows (including subpaths) unresolvable |
+| 6 | Fault memory | info/warn | packages that changed since the last successful boot (attribution baseline) |
+| 7 | Structure integrity | fatal/warn | missing default entry / CJS entry (the Loader needs ESM named exports) / missing types or client |
 
-真实生态验证：peer 声明悬空（作者引用官方未发布的包）已在多个第三方插件上检出。
+Real-ecosystem validation: dangling peer declarations (authors referencing official packages that were never published) were detected on multiple third-party plugins.
 
-## 命令与形态
+## Commands
 
-| 面 | 说明 |
+| Surface | Description |
 |---|---|
-| `check` | 全 profile 一键体检（默认无网络），人类与模型双友好 |
-| `scan` | 单 profile 深扫：规则 1-7 + 可选更新检查 |
-| `fix` | 自动可修集：磁盘↔lockfile 对齐（`pnpm install --frozen-lockfile --force`）；plan→确认→执行→备份 |
-| `gate` | 先阻断分级处置：fatal 先拦（自动修→放行；复杂→醒目指引；`--bypass` 逃生舱记录不静默）；dsh 启动秒退 → 归因差异包 → 交互禁用重试；headless 一次性 profile 退出码透传不归因 |
-| `serve` | 本地 Web 面板：健康卡/结果列表/修复执行/**插件行管理**（健康徽标、致命/警告/正常筛选、每页 10 行分页、官方行保护、启停开关）/故障时间线/**诊断对话**（DeepSeek 或任意 OpenAI 兼容 provider，解释 + 指引白名单修复），zh/en 切换 |
-| `selftest` | 引擎自检（6 内置故障样本），验证安装健康 |
-| 内嵌 bundle（`dsh-plugin-ops-bundle`） | 装进 profile 后在 dsh Web 设置页出现"dsh-ops"健康页（扫描/行管理/时间线/诊断对话）；host 半边与 `serve` 复用同一引擎与路由白名单，诊断对话优先走官方 `ctx.llm`、无 llm 时降级直连 |
+| `check` | one-shot health check across all profiles (offline by default) |
+| `scan` | single-profile deep scan: rules 1-7 plus optional update check |
+| `fix` | auto-fix set: disk↔lockfile realign (`pnpm install --frozen-lockfile --force`); plan → confirm → execute → backup |
+| `gate` | block-first graded disposition: fatal findings block (auto-fix then pass; complex ones get loud guidance; `--bypass` is a logged escape hatch); a boot failure attributes the changed packages and offers interactive disable-and-retry; one-shot headless profiles pass exit codes through without attribution |
+| `serve` | local web panel: health cards / findings / fix execution / **plugin-row management** (health badges, severity filter, 10-per-page paging, official-row protection, enable/disable) / fault timeline / **diagnosis chat** (DeepSeek or any OpenAI-compatible provider; explains and points at whitelisted fixes), zh/en switch |
+| `selftest` | engine self-check over six built-in fault samples |
+| Embedded bundle (`dsh-plugin-ops-bundle`) | adds a "dsh-ops" health section to the dsh Web settings page (scan / rows / timeline / chat); the host half shares the same engine and route whitelist as `serve`; chat prefers the official `ctx.llm` seam and falls back to a direct channel |
 
-退出码：`0` 通过（或 dsh 自身码）/ `1` 仍有 fatal / `2` 用法或 profile 缺失 / `3` gate 被需人工处置的 fatal 阻断 / `4-5` gate 归因相关。
+Exit codes: `0` ok (or dsh's own code) / `1` fatal findings remain / `2` usage or profile missing / `3` gate blocked by fatal findings / `4-5` gate attribution outcomes.
 
-## 配置（`$DSH_HOME/dsh-ops.yml`）
+## Configuration (`$DSH_HOME/dsh-ops.yml`)
 
 ```yaml
 rules:
   registry-version:
-    enabled: false          # 关闭某规则
+    enabled: false          # disable a rule
   peer-gap:
-    severity: info          # 严重度只能降不能升
+    severity: info          # severity can only be demoted
 ignorePackages:
   - some-noisy-plugin
 ```
 
-## 架构与自保
+## Architecture and self-reliance
 
-- **核心逻辑在 dsh 插件树之外**（独立 wrapper 进程 + 只读文件解析），dsh 崩溃不影响诊断，诊断失败不拦 dsh（fail-open 只适用于自身故障）。
-- **自包含构建**：core 与 CLI 发布物均为自包含打包（依赖全部内联，运行时零 node_modules）——没有依赖树就没有依赖树可漂；树内 bundle 的 host 半边因此不会把依赖缺口带进 dsh 插件树。
-- 规则消息单语英文（CLI/JSON/面板单一事实）；面板 UI 词典化中英切换。dsh-ops serve 面板含诊断对话（ModelChannel 通道：显式 DSH_OPS_LLM_API_KEY/_BASE_URL/_MODEL 覆盖，或探测 DEEPSEEK/ARK/DASHSCOPE/OPENAI 的 env/.env/.credentials.yaml 凭据；内嵌形态优先复用官方 ctx.llm seam，无 llm 服务时降级直连）。
-- 写操作白名单 + 同源校验 + 自动备份；故障注入测试有 temp 沙箱路径断言。
+- **Core logic lives outside the dsh plugin tree** (a standalone wrapper process reading files): a crashing dsh does not affect diagnosis, and a failing diagnosis does not block dsh (fail-open applies only to dsh-ops' own faults).
+- **Self-contained builds**: core and CLI ship as single files with every dependency inlined (zero runtime node_modules) — no dependency tree to drift; the in-tree bundle host half therefore carries no dependency-gap risk into the plugin tree.
+- Engine messages are English-only (one fact source for CLI/JSON/panel); the panel UI is dictionary-driven zh/en. The `serve` panel includes diagnosis chat (ModelChannel: explicit `DSH_OPS_LLM_API_KEY`/`_BASE_URL`/`_MODEL` overrides, or probing DEEPSEEK/ARK/DASHSCOPE/OPENAI keys from env, `.env`, `.credentials.yaml`; the embedded form prefers the official `ctx.llm` seam and falls back to a direct channel).
+- Writes are whitelisted, same-origin checked, and backed up; fault-injection tests assert temp-sandbox paths.
 
-## 开发
+## Roadmap
+
+- **Desktop adaptation.** The official desktop app runs its own plugin tree without a CLI launch point; dsh-ops will adapt once the desktop plugin-management ecosystem exposes a boot hook. File-level `scan`/`fix` already work against desktop profiles.
+- **Consistency verification for plugin authors.** A verification tool that checks a plugin package against the harness contracts (bundle declaration, ESM exports/structure, client declarations, patch layers) before publishing — so authors can develop and update plugins with confidence that they will load.
+- **Integrated plugin management (v2).** Absorb the ecosystem's change-time protections (canary runs, enable/disable, update checks, market) into the startup-lifecycle guard, with the pre-boot gate as the single entry point.
+
+## Development
 
 ```sh
 pnpm install && pnpm run build
-pnpm run typecheck && pnpm run test      # 48 单测（core 38 + cli 10；以实测为准）
-node packages/cli/lib/index.js selftest  # 引擎自检
-node scripts/e2e/scan-fix.e2e.mjs        # 离线 E2E（真实 pnpm 修复）
-node scripts/e2e/gate.e2e.mjs            # gate 场景（放行/阻断/旁路/归因/headless）
-node scripts/e2e/real-plugins.e2e.mjs    # 真实第三方插件沙箱（需网络）
+pnpm run typecheck && pnpm run test      # 62 tests (core 38 + bundle 14 + cli 10)
+node packages/cli/lib/index.js selftest  # engine self-check
+node scripts/e2e/scan-fix.e2e.mjs        # offline E2E (real pnpm repair)
+node scripts/e2e/gate.e2e.mjs            # gate scenarios (pass/block/bypass/attribution/headless)
+node scripts/e2e/real-plugins.e2e.mjs    # real third-party plugin sandbox (network)
 ```
 
-发布：core 先 cli 后（pnpm publish，顺序见 CI release workflow）。
+Release: core, then cli, then bundle (order enforced by the CI release workflow).
 
-## 生态定位
+## Ecosystem positioning
 
-不是第 N 个市场/管理器，而是启动生命周期防护：补全生态"变更时防护"缺失的**每次启动**环；后续版本将按自有架构吸收市场/启停/升级防护等功能，收敛为一体化插件管理增强。
+Not another market or manager, but startup-lifecycle protection: it fills the **every-boot** gap that change-time protection leaves open. Later versions absorb market/enable-disable/update protection into the same architecture, converging into an integrated plugin-management suite.
 
-## 参考
+## References
 
-- [docs/architecture.md](docs/architecture.md) 拦截/修复/记忆机制说明
-- 官方仓库：https://github.com/deepseek-ai/deepseek-harness
-- 许可证：MIT（见 [LICENSE](LICENSE)）
+- [docs/architecture.md](docs/architecture.md) — interception, repair, and memory mechanics
+- Upstream: https://github.com/deepseek-ai/deepseek-harness
+- License: MIT (see [LICENSE](LICENSE))
