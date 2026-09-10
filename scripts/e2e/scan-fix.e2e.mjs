@@ -39,7 +39,10 @@ writeFileSync(join(webB, 'package.json'), JSON.stringify({
   dependencies: { 'is-odd': '^3.0.1' },
 }, null, 2), 'utf8')
 writeFileSync(join(webB, 'pnpm-workspace.yaml'), 'packages:\n  - .\n', 'utf8')
-const install = spawnSync('cmd.exe', ['/c', 'pnpm', 'install'], { cwd: webB, encoding: 'utf8', timeout: 120000 })
+// Cross-platform: pnpm.cmd needs cmd.exe on Windows; POSIX spawns pnpm directly.
+const install = process.platform === 'win32'
+  ? spawnSync('cmd.exe', ['/c', 'pnpm', 'install'], { cwd: webB, encoding: 'utf8', timeout: 120000 })
+  : spawnSync('pnpm', ['install'], { cwd: webB, encoding: 'utf8', timeout: 120000 })
 if (install.status !== 0) throw new Error(`fixture install failed: ${String(install.stderr).slice(0, 800)}`)
 
 const oddPkgDir = join(webB, 'node_modules', 'is-odd')

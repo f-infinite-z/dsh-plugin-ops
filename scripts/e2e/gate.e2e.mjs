@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync, readFileSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync, readFileSync, renameSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
@@ -23,6 +23,15 @@ function memoryLines(home) {
 function writeProfile(web, deps) {
   mkdirSync(web, { recursive: true })
   writeFileSync(join(web, 'package.json'), JSON.stringify({ name: 'dsh-profile-web', private: true, version: '0.0.0', dependencies: deps }, null, 2), 'utf8')
+}
+
+// Atomic replace: a truncating write through the pnpm symlink would corrupt
+// the shared global store (hardlinks). Delete + rename instead.
+function replaceJsonAtomic(file, next) {
+  const tmp = `${file}.dshops-tmp`
+  writeFileSync(tmp, `${JSON.stringify(next, null, 2)}\n`, 'utf8')
+  rmSync(file, { force: true })
+  renameSync(tmp, file)
 }
 
 const fakeDshOk = join(tmpdir(), `fake-dsh-ok-${process.pid}.mjs`)
@@ -76,11 +85,14 @@ const homeG5 = mkdtempSync(join(tmpdir(), 'ops-g5-'))
 const web5 = join(homeG5, 'profiles', 'web')
 writeProfile(web5, { 'is-odd': '^3.0.1' })
 writeFileSync(join(web5, 'pnpm-workspace.yaml'), 'packages:\n  - .\n', 'utf8')
-const install = spawnSync('cmd.exe', ['/c', 'pnpm', 'install'], { cwd: web5, encoding: 'utf8', timeout: 120000 })
+// Cross-platform: pnpm.cmd needs cmd.exe on Windows; POSIX spawns pnpm directly.
+const install = process.platform === 'win32'
+  ? spawnSync('cmd.exe', ['/c', 'pnpm', 'install'], { cwd: web5, encoding: 'utf8', timeout: 120000 })
+  : spawnSync('pnpm', ['install'], { cwd: web5, encoding: 'utf8', timeout: 120000 })
 if (install.status !== 0) throw new Error(`G5 fixture install failed: ${String(install.stderr).slice(0, 400)}`)
 const oddPkgDir = join(web5, 'node_modules', 'is-odd')
 const oddPkg = JSON.parse(readFileSync(join(oddPkgDir, 'package.json'), 'utf8'))
-writeFileSync(join(oddPkgDir, 'package.json'), JSON.stringify({ ...oddPkg, version: '9.9.9' }, null, 2), 'utf8')
+replaceJsonAtomic(join(oddPkgDir, 'package.json'), { ...oddPkg, version: '9.9.9' })
 const g5 = gate(homeG5, ['--', 'node', fakeDshOk])
 console.log('G5 code:', g5.code)
 if (g5.code !== 0) throw new Error(`G5 expected 0 after auto-fix + launch, got ${g5.code}`)
