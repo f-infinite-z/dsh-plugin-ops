@@ -16,9 +16,12 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Build before typecheck/test: workspace packages resolve each other
+      # through published artifacts (core's lib/types and dist), which a
+      # fresh checkout does not have.
+      - run: pnpm run build
       - run: pnpm run typecheck
       - run: pnpm run test
-      - run: pnpm run build
       - name: selftest (bundled artifact)
         run: node packages/cli/dist/index.js selftest
       - name: offline e2e (scan-fix + gate)
