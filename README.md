@@ -56,6 +56,7 @@ dsh-ops selftest               # 自检：内置故障样本跑全规则
 | `gate` | 先阻断分级处置：fatal 先拦（自动修→放行；复杂→醒目指引；`--bypass` 逃生舱记录不静默）；dsh 启动秒退 → 归因差异包 → 交互禁用重试；headless 一次性 profile 退出码透传不归因 |
 | `serve` | 本地 Web 面板：健康卡/结果列表/修复执行/**插件行管理**（健康徽标、致命/警告/正常筛选、每页 10 行分页、官方行保护、启停开关）/故障时间线/**诊断对话**（DeepSeek 或任意 OpenAI 兼容 provider，解释 + 指引白名单修复），zh/en 切换 |
 | `selftest` | 引擎自检（6 内置故障样本），验证安装健康 |
+| 内嵌 bundle（`dsh-plugin-ops-bundle`） | 装进 profile 后在 dsh Web 设置页出现"dsh-ops"健康页（扫描/行管理/时间线/诊断对话）；host 半边与 `serve` 复用同一引擎与路由白名单，诊断对话优先走官方 `ctx.llm`、无 llm 时降级直连 |
 
 退出码：`0` 通过（或 dsh 自身码）/ `1` 仍有 fatal / `2` 用法或 profile 缺失 / `3` gate 被需人工处置的 fatal 阻断 / `4-5` gate 归因相关。
 
@@ -74,8 +75,8 @@ ignorePackages:
 ## 架构与自保
 
 - **核心逻辑在 dsh 插件树之外**（独立 wrapper 进程 + 只读文件解析），dsh 崩溃不影响诊断，诊断失败不拦 dsh（fail-open 只适用于自身故障）。
-- **自包含构建**：发布物为 tsup 单文件，运行时零 node_modules —— 没有依赖树就没有依赖树可漂。
-- 规则消息单语英文（CLI/JSON/面板单一事实）；面板 UI 词典化中英切换。dsh-ops serve 面板含诊断对话（ModelChannel 通道：显式 DSH_OPS_LLM_API_KEY/_BASE_URL/_MODEL 覆盖，或探测 DEEPSEEK/ARK/DASHSCOPE/OPENAI 的 env/.env/.credentials.yaml 凭据；内嵌形态将复用官方 ctx.llm seam）。
+- **自包含构建**：core 与 CLI 发布物均为自包含打包（依赖全部内联，运行时零 node_modules）——没有依赖树就没有依赖树可漂；树内 bundle 的 host 半边因此不会把依赖缺口带进 dsh 插件树。
+- 规则消息单语英文（CLI/JSON/面板单一事实）；面板 UI 词典化中英切换。dsh-ops serve 面板含诊断对话（ModelChannel 通道：显式 DSH_OPS_LLM_API_KEY/_BASE_URL/_MODEL 覆盖，或探测 DEEPSEEK/ARK/DASHSCOPE/OPENAI 的 env/.env/.credentials.yaml 凭据；内嵌形态优先复用官方 ctx.llm seam，无 llm 服务时降级直连）。
 - 写操作白名单 + 同源校验 + 自动备份；故障注入测试有 temp 沙箱路径断言。
 
 ## 开发

@@ -23,9 +23,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm run test
       - run: pnpm run build
-      - name: publish core then cli (dependency order)
+      - name: publish core, cli, then bundle (dependency order)
         run: |
           pnpm --filter dsh-plugin-ops-core publish --no-git-checks
           pnpm --filter dsh-plugin-ops publish --no-git-checks
+          pnpm --filter dsh-plugin-ops-bundle publish --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

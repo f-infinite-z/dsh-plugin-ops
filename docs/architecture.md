@@ -78,7 +78,8 @@ attempt → success(版本快照) | failure(详情) | bypass | fix(动作)
 ## 5. 面板与内嵌形态（同一引擎两个壳）
 
 - `serve`：本地 http（127.0.0.1 默认），同进程直调 core，静态单页 assets。
-- 内嵌 bundle（v0.3 B1）：cordis 插件 host 半边复用同一 `panel-api` 处理器挂 `ctx.webServer` prefix 路由 + client 半边注册 settings section；浏览器内同源 fetch。
+- 内嵌 bundle（`packages/bundle`，双端单包）：host 半边复用同一 `panel-api` 处理器挂 `ctx.webServer` prefix `/dsh-ops`（webServer 经 `ctx.inject` 可选等待——无 Web 服务的 profile 照常启动）；client 半边注册 settings section，浏览器内同源 fetch。诊断对话优先走官方 `ctx.llm`（`agentDefaultModel` 选路），无 llm 服务时降级直连 channel。
+- core 发布物为自包含单文件（依赖全部内联）：host 半边在 dsh 插件树内 import 它，任何外部依赖缺口都会中止整树，因此不把依赖树带进 profile。
 - 两者共享 `core/panel-api` 的路由白名单——不做第二套逻辑。
 
 ## 6. 自保（为什么能信任看门人）

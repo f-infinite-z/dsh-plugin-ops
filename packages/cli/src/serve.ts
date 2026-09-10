@@ -82,7 +82,7 @@ export async function serve(options: ServeOptions): Promise<number> {
         const profile = typeof parsed.profile === 'string' ? parsed.profile : 'web'
         const lang = typeof parsed.lang === 'string' ? parsed.lang : 'zh'
         const messages = Array.isArray(parsed.messages)
-          ? parsed.messages.filter((m): m is ChatMessage => typeof m === 'object' && m !== null && (m as ChatMessage).role === 'user' && typeof (m as ChatMessage).content === 'string').slice(-10)
+          ? parsed.messages.filter((m): m is ChatMessage => typeof m === 'object' && m !== null && ((m as ChatMessage).role === 'user' || (m as ChatMessage).role === 'assistant') && typeof (m as ChatMessage).content === 'string').slice(-10)
           : []
         if (messages.length === 0) {
           json(res, 400, { error: 'no user messages' })

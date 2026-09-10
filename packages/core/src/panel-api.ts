@@ -25,6 +25,8 @@ export class PanelApiError extends Error {
 export interface PanelApiOptions {
   paths: DshPaths
   config: OpsConfig
+  /** Profile used when the request carries no `?profile=`; the embedded bundle host passes the profile it runs in. */
+  defaultProfile?: string
 }
 
 export interface RowView {
@@ -94,7 +96,7 @@ export async function handlePanelApi(
   rawBody?: string,
 ): Promise<{ status: number; body: unknown }> {
   const pathname = url.pathname
-  const profile = url.searchParams.get('profile') ?? 'web'
+  const profile = url.searchParams.get('profile') ?? options.defaultProfile ?? 'web'
 
   if (method === 'GET' && pathname === '/api/info') {
     const profiles: { name: string; bundles: number }[] = []
@@ -106,7 +108,7 @@ export async function handlePanelApi(
       }
       profiles.sort((a, b) => a.name.localeCompare(b.name))
     }
-    return { status: 200, body: { home: options.paths.home, profiles } }
+    return { status: 200, body: { home: options.paths.home, profiles, defaultProfile: options.defaultProfile ?? null } }
   }
 
   if (method === 'GET' && pathname === '/api/scan') {

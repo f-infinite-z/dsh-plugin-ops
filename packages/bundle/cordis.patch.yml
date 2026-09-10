@@ -1,0 +1,6 @@
+# dsh-plugin-ops bundle patch: mounts the dsh-ops host half as a Loader row.
+# The browser half ships through package.json `dsh.client` and registers a
+# settings-page section that fetches the same `/dsh-ops` API.
+- insert:
+    - id: dsh-ops-bundle
+      name: 'dsh-plugin-ops-bundle'

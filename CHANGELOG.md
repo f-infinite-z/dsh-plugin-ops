@@ -2,7 +2,9 @@
 
 All notable changes are tracked here.
 
-## Unreleased (local work, not yet published)
+## 0.1.0 — 2026-09-10
+
+First public release: the startup-lifecycle guard for DeepSeek Harness plugins.
 
 ### v0.1 — pre-boot health gate core
 
@@ -24,18 +26,22 @@ All notable changes are tracked here.
 - Gate platform grading: one-shot profiles (headless) pass exit codes through
   without attribution; `--no-attribution` override
 
-### v0.3 — panels and self-checks (in progress)
+### v0.3 — panels, embedded bundle, self-checks
 
 - `selftest`: six built-in fault cases through the real rule engine
 - Standalone local web panel (`dsh-ops serve`, zh/en): scans, findings,
-  auto-fix preview/execute, plugin-row enable/disable with official-row
-  protection, fault-memory timeline
-- Shared panel API consumed by serve and the embedded bundle host
-- Embedded dsh settings-section bundle (in progress)
-- `explain`: optional LLM interpretation of scan results (in progress)
+  auto-fix preview/execute, plugin-row management (health badges, severity
+  filter, 10-per-page paging, official-row protection, enable/disable), fault
+  timeline
+- Diagnosis chat over a model-channel seam (DeepSeek / ARK / DashScope /
+  OpenAI-compatible probing; env, `$DSH_HOME/.env`, or `.credentials.yaml`)
+- Embedded dsh bundle (`dsh-plugin-ops-bundle`): settings-page health panel;
+  host half over `ctx.webServer` with optional `ctx.llm` routing, browser half
+  registered through `dsh.client`; engine shipped as a self-contained file so
+  the plugin tree carries no dependency-tree risk
 
-### v1.0 — publish-ready (in progress)
+### v1.0 — publish-ready
 
-- Self-contained single-file CLI build (tsup; no runtime node_modules)
+- Self-contained single-file builds (CLI `dist/index.js`, engine `dist/index.js`)
 - npm packaging metadata, CI, governance files
-- Public release after manual acceptance testing
+- Public release
