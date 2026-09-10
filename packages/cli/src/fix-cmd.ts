@@ -14,6 +14,16 @@ function hasAlignable(report: { findings: Finding[] }): boolean {
   return report.findings.some((f) => f.severity === 'fatal' && f.fix.kind === 'align-lockfile')
 }
 
+/** Package names of the fatal drift findings; they are deleted before the pnpm realign. */
+function driftPackageNames(report: { findings: Finding[] }): string[] {
+  const names = new Set<string>()
+  for (const finding of report.findings) {
+    if (finding.severity !== 'fatal' || finding.fix.kind !== 'align-lockfile') continue
+    if (finding.packageName !== undefined) names.add(finding.packageName)
+  }
+  return [...names]
+}
+
 export async function runFixCommand(options: FixCommandOptions): Promise<number> {
   let report
   try {
@@ -52,7 +62,7 @@ export async function runFixCommand(options: FixCommandOptions): Promise<number>
     return 2
   }
 
-  const result = await alignToLockfile(options.paths.profileDir)
+  const result = await alignToLockfile(options.paths.profileDir, driftPackageNames(report))
   if (!result.ok) {
     process.stderr.write(`fix: ${result.detail}\n`)
     return 1

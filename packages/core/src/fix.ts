@@ -1,4 +1,6 @@
 import { spawn } from 'node:child_process'
+import { existsSync, readdirSync, rmSync } from 'node:fs'
+import { join } from 'node:path'
 import { appendMemory } from './memory.js'
 import { appendDisabledRow } from './patch-layer.js'
 import type { DshPaths } from './paths.js'
@@ -82,17 +84,53 @@ export interface AlignResult {
 }
 
 /**
- * Realign the installed tree to the lockfile (`pnpm install --frozen-lockfile
- * --force`). The force flag is required because pnpm treats an unchanged
- * modules.yaml as up to date even when a package's own files drifted on disk;
- * force re-extracts every package from the locked tree. Fails when the
- * lockfile disagrees with the manifest — that case is reported to the user
- * instead of mutating the lock.
+ * Remove one package's installed entities so pnpm is forced to reinstall it.
+ * pnpm trusts modules.yaml and directory names, so `--force` alone does not
+ * repair files mutated inside an installed package (notably under POSIX
+ * hardlink layouts). Deleting the link tree removes only links; the
+ * content-addressable store stays intact.
  */
-export async function alignToLockfile(profileDir: string): Promise<AlignResult> {
+function removeInstalledPackage(profileDir: string, packageName: string): string[] {
+  if (!/^(@[\w.-]+\/)?[\w.-]+$/.test(packageName)) return []
+  const removed: string[] = []
+  const direct = join(profileDir, 'node_modules', packageName)
+  if (existsSync(direct)) {
+    rmSync(direct, { recursive: true, force: true })
+    removed.push(direct)
+  }
+  const pnpmDir = join(profileDir, 'node_modules', '.pnpm')
+  if (existsSync(pnpmDir)) {
+    const prefix = packageName.replace('/', '+')
+    for (const entry of readdirSync(pnpmDir)) {
+      if (entry === prefix || entry.startsWith(`${prefix}@`)) {
+        const dir = join(pnpmDir, entry)
+        rmSync(dir, { recursive: true, force: true })
+        removed.push(dir)
+      }
+    }
+  }
+  return removed
+}
+
+/**
+ * Realign the installed tree to the lockfile (`pnpm install --frozen-lockfile
+ * --force`). Packages reported as drifted are deleted first so pnpm
+ * reinstalls them from the locked tree; pnpm otherwise trusts modules.yaml
+ * and leaves mutated files in place. Fails when the lockfile disagrees with
+ * the manifest — that case is reported to the user instead of mutating the
+ * lock.
+ */
+export async function alignToLockfile(profileDir: string, driftPackages: string[] = []): Promise<AlignResult> {
+  const removed: string[] = []
+  for (const name of driftPackages) {
+    removed.push(...removeInstalledPackage(profileDir, name))
+  }
   const result = await runPnpm(['install', '--frozen-lockfile', '--force'], profileDir)
+  const reinstalled = driftPackages.length === 0
+    ? ''
+    : `; reinstalled ${driftPackages.join(', ')} (${removed.length} installed path(s) removed first)`
   return result.code === 0
-    ? { ok: true, detail: 'pnpm install --frozen-lockfile --force completed' }
+    ? { ok: true, detail: `pnpm install --frozen-lockfile --force completed${reinstalled}` }
     : { ok: false, detail: `pnpm install --frozen-lockfile --force failed (${result.code ?? result.signal}):\n${result.output.slice(0, 2000)}` }
 }
 

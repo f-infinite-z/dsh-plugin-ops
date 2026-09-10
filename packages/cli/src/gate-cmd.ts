@@ -55,7 +55,8 @@ export async function runGateCommand(options: GateCommandOptions): Promise<numbe
 
   if (autoFixable.length > 0) {
     process.stdout.write(`\ngate: auto-fixing ${autoFixable.length} drift finding(s) with pnpm install --frozen-lockfile\n`)
-    const fix = await alignToLockfile(options.paths.profileDir)
+    const drifted = [...new Set(autoFixable.map((f) => f.packageName).filter((n): n is string => n !== undefined))]
+    const fix = await alignToLockfile(options.paths.profileDir, drifted)
     if (fix.ok) {
       appendMemory(options.paths, { type: 'fix', ts: new Date().toISOString(), profile: options.profileName, kind: 'align-lockfile', detail: fix.detail })
       report = await currentReport(options)

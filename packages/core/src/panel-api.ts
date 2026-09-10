@@ -156,7 +156,8 @@ export async function handlePanelApi(
     const report = await scanProfile({ paths, profileName: profile, config: options.config, updateCheck: false })
     const alignable = report.findings.filter((f) => f.severity === 'fatal' && f.fix.kind === 'align-lockfile')
     if (alignable.length === 0) return { status: 200, body: { ok: true, detail: 'nothing to realign' } }
-    const result = await alignToLockfile(paths.profileDir)
+    const drifted = [...new Set(alignable.map((f) => f.packageName).filter((n): n is string => n !== undefined))]
+    const result = await alignToLockfile(paths.profileDir, drifted)
     if (result.ok) {
       appendMemory(paths, { type: 'fix', ts: new Date().toISOString(), profile, kind: 'align-lockfile', detail: result.detail })
     }
