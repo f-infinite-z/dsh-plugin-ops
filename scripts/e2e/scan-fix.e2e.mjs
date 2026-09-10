@@ -66,6 +66,19 @@ if (b.code !== 1) throw new Error(`B expected 1 (drift fatal), got ${b.code}`)
 const bf = run(homeB, 'fix', ['--yes'])
 console.log('B fix code:', bf.code)
 console.log((bf.out + bf.err).slice(0, 900))
+if (bf.code !== 0) {
+  const { existsSync: ex, readdirSync: rd } = await import('node:fs')
+  const nm = join(webB, 'node_modules')
+  console.log('DIAG node_modules exists:', ex(nm), '| entries:', ex(nm) ? rd(nm).slice(0, 15).join(',') : '')
+  console.log('DIAG .pnpm exists:', ex(join(nm, '.pnpm')), '| .modules.yaml exists:', ex(join(nm, '.modules.yaml')))
+  const manual = spawnSync(
+    process.platform === 'win32' ? 'cmd.exe' : 'pnpm',
+    process.platform === 'win32' ? ['/c', 'pnpm', 'install', '--frozen-lockfile', '--force'] : ['install', '--frozen-lockfile', '--force'],
+    { cwd: webB, encoding: 'utf8' },
+  )
+  console.log('DIAG manual install code:', manual.status)
+  console.log('DIAG manual output:', String(manual.stdout + manual.stderr).slice(-2000))
+}
 if (bf.code !== 0) throw new Error(`B fix expected 0 after realign, got ${bf.code}`)
 
 const b2 = run(homeB, 'scan')
