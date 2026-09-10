@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { existsSync, readdirSync, rmSync } from 'node:fs'
+import { existsSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { appendMemory } from './memory.js'
 import { appendDisabledRow } from './patch-layer.js'
@@ -84,68 +84,28 @@ export interface AlignResult {
 }
 
 /**
- * Remove one package's installed entities so pnpm is forced to reinstall it.
- * pnpm trusts modules.yaml and directory names, so `--force` alone does not
- * repair files mutated inside an installed package (notably under POSIX
- * hardlink layouts). Deleting the link tree removes only links; the
- * content-addressable store stays intact.
- */
-function removeInstalledPackage(profileDir: string, packageName: string): string[] {
-  if (!/^(@[\w.-]+\/)?[\w.-]+$/.test(packageName)) return []
-  const removed: string[] = []
-  const direct = join(profileDir, 'node_modules', packageName)
-  if (existsSync(direct)) {
-    rmSync(direct, { recursive: true, force: true })
-    removed.push(direct)
-  }
-  const pnpmDir = join(profileDir, 'node_modules', '.pnpm')
-  if (existsSync(pnpmDir)) {
-    const prefix = packageName.replace('/', '+')
-    for (const entry of readdirSync(pnpmDir)) {
-      if (entry === prefix || entry.startsWith(`${prefix}@`)) {
-        const dir = join(pnpmDir, entry)
-        rmSync(dir, { recursive: true, force: true })
-        removed.push(dir)
-      }
-    }
-  }
-  return removed
-}
-
-/**
  * Realign the installed tree to the lockfile (`pnpm install --frozen-lockfile
- * --force`). Packages reported as drifted are deleted first, and pnpm's
- * `modules.yaml` state file is dropped: pnpm decides "already up to date"
- * from that file without checking that every package directory still exists,
- * so a forced install otherwise leaves the deleted packages missing. The
- * relink reads from the content-addressable store; nothing is re-downloaded.
- * Fails when the lockfile disagrees with the manifest — that case is reported
- * to the user instead of mutating the lock.
+ * --force`). When drifted packages are reported, the whole node_modules tree
+ * is deleted first: pnpm trusts its workspace/module state files
+ * (`.pnpm-workspace-state-v1.json`, `.modules.yaml`, `.pnpm/lock.yaml`) and
+ * skips reinstalling deleted packages even under `--force`, so removing the
+ * state alone is not enough. The rebuild links from the content-addressable
+ * store; nothing is re-downloaded. Fails when the lockfile disagrees with the
+ * manifest — that case is reported to the user instead of mutating the lock.
  */
 export async function alignToLockfile(profileDir: string, driftPackages: string[] = []): Promise<AlignResult> {
   const removed: string[] = []
-  for (const name of driftPackages) {
-    removed.push(...removeInstalledPackage(profileDir, name))
-  }
   if (driftPackages.length > 0) {
-    // pnpm's fast path trusts its own state and skips installing deleted
-    // packages; removing the virtual store and the modules state forces the
-    // full relink from the content-addressable store (nothing is re-downloaded).
-    const virtualStore = join(profileDir, 'node_modules', '.pnpm')
-    if (existsSync(virtualStore)) {
-      rmSync(virtualStore, { recursive: true, force: true })
-      removed.push(virtualStore)
-    }
-    const modulesState = join(profileDir, 'node_modules', '.modules.yaml')
-    if (existsSync(modulesState)) {
-      rmSync(modulesState, { force: true })
-      removed.push(modulesState)
+    const nodeModules = join(profileDir, 'node_modules')
+    if (existsSync(nodeModules)) {
+      rmSync(nodeModules, { recursive: true, force: true })
+      removed.push(nodeModules)
     }
   }
   const result = await runPnpm(['install', '--frozen-lockfile', '--force'], profileDir)
   const reinstalled = driftPackages.length === 0
     ? ''
-    : `; reinstalled ${driftPackages.join(', ')} (${removed.length} installed path(s) removed first)`
+    : `; reinstalled ${driftPackages.join(', ')} (node_modules rebuilt, ${removed.length} path(s) removed)`
   return result.code === 0
     ? { ok: true, detail: `pnpm install --frozen-lockfile --force completed${reinstalled}` }
     : { ok: false, detail: `pnpm install --frozen-lockfile --force failed (${result.code ?? result.signal}):\n${result.output.slice(0, 2000)}` }
