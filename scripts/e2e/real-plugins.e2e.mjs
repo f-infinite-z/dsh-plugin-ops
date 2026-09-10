@@ -78,7 +78,10 @@ const web = join(home, 'profiles', 'sandbox')
 try {
   writeProfile(web)
   console.log('installing pinned samples into an isolated sandbox...')
-  const install = spawnSync('cmd.exe', ['/c', 'pnpm', 'install'], { cwd: web, encoding: 'utf8', timeout: 600000 })
+  // Cross-platform: pnpm.cmd needs cmd.exe on Windows; POSIX spawns pnpm directly.
+  const install = process.platform === 'win32'
+    ? spawnSync('cmd.exe', ['/c', 'pnpm', 'install'], { cwd: web, encoding: 'utf8', timeout: 600000 })
+    : spawnSync('pnpm', ['install'], { cwd: web, encoding: 'utf8', timeout: 600000 })
   if (install.status !== 0) throw new Error(`sandbox install failed (status ${install.status}):\n${String(install.stdout).slice(-2000)}\n${String(install.stderr).slice(-2000)}`)
 
   const bundleNames = reconcileBundles(web)
