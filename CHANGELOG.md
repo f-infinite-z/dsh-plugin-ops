@@ -2,6 +2,25 @@
 
 All notable changes are tracked here.
 
+## 0.4.0 — 2026-09-11
+
+### `dsh-ops verify`: four more publish-time checks
+
+- **V4 entry exports** (warn): the default entry contains an `apply` named
+  export — static detection, so re-exports and minified build artifacts may
+  need a manual look.
+- **V6 client bundle** (warn/info): the client entry registers through
+  `window.__ModuleLoader__.load` and carries the package id.
+- **V7 files completeness** (warn): a declared `files` field covers the bundle
+  patch, the default entry, and the client entry (literal paths, directories,
+  and simple globs are understood).
+- **V8 dependency protocols** (error/warn): `file:`/`link:` specs error —
+  consumers cannot resolve local protocols; `workspace:` specs warn — pnpm
+  publish rewrites them, npm publish does not.
+- Dogfooding: our own bundle reports exactly one warning (`workspace:*` on the
+  core dependency, expected under pnpm publishing); four real ecosystem
+  plugins pass without noise.
+
 ## 0.3.0 — 2026-09-11
 
 ### Publish-time verification for plugin authors (`dsh-ops verify`)

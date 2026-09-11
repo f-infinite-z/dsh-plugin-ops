@@ -33,8 +33,10 @@ export interface PackageManifest {
   main?: unknown
   types?: unknown
   exports?: unknown
+  files?: unknown
   dependencies?: Record<string, string>
   peerDependencies?: Record<string, string>
+  optionalDependencies?: Record<string, string>
   dsh?: { bundle?: { patch?: unknown }; profile?: unknown; client?: unknown }
 }
 

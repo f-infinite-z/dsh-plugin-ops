@@ -10,7 +10,15 @@ import { splitBareSpecifier } from './patchres.js'
  * that decide whether the package loads after `dsh plugin add`.
  */
 
-export type VerifyRuleId = 'bundle-patch' | 'patch-resolution' | 'esm-entry' | 'client-export'
+export type VerifyRuleId =
+  | 'bundle-patch'
+  | 'patch-resolution'
+  | 'dependency-protocol'
+  | 'esm-entry'
+  | 'entry-exports'
+  | 'client-export'
+  | 'client-bundle'
+  | 'files-completeness'
 
 export interface VerifyFinding {
   ruleId: VerifyRuleId
@@ -70,6 +78,32 @@ function isCjsEntry(manifest: PackageManifest, entry: string): boolean {
   if (entry.endsWith('.mjs')) return false
   if (entry.endsWith('.cjs')) return true
   return entry.endsWith('.js') || !entry.includes('.')
+}
+
+/** Read a text file with a byte cap; null when unreadable. */
+function readTextSafe(file: string, maxBytes = 512 * 1024): string | null {
+  try {
+    return readFileSync(file).subarray(0, maxBytes).toString('utf8')
+  } catch {
+    return null
+  }
+}
+
+/** Whether an npm `files` entry (literal path, directory, or simple glob) covers a relative path. */
+function filesCover(files: readonly string[], rel: string): boolean {
+  const normalized = rel.replace(/^\.\//, '')
+  for (const entry of files) {
+    const pattern = entry.replace(/^\.\//, '').replace(/\/+$/, '')
+    if (pattern === '') continue
+    if (pattern === normalized) return true
+    if (normalized.startsWith(`${pattern}/`)) return true
+    if (pattern.includes('*')) {
+      const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&')
+      const regex = new RegExp(`^${escaped.replace(/\*\*/g, '\u0000').replace(/\*/g, '[^/]*').replace(/\u0000/g, '.*')}$`)
+      if (regex.test(normalized)) return true
+    }
+  }
+  return false
 }
 
 /**
@@ -187,6 +221,34 @@ export function verifyPluginPackage(packageDir: string): VerifyReport {
     }
   }
 
+  // ---- V8: publishable dependency protocols ----
+  const depFields: Array<[string, Record<string, string> | undefined]> = [
+    ['dependencies', manifest.dependencies],
+    ['peerDependencies', manifest.peerDependencies],
+    ['optionalDependencies', manifest.optionalDependencies],
+  ]
+  for (const [field, deps] of depFields) {
+    if (deps === undefined) continue
+    for (const [name, spec] of Object.entries(deps)) {
+      if (typeof spec !== 'string') continue
+      if (spec.startsWith('file:') || spec.startsWith('link:')) {
+        findings.push({
+          ruleId: 'dependency-protocol',
+          severity: 'error',
+          message: `${field}.${name} uses the ${spec.split(':')[0]}: protocol (${spec})`,
+          detail: 'consumers cannot resolve local protocols; use a registry version range',
+        })
+      } else if (spec.startsWith('workspace:')) {
+        findings.push({
+          ruleId: 'dependency-protocol',
+          severity: 'warn',
+          message: `${field}.${name} uses the workspace: protocol (${spec})`,
+          detail: 'pnpm publish rewrites it, npm publish does not; make sure your release tooling is pnpm',
+        })
+      }
+    }
+  }
+
   // ---- V3: ESM default entry ----
   const dot = exportsSubpath(manifest.exports, '.')
   let defaultEntry = firstString(dot, 'import', 'default', 'require')
@@ -212,7 +274,26 @@ export function verifyPluginPackage(packageDir: string): VerifyReport {
     })
   }
 
+  // ---- V4: named plugin exports ----
+  if (defaultEntry !== null && existsSync(join(packageDir, defaultEntry))) {
+    const content = readTextSafe(join(packageDir, defaultEntry))
+    if (content !== null) {
+      const hasApply =
+        /\bexport\s+(?:async\s+)?(?:function|const|let|var)\s+apply\b/.test(content) ||
+        /\bexport\s*\{[^}]*\bapply\b[^}]*\}/.test(content)
+      if (!hasApply) {
+        findings.push({
+          ruleId: 'entry-exports',
+          severity: 'warn',
+          message: `could not find an "apply" named export in ${defaultEntry}`,
+          detail: 'the Loader needs ESM named exports for plugin function namespaces; ignore this if the entry is a re-export or a minified build artifact',
+        })
+      }
+    }
+  }
+
   // ---- V5: client export contract ----
+  let clientEntry: string | null = null
   if (hasClient) {
     const client = manifest.dsh?.client as Record<string, unknown> | undefined
     const platform = client?.platform
@@ -223,7 +304,7 @@ export function verifyPluginPackage(packageDir: string): VerifyReport {
         message: `dsh.client.platform is ${JSON.stringify(platform ?? null)}; the harness client system only loads platform "web"`,
       })
     }
-    const clientEntry = firstString(exportsSubpath(manifest.exports, './client'), 'default')
+    clientEntry = firstString(exportsSubpath(manifest.exports, './client'), 'default')
     if (clientEntry === null) {
       findings.push({
         ruleId: 'client-export',
@@ -237,6 +318,47 @@ export function verifyPluginPackage(packageDir: string): VerifyReport {
         severity: 'error',
         message: `client entry ${clientEntry} does not exist`,
       })
+    }
+  }
+
+  // ---- V6: client bundle shape ----
+  if (hasClient && clientEntry !== null && existsSync(join(packageDir, clientEntry))) {
+    const content = readTextSafe(join(packageDir, clientEntry))
+    if (content !== null) {
+      if (!content.includes('__ModuleLoader__.load')) {
+        findings.push({
+          ruleId: 'client-bundle',
+          severity: 'warn',
+          message: `${clientEntry} does not register through window.__ModuleLoader__.load`,
+          detail: 'harness client bundles are CJS single files wrapped as window.__ModuleLoader__.load({ id, factory })',
+        })
+      } else if (packageName !== null && !content.includes(`"${packageName}"`) && !content.includes(`'${packageName}'`)) {
+        findings.push({
+          ruleId: 'client-bundle',
+          severity: 'info',
+          message: `client bundle does not contain the package id ${JSON.stringify(packageName)}`,
+          detail: 'the registration id must match the package name for the client module system to bind it',
+        })
+      }
+    }
+  }
+
+  // ---- V7: files completeness ----
+  const files = Array.isArray(manifest.files) ? manifest.files.filter((f): f is string => typeof f === 'string') : []
+  if (files.length > 0) {
+    const critical: Array<{ label: string; rel: string }> = []
+    if (patchRel !== null) critical.push({ label: 'bundle patch', rel: patchRel })
+    if (defaultEntry !== null) critical.push({ label: 'default entry', rel: defaultEntry })
+    if (hasClient && clientEntry !== null) critical.push({ label: 'client entry', rel: clientEntry })
+    for (const item of critical) {
+      if (!filesCover(files, item.rel)) {
+        findings.push({
+          ruleId: 'files-completeness',
+          severity: 'warn',
+          message: `files field may exclude the ${item.label} ${item.rel} from the published package`,
+          detail: `add ${JSON.stringify(item.rel)} (or its directory) to "files"`,
+        })
+      }
     }
   }
 

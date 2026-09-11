@@ -233,4 +233,49 @@ describe('verifyPluginPackage', () => {
       },
     )
   })
+
+  it('warns when the entry has no apply named export (V4)', () => {
+    withPkg({ ...GOOD_FILES, 'lib/index.js': 'export const other = 1\n' }, (dir) => {
+      const report = verifyPluginPackage(dir)
+      expect(report.findings.some((f) => f.ruleId === 'entry-exports' && f.severity === 'warn')).toBe(true)
+    })
+  })
+
+  it('warns when the client bundle lacks the module-loader registration (V6)', () => {
+    withPkg({ ...GOOD_FILES, 'lib/client.js': 'console.log("hi")\n' }, (dir) => {
+      const report = verifyPluginPackage(dir)
+      expect(report.findings.some((f) => f.ruleId === 'client-bundle' && f.severity === 'warn')).toBe(true)
+    })
+  })
+
+  it('warns when files excludes critical artifacts (V7)', () => {
+    const manifest = JSON.parse(GOOD_FILES['package.json']!) as Record<string, unknown>
+    manifest.files = ['lib/index.js']
+    withPkg({ ...GOOD_FILES, 'package.json': JSON.stringify(manifest) }, (dir) => {
+      const report = verifyPluginPackage(dir)
+      const findings = report.findings.filter((f) => f.ruleId === 'files-completeness')
+      expect(findings.length).toBeGreaterThanOrEqual(2)
+      expect(findings.every((f) => f.severity === 'warn')).toBe(true)
+    })
+  })
+
+  it('covers critical artifacts through a files directory entry (V7)', () => {
+    const manifest = JSON.parse(GOOD_FILES['package.json']!) as Record<string, unknown>
+    manifest.files = ['lib', 'cordis.patch.yml']
+    withPkg({ ...GOOD_FILES, 'package.json': JSON.stringify(manifest) }, (dir) => {
+      const report = verifyPluginPackage(dir)
+      expect(report.findings.filter((f) => f.ruleId === 'files-completeness')).toEqual([])
+    })
+  })
+
+  it('errors on file:/link: protocols and warns on workspace: (V8)', () => {
+    const manifest = JSON.parse(GOOD_FILES['package.json']!) as Record<string, unknown>
+    manifest.dependencies = { 'local-dep': 'file:../local-dep' }
+    manifest.peerDependencies = { 'ws-dep': 'workspace:*' }
+    withPkg({ ...GOOD_FILES, 'package.json': JSON.stringify(manifest) }, (dir) => {
+      const report = verifyPluginPackage(dir)
+      expect(report.findings.some((f) => f.ruleId === 'dependency-protocol' && f.severity === 'error')).toBe(true)
+      expect(report.findings.some((f) => f.ruleId === 'dependency-protocol' && f.severity === 'warn')).toBe(true)
+    })
+  })
 })

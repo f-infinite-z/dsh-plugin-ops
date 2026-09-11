@@ -57,7 +57,7 @@ dsh-ops selftest               # 自检：内置故障样本跑全规则
 | `gate` | 先阻断分级处置：fatal 先拦（自动修→放行；复杂→醒目指引；`--bypass` 逃生舱记录不静默）；dsh 启动秒退 → 归因差异包 → 交互禁用重试；headless 一次性 profile 退出码透传不归因 |
 | `serve` | 本地 Web 面板：健康卡/结果列表/修复执行/**插件行管理**（健康徽标、致命/警告/正常筛选、每页 10 行分页、官方行保护、启停开关）/故障时间线/**诊断对话（带增强检索 RAG 开关）**——排障经验沉淀为 Markdown，开启后自动检索命中条目注入对话（BM25 + 可选向量重排），zh/en 切换 |
 | `selftest` | 引擎自检（6 内置故障样本），验证安装健康 |
-| `verify` | 面向插件作者的发布前校验：bundle patch 声明与解析、patch 行可解析性、ESM 入口、`dsh.client` 导出契约（`--json`、CI 用 `--strict`） |
+| `verify` | 面向插件作者的发布前校验：bundle patch 声明与解析、patch 行可解析性、依赖协议（`file:`/`workspace:`）、ESM 入口与 `apply` 导出、client 导出契约与产物形状、files 完整性（`--json`、CI 用 `--strict`） |
 | 内嵌 bundle（`dsh-plugin-ops-bundle`） | 装进 profile 后在 dsh Web 设置页出现"dsh-ops"健康页（扫描/行管理/时间线/带 RAG 知识库的诊断对话）；host 半边与 `serve` 复用同一引擎与路由白名单，诊断对话优先走官方 `ctx.llm`、无 llm 时降级直连 |
 
 退出码：`0` 通过（或 dsh 自身码）/ `1` 仍有 fatal / `2` 用法或 profile 缺失 / `3` gate 被需人工处置的 fatal 阻断 / `4-5` gate 归因相关。
