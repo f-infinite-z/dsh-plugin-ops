@@ -98,7 +98,18 @@ export async function alignToLockfile(profileDir: string, driftPackages: string[
   if (driftPackages.length > 0) {
     const nodeModules = join(profileDir, 'node_modules')
     if (existsSync(nodeModules)) {
-      rmSync(nodeModules, { recursive: true, force: true })
+      try {
+        // Windows keeps locks on files opened by running processes and its
+        // filesystem is slow with many small files; retries absorb transient
+        // locks (antivirus, editors) instead of failing the whole fix.
+        rmSync(nodeModules, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
+      } catch (error) {
+        return {
+          ok: false,
+          detail: `could not remove ${nodeModules}: ${error instanceof Error ? error.message : String(error)}`
+            + '\nClose any running dsh process (and pause antivirus scanning) and retry `dsh-ops fix`.',
+        }
+      }
       removed.push(nodeModules)
     }
   }

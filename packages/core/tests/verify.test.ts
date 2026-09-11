@@ -234,6 +234,15 @@ describe('verifyPluginPackage', () => {
     )
   })
 
+  it('reads a package.json written with a UTF-8 BOM (Windows editors)', () => {
+    const withBom = `\uFEFF${GOOD_FILES['package.json']}`
+    withPkg({ ...GOOD_FILES, 'package.json': withBom }, (dir) => {
+      const report = verifyPluginPackage(dir)
+      expect(report.packageName).toBe('good-plugin')
+      expect(verifyOk(report)).toBe(true)
+    })
+  })
+
   it('warns when the entry has no apply named export (V4)', () => {
     withPkg({ ...GOOD_FILES, 'lib/index.js': 'export const other = 1\n' }, (dir) => {
       const report = verifyPluginPackage(dir)

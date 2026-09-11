@@ -104,10 +104,15 @@ Release: core, then cli, then bundle (order enforced by the CI release workflow)
 
 Not another market or manager, but startup-lifecycle protection: it fills the **every-boot** gap that change-time protection leaves open. Later versions absorb market/enable-disable/update protection into the same architecture, converging into an integrated plugin-management suite.
 
+## Platform support
+
+Windows, macOS, and Linux (Node `^22.19 || >=24` — the same engines as dsh). CI runs build, typecheck, unit tests, and the offline e2e suite on all three platforms.
+
 ## Feedback
 
 - **Plugin compatibility problem** (a plugin fails to install or boot, or dsh-ops reports it as broken): open a [compatibility issue](https://github.com/f-infinite-z/dsh-plugin-ops/issues/new?template=compatibility.yml) with the `dsh-ops scan --json` output.
 - **dsh-ops itself misbehaving**: open a [bug report](https://github.com/f-infinite-z/dsh-plugin-ops/issues/new?template=bug.yml).
+- **Plugin author?** Give your repository the publish gate: [plugin-author CI](docs/plugin-author-ci.md) — `dsh-ops verify` plus a boot smoke as a reusable workflow.
 - Real failure samples are welcome — they become selftest fixtures and knowledge-base entries.
 
 ## References

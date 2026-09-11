@@ -1,0 +1,84 @@
+name: Plugin smoke (reusable)
+
+# Reusable workflow for plugin authors: verify the package, then install it
+# into an isolated profile and boot dsh once. Call it from your repository:
+#
+#   jobs:
+#     plugin-smoke:
+#       uses: f-infinite-z/dsh-plugin-ops/.github/workflows/plugin-smoke.yml@main
+#       with:
+#         plugin-dir: packages/my-plugin
+#         build-command: npm run build
+
+on:
+  workflow_call:
+    inputs:
+      plugin-dir:
+        description: Path to the plugin package inside the caller repository.
+        required: false
+        type: string
+        default: '.'
+      dsh-version:
+        description: dsh version to install for the boot smoke.
+        required: false
+        type: string
+        default: latest
+      build-command:
+        description: Optional build command to run before the checks (e.g. "npm run build").
+        required: false
+        type: string
+        default: ''
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Build (optional)
+        if: ${{ inputs.build-command != '' }}
+        run: ${{ inputs.build-command }}
+      - name: Verify the plugin package (dsh-ops verify)
+        run: npx -y dsh-plugin-ops@latest verify "${{ inputs.plugin-dir }}"
+
+  boot-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Build (optional)
+        if: ${{ inputs.build-command != '' }}
+        run: ${{ inputs.build-command }}
+      - name: Install dsh and pnpm
+        run: npm i -g "@deepseek-ai/dsh@${{ inputs.dsh-version }}" pnpm@10
+      - name: Install the plugin into an isolated profile
+        env:
+          DSH_HOME: ${{ runner.temp }}/dsh-smoke-home
+        run: dsh plugin --profile web add "file:${{ github.workspace }}/${{ inputs.plugin-dir }}"
+      - name: Boot smoke (dsh web must come up with the plugin installed)
+        env:
+          DSH_HOME: ${{ runner.temp }}/dsh-smoke-home
+        run: |
+          dsh --profile web --no-open --port 39123 > "$DSH_HOME/boot.log" 2>&1 &
+          DSHPID=$!
+          ok=""
+          for i in $(seq 1 90); do
+            if node -e "fetch('http://127.0.0.1:39123/').then(()=>process.exit(0)).catch(()=>process.exit(1))"; then ok=1; break; fi
+            if ! kill -0 "$DSHPID" 2>/dev/null; then
+              echo "dsh exited during boot:"
+              cat "$DSH_HOME/boot.log"
+              exit 1
+            fi
+            sleep 1
+          done
+          kill "$DSHPID" 2>/dev/null || true
+          if [ -z "$ok" ]; then
+            echo "boot timed out:"
+            cat "$DSH_HOME/boot.log"
+            exit 1
+          fi
+          echo "boot smoke passed"

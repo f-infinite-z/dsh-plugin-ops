@@ -3,7 +3,9 @@ import { dirname } from 'node:path'
 
 export function readTextFile(file: string): string | null {
   if (!existsSync(file)) return null
-  return readFileSync(file, 'utf8')
+  const text = readFileSync(file, 'utf8')
+  // Strip a UTF-8 BOM: Windows editors and PowerShell write one by default.
+  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text
 }
 
 export function readJsonFile<T>(file: string): T | null {

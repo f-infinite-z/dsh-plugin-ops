@@ -2,6 +2,21 @@
 
 All notable changes are tracked here.
 
+## 0.5.0 — 2026-09-11
+
+### Plugin-author CI (reusable workflow) + cross-platform hardening
+
+- **Reusable workflow** `.github/workflows/plugin-smoke.yml`: one job for a
+  plugin repository — `dsh-ops verify` plus a boot smoke that installs dsh,
+  installs the plugin into an isolated profile, boots `dsh web`, and prints
+  the boot log on failure. Usage: [docs/plugin-author-ci.md](docs/plugin-author-ci.md).
+- **Cross-platform hardening**: the `node_modules` rebuild retries transient
+  file locks (Windows antivirus/editors) and reports a friendly error instead
+  of crashing; the BOM fix covers Windows editors.
+- **CI now runs on Ubuntu, Windows, and macOS** (build, typecheck, unit tests,
+  and the offline e2e suite on all three; the network sandbox stays on Linux).
+- README: platform support section and the plugin-author CI pointer (en/zh).
+
 ## 0.4.0 — 2026-09-11
 
 ### `dsh-ops verify`: four more publish-time checks
