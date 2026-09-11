@@ -20,6 +20,7 @@ dsh-ops check                  # scan every profile (offline, seconds)
 | `dsh-ops fix --profile web` | auto-fix set: lockfile realign (`--dry-run` / `--yes`) |
 | `dsh-ops gate -- dsh web` | pre-boot gate: scan first, exec dsh, attribute boot failures |
 | `dsh-ops serve` | local web panel at `http://127.0.0.1:8912` (zh/en) |
+| `dsh-ops verify` | publish-time check for plugin authors (bundle patch, patch-row resolution, ESM entry, client export); `--strict` for CI |
 | Knowledge (RAG) | troubleshooting experience deposits as Markdown under `$DSH_HOME/cache/dsh-ops/knowledge/`; the panel toggle retrieves matching entries into the diagnosis chat (BM25, plus embedding re-rank when a key is configured) |
 | `dsh-ops selftest` | engine self-check over built-in fault samples |
 

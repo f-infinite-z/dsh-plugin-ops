@@ -2,6 +2,28 @@
 
 All notable changes are tracked here.
 
+## 0.3.0 — 2026-09-11
+
+### Publish-time verification for plugin authors (`dsh-ops verify`)
+
+- New command: `dsh-ops verify [<dir>] [--json] [--strict]` — static checks
+  over a plugin package directory (no dsh, no profile, no network), for
+  running before `npm publish` or in plugin-author CI.
+- Core checks:
+  - **V1** `dsh.bundle.patch` declaration exists, the file parses, and it is
+    a YAML list;
+  - **V2** patch rows resolve — relative modules must exist, third-party bare
+    packages must be declared in `dependencies`/`peerDependencies`, the
+    bundle's own host row and official `@deepseek-ai/*` references are
+    recognized (info: a peer entry pins the contract);
+  - **V3** the default entry exists and is ESM (CommonJS entries fail, per the
+    Loader's named-export requirement);
+  - **V5** `dsh.client` declares a `web` platform and `exports["./client"]`
+    resolves to an existing file.
+- Exit codes: `0` pass / `1` errors (or warnings under `--strict`) / `2` usage.
+- Issue templates for compatibility reports and bug reports; README feedback
+  section (en/zh).
+
 ## 0.2.0 — 2026-09-10
 
 ### RAG knowledge base for the diagnosis chat

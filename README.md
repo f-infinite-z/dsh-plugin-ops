@@ -57,6 +57,7 @@ Real-ecosystem validation: dangling peer declarations (authors referencing offic
 | `gate` | block-first graded disposition: fatal findings block (auto-fix then pass; complex ones get loud guidance; `--bypass` is a logged escape hatch); a boot failure attributes the changed packages and offers interactive disable-and-retry; one-shot headless profiles pass exit codes through without attribution |
 | `serve` | local web panel: health cards / findings / fix execution / **plugin-row management** (health badges, severity filter, 10-per-page paging, official-row protection, enable/disable) / fault timeline / **diagnosis chat** with an **enhanced-retrieval (RAG) toggle** — troubleshooting experience deposits as Markdown and matching entries are retrieved into the chat (BM25 + optional embedding re-rank), zh/en switch |
 | `selftest` | engine self-check over six built-in fault samples |
+| `verify` | publish-time check for plugin authors: bundle patch declaration/parse, patch-row resolution, ESM entry, and the `dsh.client` export contract (`--json`, `--strict` for CI) |
 | Embedded bundle (`dsh-plugin-ops-bundle`) | adds a "dsh-ops" health section to the dsh Web settings page (scan / rows / timeline / chat with the RAG knowledge base); the host half shares the same engine and route whitelist as `serve`; chat prefers the official `ctx.llm` seam and falls back to a direct channel |
 
 Exit codes: `0` ok (or dsh's own code) / `1` fatal findings remain / `2` usage or profile missing / `3` gate blocked by fatal findings / `4-5` gate attribution outcomes.
@@ -83,7 +84,7 @@ ignorePackages:
 ## Roadmap
 
 - **Desktop adaptation.** The official desktop app runs its own plugin tree without a CLI launch point; dsh-ops will adapt once the desktop plugin-management ecosystem exposes a boot hook. File-level `scan`/`fix` already work against desktop profiles.
-- **Consistency verification for plugin authors.** A verification tool that checks a plugin package against the harness contracts (bundle declaration, ESM exports/structure, client declarations, patch layers) before publishing — so authors can develop and update plugins with confidence that they will load.
+- **Consistency verification for plugin authors.** `dsh-ops verify <dir>` ships the core publish-time checks (bundle patch declaration/parse, patch-row resolution, ESM entry, client export contract) so authors can develop and update plugins with confidence that they will load; more checks (client bundle shape, files completeness, peer contracts) follow.
 - **Integrated plugin management (v2).** Absorb the ecosystem's change-time protections (canary runs, enable/disable, update checks, market) into the startup-lifecycle guard, with the pre-boot gate as the single entry point.
 
 ## Development

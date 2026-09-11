@@ -6,6 +6,7 @@ import { runFixCommand } from './fix-cmd.js'
 import { runGateCommand } from './gate-cmd.js'
 import { serve } from './serve.js'
 import { runCheckCommand } from './check-cmd.js'
+import { runVerifyCommand } from './verify-cmd.js'
 
 const USAGE = `dsh-ops — DeepSeek Harness plugin operations
 
@@ -16,6 +17,7 @@ usage:
   dsh-ops gate  [--profile <name>] [--home <dir>] [--bypass] [--no-attribution]
                 [--boot-threshold-ms <n>] [--config <file>] [--] <dsh command...>
   dsh-ops serve [--home <dir>] [--port <n>] [--host <addr>] [--config <file>]
+  dsh-ops verify [<dir>] [--json] [--strict]
   dsh-ops selftest
   dsh-ops help
 
@@ -42,12 +44,13 @@ const OPTIONS = {
   config: { type: 'string' },
   'skip-update-check': { type: 'boolean', default: false },
   updates: { type: 'boolean', default: false },
+  strict: { type: 'boolean', default: false },
   port: { type: 'string' },
   host: { type: 'string', default: '127.0.0.1' },
   'boot-threshold-ms': { type: 'string' },
 } as const
 
-type Flags = { profile: string; home?: string; json?: boolean; 'dry-run'?: boolean; yes?: boolean; bypass?: boolean; 'no-attribution'?: boolean; config?: string; 'skip-update-check'?: boolean; updates?: boolean; port?: string; host?: string; 'boot-threshold-ms'?: string }
+type Flags = { profile: string; home?: string; json?: boolean; 'dry-run'?: boolean; yes?: boolean; bypass?: boolean; 'no-attribution'?: boolean; config?: string; 'skip-update-check'?: boolean; updates?: boolean; strict?: boolean; port?: string; host?: string; 'boot-threshold-ms'?: string }
 
 function parse(rawArgs: string[]): { values: Flags; positionals: string[] } {
   const { values, positionals } = parseArgs({
@@ -121,6 +124,14 @@ async function main(): Promise<number> {
       const config = loadConfig(values.config, paths.configFile)
       if (config === null) return 2
       return runCheckCommand({ paths, json: values.json ?? false, config, updates: values.updates ?? false })
+    }
+    case 'verify': {
+      const { values, positionals } = parse(rest)
+      return runVerifyCommand({
+        dir: positionals[0] ?? '.',
+        json: values.json ?? false,
+        strict: values.strict ?? false,
+      })
     }
     case 'selftest': {
       const { results, ok } = await runSelfTest()

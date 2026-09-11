@@ -15,6 +15,7 @@ export { ruleBundleDeclaration, ruleDependencyDrift, ruleSessionMemory, ruleRegi
 export { rulePeerGap, rulePeerDrift } from './peers.js'
 export { rulePatchResolution } from './patchres.js'
 export { ruleStructure } from './structure.js'
+export { verifyPluginPackage, verifyOk, type VerifyReport, type VerifyFinding, type VerifyRuleId } from './verify.js'
 export { runSelfTest, type SelfTestResult } from './selftest.js'
 export { handlePanelApi, PanelApiError, isScanError, type PanelApiOptions, type RowView } from './panel-api.js'
 export { resolveModelConfig, lookupSecret, OpenAiCompatibleChannel, buildSystemPrompt, buildChatContext, type ChatMessage, type ChatContext, type ChatReply, type ModelChannel, type ResolvedModelConfig } from './chat.js'
