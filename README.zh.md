@@ -110,8 +110,10 @@ Windows / macOS / Linux（Node `^22.19 || >=24`，与 dsh 相同）；CI 在三�
 
 ## 反馈
 
+- **面板内一键反馈**：`serve` 面板与内嵌 bundle 都有 **反馈** 按钮，自动预填环境信息（版本/形态/OS/profile/scan 计数）打开 issue——不用手工收集诊断信息。
 - **插件兼容性问题**（插件安装/启动失败，或被 dsh-ops 判为异常）：提 [兼容性问题](https://github.com/f-infinite-z/dsh-plugin-ops/issues/new?template=compatibility.yml)，附上 `dsh-ops scan --json` 输出。
 - **dsh-ops 自身行为异常**：提 [Bug 报告](https://github.com/f-infinite-z/dsh-plugin-ops/issues/new?template=bug.yml)。
+- **提问与讨论**：[GitHub Discussions](https://github.com/f-infinite-z/dsh-plugin-ops/discussions)。
 - **插件作者？** 给你的仓库加上发布门禁：[插件作者 CI](docs/plugin-author-ci.md)（`dsh-ops verify` + 启动冒烟，可复用 workflow）。
 - 欢迎提供真实故障样本——它们会成为 selftest 样本与知识库条目。
 

@@ -110,8 +110,10 @@ Windows, macOS, and Linux (Node `^22.19 || >=24` — the same engines as dsh). C
 
 ## Feedback
 
+- **In the panels**: `serve` and the embedded bundle have a **Feedback** button that opens a pre-filled issue with your environment (version, surface, OS, profile, scan counts) — no manual diagnostic collection.
 - **Plugin compatibility problem** (a plugin fails to install or boot, or dsh-ops reports it as broken): open a [compatibility issue](https://github.com/f-infinite-z/dsh-plugin-ops/issues/new?template=compatibility.yml) with the `dsh-ops scan --json` output.
 - **dsh-ops itself misbehaving**: open a [bug report](https://github.com/f-infinite-z/dsh-plugin-ops/issues/new?template=bug.yml).
+- **Questions and general discussion**: [GitHub Discussions](https://github.com/f-infinite-z/dsh-plugin-ops/discussions).
 - **Plugin author?** Give your repository the publish gate: [plugin-author CI](docs/plugin-author-ci.md) — `dsh-ops verify` plus a boot smoke as a reusable workflow.
 - Real failure samples are welcome — they become selftest fixtures and knowledge-base entries.
 
