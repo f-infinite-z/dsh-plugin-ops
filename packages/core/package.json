@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-ops-core",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "type": "module",
   "description": "Shared engine for dsh-plugin-ops: profile readers, scan rules, fault memory, fix planner, panel API",
   "license": "MIT",

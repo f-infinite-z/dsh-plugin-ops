@@ -3,6 +3,7 @@ export type Lang = 'zh' | 'en'
 export interface Dict {
   title: string
   subtitle: string
+  feedback: string
   refresh: string
   scan: string
   scanning: string
@@ -57,6 +58,7 @@ export const DICTS: Record<Lang, Dict> = {
   zh: {
     title: '健康检查',
     subtitle: 'dsh-ops 内嵌面板：扫描当前 profile 的插件健康状态',
+    feedback: '反馈',
     refresh: '刷新',
     scan: '扫描',
     scanning: '扫描中…',
@@ -109,6 +111,7 @@ export const DICTS: Record<Lang, Dict> = {
   en: {
     title: 'Health Check',
     subtitle: 'Embedded dsh-ops panel: plugin health of the current profile',
+    feedback: 'Feedback',
     refresh: 'Refresh',
     scan: 'Scan',
     scanning: 'Scanning…',

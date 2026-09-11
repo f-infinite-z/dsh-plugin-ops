@@ -9,6 +9,7 @@ import { appendMemory } from './memory.js'
 import { reportOk } from './report.js'
 import { allVisibleRows } from './rows.js'
 import { appendDisabledRow, removeDisabledRow } from './patch-layer.js'
+import { OPS_VERSION } from './version.js'
 import {
   deleteKnowledge,
   listKnowledge,
@@ -115,7 +116,7 @@ export async function handlePanelApi(
       }
       profiles.sort((a, b) => a.name.localeCompare(b.name))
     }
-    return { status: 200, body: { home: options.paths.home, profiles, defaultProfile: options.defaultProfile ?? null } }
+    return { status: 200, body: { home: options.paths.home, profiles, defaultProfile: options.defaultProfile ?? null, opsVersion: OPS_VERSION } }
   }
 
   if (method === 'GET' && pathname === '/api/scan') {

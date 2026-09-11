@@ -50,6 +50,7 @@
 <body>
   <h1><span data-i18n="appTitle">dsh-ops 面板</span> <span id="homeLabel" class="badge b-info"></span>
     <span class="spacer"></span>
+    <button id="btnFeedback" style="font-size:12px;padding:4px 10px" data-i18n="feedback">反馈</button>
     <select id="langSel" style="font-size:12px;padding:4px 8px">
       <option value="zh">中文</option><option value="en">English</option>
     </select>
@@ -146,12 +147,12 @@
 
 <script>
 const $ = (id) => document.getElementById(id)
-const state = { profiles: [], scan: null, lang: 'zh', chatHistory: [], pluginRows: [], pluginPage: 0, pluginFilter: 'all', rag: false, knowledge: [] }
+const state = { profiles: [], scan: null, lang: 'zh', chatHistory: [], pluginRows: [], pluginPage: 0, pluginFilter: 'all', rag: false, knowledge: [], opsVersion: 'unknown' }
 const PLUGIN_PAGE_SIZE = 10
 
 const I18N = {
   zh: {
-    appTitle: 'dsh-ops 面板', subtitle: 'DeepSeek Harness 插件运维 · 本地面板（127.0.0.1）',
+    appTitle: 'dsh-ops 面板', subtitle: 'DeepSeek Harness 插件运维 · 本地面板（127.0.0.1）', feedback: '反馈',
     btnScan: '扫描', lblUpdates: '含 registry 更新检查（慢）',
     sevFatal: '致命', sevWarn: '警告', sevInfo: '信息', overall: '总体',
     panelFindings: '扫描结果', panelFix: '可自动修复（lockfile 对齐）', panelTimeline: '故障记忆时间线（最近 12 条）',
@@ -187,7 +188,7 @@ const I18N = {
     },
   },
   en: {
-    appTitle: 'dsh-ops Panel', subtitle: 'DeepSeek Harness plugin operations · local panel (127.0.0.1)',
+    appTitle: 'dsh-ops Panel', subtitle: 'DeepSeek Harness plugin operations · local panel (127.0.0.1)', feedback: 'Feedback',
     btnScan: 'Scan', lblUpdates: 'Include registry update check (slow)',
     sevFatal: 'Fatal', sevWarn: 'Warn', sevInfo: 'Info', overall: 'Overall',
     panelFindings: 'Findings', panelFix: 'Auto-fixable (lockfile realign)', panelTimeline: 'Fault memory timeline (last 12)',
@@ -261,6 +262,7 @@ function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<'
 async function loadProfiles() {
   const info = await api('/api/info')
   $('homeLabel').textContent = info.home
+  state.opsVersion = typeof info.opsVersion === 'string' ? info.opsVersion : 'unknown'
   state.profiles = info.profiles
   const sel = $('profile')
   sel.innerHTML = ''
@@ -584,12 +586,26 @@ function appendChat(role, content) {
   box.scrollTop = box.scrollHeight
 }
 
+function openFeedback() {
+  const lines = [
+    `- dsh-ops: ${state.opsVersion || 'unknown'}`,
+    '- surface: serve panel',
+    `- OS: ${navigator.userAgent}`,
+    `- profile: ${$('profile').value || 'n/a'}`,
+    state.scan ? `- scan: ${state.scan.counts.fatal} fatal / ${state.scan.counts.warn} warn` : '- scan: not run',
+  ]
+  const body = `### Environment\n\n${lines.join('\n')}\n\n### What happened\n\n<!-- describe the problem -->\n`
+  const url = `https://github.com/f-infinite-z/dsh-plugin-ops/issues/new?template=bug.yml&title=${encodeURIComponent('[bug] ')}&body=${encodeURIComponent(body)}`
+  window.open(url, '_blank')
+}
+
 $('btnScan').onclick = doScan
 $('btnFixPreview').onclick = previewFix
 $('btnFixRun').onclick = runFix
 $('btnChat').onclick = sendChat
 $('chatInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendChat() })
 $('btnDeposit').onclick = depositChat
+$('btnFeedback').onclick = openFeedback
 $('btnKnowledgeSearch').onclick = searchKnowledge
 $('btnKnowledgeAll').onclick = loadKnowledge
 $('knowledgeSearch').addEventListener('keydown', (e) => { if (e.key === 'Enter') searchKnowledge() })

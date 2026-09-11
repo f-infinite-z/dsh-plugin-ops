@@ -8,6 +8,7 @@ interface Info {
   home: string
   profiles: { name: string; bundles: number }[]
   defaultProfile: string | null
+  opsVersion?: string
 }
 
 interface Finding {
@@ -283,6 +284,19 @@ export function HealthSection(): ReactNode {
     if (typeof localStorage !== 'undefined') localStorage.setItem('dshops-rag', next ? '1' : '0')
   }
 
+  const openFeedback = (): void => {
+    const lines = [
+      `- dsh-ops: ${info?.opsVersion ?? 'unknown'}`,
+      '- surface: embedded bundle (dsh settings)',
+      `- OS: ${navigator.userAgent}`,
+      `- profile: ${profile === '' ? 'n/a' : profile}`,
+      scan === null ? '- scan: not run' : `- scan: ${scan.counts.fatal} fatal / ${scan.counts.warn} warn`,
+    ]
+    const body = `### Environment\n\n${lines.join('\n')}\n\n### What happened\n\n<!-- describe the problem -->\n`
+    const url = `https://github.com/f-infinite-z/dsh-plugin-ops/issues/new?template=bug.yml&title=${encodeURIComponent('[bug] ')}&body=${encodeURIComponent(body)}`
+    window.open(url, '_blank')
+  }
+
   const searchKnowledge = async (): Promise<void> => {
     const query = knowledgeQuery.trim()
     if (query === '') {
@@ -343,6 +357,9 @@ export function HealthSection(): ReactNode {
         <span className="dshops-sub">{t.subtitle}</span>
         <button className="dshops-btn" onClick={() => setLang(lang === 'zh' ? 'en' : 'zh')}>
           {lang === 'zh' ? 'EN' : '中文'}
+        </button>
+        <button className="dshops-btn" onClick={openFeedback}>
+          {t.feedback}
         </button>
         <button className="dshops-btn" disabled={profile === '' || busy !== ''} onClick={() => void load(profile)}>
           {busy === 'scan' ? t.scanning : t.refresh}

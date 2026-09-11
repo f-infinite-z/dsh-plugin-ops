@@ -2,6 +2,20 @@
 
 All notable changes are tracked here.
 
+## 0.6.0 — 2026-09-11
+
+### In-panel feedback entry
+
+- Both panels (`serve` and the embedded bundle) gain a **Feedback** button that
+  opens a pre-filled GitHub issue (bug template) with the environment summary:
+  dsh-ops version, surface, OS, current profile, and scan counts. Users do not
+  collect diagnostics by hand; attaching the full scan report stays the user's
+  choice (it may contain local paths).
+- `GET /api/info` reports `opsVersion` (read from the engine's own
+  package.json) so the pre-fill is accurate per release.
+- GitHub Discussions enabled for questions and general feedback; issues stay
+  for bugs and compatibility reports.
+
 ## 0.5.0 — 2026-09-11
 
 ### Plugin-author CI (reusable workflow) + cross-platform hardening
