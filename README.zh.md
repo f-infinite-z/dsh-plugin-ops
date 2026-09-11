@@ -103,6 +103,12 @@ node scripts/e2e/real-plugins.e2e.mjs    # 真实第三方插件沙箱（需网�
 
 不是第 N 个市场/管理器，而是启动生命周期防护：补全生态"变更时防护"缺失的**每次启动**环；后续版本将按自有架构吸收市场/启停/升级防护等功能，收敛为一体化插件管理增强。
 
+## 反馈
+
+- **插件兼容性问题**（插件安装/启动失败，或被 dsh-ops 判为异常）：提 [兼容性问题](https://github.com/f-infinite-z/dsh-plugin-ops/issues/new?template=compatibility.yml)，附上 `dsh-ops scan --json` 输出。
+- **dsh-ops 自身行为异常**：提 [Bug 报告](https://github.com/f-infinite-z/dsh-plugin-ops/issues/new?template=bug.yml)。
+- 欢迎提供真实故障样本——它们会成为 selftest 样本与知识库条目。
+
 ## 参考
 
 - [docs/architecture.md](docs/architecture.md) 拦截/修复/记忆机制说明

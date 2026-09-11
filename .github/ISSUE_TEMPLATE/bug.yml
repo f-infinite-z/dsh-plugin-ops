@@ -1,0 +1,43 @@
+name: Bug report
+description: Something in dsh-ops itself does not work as documented
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: dsh-ops version
+      description: The installed `dsh-plugin-ops` version (or the commit when running from source)
+      placeholder: "0.2.0"
+    validations:
+      required: true
+  - type: input
+    id: surface
+    attributes:
+      label: Command or surface
+      description: e.g. `dsh-ops gate -- dsh web`, the serve panel, or the embedded settings page
+    validations:
+      required: true
+  - type: textarea
+    id: expected-actual
+    attributes:
+      label: Expected vs actual
+      description: What you expected, and what happened instead
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Steps to reproduce; include `dsh-ops scan --json` when relevant
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Node version, dsh version, profile name
+      placeholder: "Windows 11 / Node 24 / dsh 0.1.5-alpha.1 / profile: web"
+    validations:
+      required: false

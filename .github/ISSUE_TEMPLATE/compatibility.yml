@@ -1,0 +1,49 @@
+name: Plugin compatibility issue
+description: A plugin fails to install or boot, or dsh-ops reports it as broken
+title: "[compat] "
+labels: ["compatibility"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. The more fields you fill below, the faster this can be diagnosed —
+        real failure samples also become selftest fixtures and knowledge-base entries.
+  - type: input
+    id: dsh-version
+    attributes:
+      label: dsh version
+      description: Output of `dsh --version`
+      placeholder: "0.1.5-alpha.1"
+    validations:
+      required: true
+  - type: input
+    id: plugin
+    attributes:
+      label: Plugin package and version
+      description: The package name and version from the profile's package.json or `pnpm ls`
+      placeholder: "some-plugin@1.2.3"
+    validations:
+      required: true
+  - type: textarea
+    id: scan-json
+    attributes:
+      label: Scan output
+      description: Paste `dsh-ops scan --profile <name> --json` (or the panel's scan result)
+      render: json
+    validations:
+      required: true
+  - type: textarea
+    id: symptom
+    attributes:
+      label: Symptom
+      description: What happens — install error, boot failure, which dsh-ops rule fires, panel behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Boot logs, pnpm errors, or the failing plugin's own output
+      render: shell
+    validations:
+      required: false

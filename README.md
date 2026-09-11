@@ -103,6 +103,12 @@ Release: core, then cli, then bundle (order enforced by the CI release workflow)
 
 Not another market or manager, but startup-lifecycle protection: it fills the **every-boot** gap that change-time protection leaves open. Later versions absorb market/enable-disable/update protection into the same architecture, converging into an integrated plugin-management suite.
 
+## Feedback
+
+- **Plugin compatibility problem** (a plugin fails to install or boot, or dsh-ops reports it as broken): open a [compatibility issue](https://github.com/f-infinite-z/dsh-plugin-ops/issues/new?template=compatibility.yml) with the `dsh-ops scan --json` output.
+- **dsh-ops itself misbehaving**: open a [bug report](https://github.com/f-infinite-z/dsh-plugin-ops/issues/new?template=bug.yml).
+- Real failure samples are welcome — they become selftest fixtures and knowledge-base entries.
+
 ## References
 
 - [docs/architecture.md](docs/architecture.md) — interception, repair, and memory mechanics
