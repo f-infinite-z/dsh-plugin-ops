@@ -7,6 +7,7 @@ import { runGateCommand } from './gate-cmd.js'
 import { serve } from './serve.js'
 import { runCheckCommand } from './check-cmd.js'
 import { runVerifyCommand } from './verify-cmd.js'
+import { helpRequested } from './args.js'
 
 const USAGE = `dsh-ops — DeepSeek Harness plugin operations
 
@@ -74,6 +75,10 @@ function loadConfig(file: string | undefined, defaultFile: string) {
 
 async function main(): Promise<number> {
   const [command, ...rest] = process.argv.slice(2)
+  if (helpRequested(command, rest)) {
+    process.stdout.write(USAGE)
+    return 0
+  }
   switch (command) {
     case undefined:
     case 'help':

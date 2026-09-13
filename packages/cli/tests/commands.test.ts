@@ -15,6 +15,7 @@ vi.mock('dsh-plugin-ops-core', async (importOriginal) => {
 import * as core from 'dsh-plugin-ops-core'
 import { runFixCommand } from '../src/fix-cmd.js'
 import { runGateCommand } from '../src/gate-cmd.js'
+import { helpRequested } from '../src/args.js'
 import type { ScanReport, Finding } from 'dsh-plugin-ops-core'
 
 const mockedScan = vi.mocked(core.scanProfile)
@@ -199,5 +200,21 @@ describe('gate command', () => {
     } finally {
       rmSync(home, { recursive: true, force: true })
     }
+  })
+})
+
+describe('help flag', () => {
+  it('detects --help and -h after a subcommand', () => {
+    expect(helpRequested('check', ['--help'])).toBe(true)
+    expect(helpRequested('scan', ['--profile', 'web', '-h'])).toBe(true)
+  })
+
+  it('ignores help flags after the gate -- passthrough separator', () => {
+    expect(helpRequested('gate', ['--', 'dsh', 'web', '--help'])).toBe(false)
+  })
+
+  it('is false without a help flag', () => {
+    expect(helpRequested('verify', ['--json'])).toBe(false)
+    expect(helpRequested(undefined, [])).toBe(false)
   })
 })
