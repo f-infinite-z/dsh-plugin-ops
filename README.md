@@ -2,9 +2,12 @@
 
 English | [中文](README.zh.md)
 
+[![dsh-xray](https://img.shields.io/endpoint?url=https%3A%2F%2Funstone.github.io%2Fdsh-xray%2Fbadge%2Ff-infinite-z__dsh-plugin-ops.json)](https://unstone.github.io/dsh-xray/registry.html#f-infinite-z__dsh-plugin-ops)
+[![awesome-dsh-plugin](https://img.shields.io/badge/awesome-dsh--plugin-listed-blue)](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)
+
 > DeepSeek Harness plugin operations: one-command health check, pre-boot gate, failure attribution and recovery, dependency-tree governance — the doctor for the plugin ecosystem, converging into an integrated plugin-management suite.
 
-**Status: v0.1.1 published on npm. Interception, repair, and memory mechanics: [docs/architecture.md](docs/architecture.md).**
+**Status: v0.6.1 published on npm. Interception, repair, and memory mechanics: [docs/architecture.md](docs/architecture.md).**
 
 ## Names
 
@@ -81,6 +84,21 @@ ignorePackages:
 - Engine messages are English-only (one fact source for CLI/JSON/panel); the panel UI is dictionary-driven zh/en. The `serve` panel includes diagnosis chat (ModelChannel: explicit `DSH_OPS_LLM_API_KEY`/`_BASE_URL`/`_MODEL` overrides, or probing DEEPSEEK/ARK/DASHSCOPE/OPENAI keys from env, `.env`, `.credentials.yaml`; the embedded form prefers the official `ctx.llm` seam and falls back to a direct channel).
 - Writes are whitelisted, same-origin checked, and backed up; fault-injection tests assert temp-sandbox paths.
 
+## Permissions and data access
+
+dsh-ops touches sensitive surfaces by design; here is exactly what, when, and under which guardrails. Nothing runs without an explicit user action.
+
+| Surface | Access | Purpose | Guardrails |
+|---|---|---|---|
+| Profile files | `package.json`, `pnpm-lock.yaml`, `node_modules` metadata, patch YAML | the diagnosis itself (`check`/`scan`) | read-only; writes go only through the two whitelisted repair channels below |
+| Patch layer | structured write of `disabled` rows into the profile's user `cordis.patch.yml` | disable the plugin row that breaks boot | plan → confirm → backup → validated write; delete the row to revert; official `@deepseek-ai/*` rows are refused (403) |
+| Command execution | `pnpm install --frozen-lockfile --force` (fixed arguments); the `dsh` command passed to `gate` | realign drift; launch dsh after a passed gate | never arbitrary commands; only on explicit confirmation or the exact command the user typed |
+| Local HTTP server | loopback `127.0.0.1:8912` (`serve` panel); the embedded bundle reuses dsh's own web server | the web panel | same-origin checks, loopback only, route whitelist |
+| LLM credentials | `DSH_OPS_LLM_*`, or provider keys from env / `.env` / `.credentials.yaml` | the optional diagnosis chat only | read only when chat is used; every static feature works with no key at all |
+| Network | `pnpm outdated` (opt-in via `--updates`); the configured LLM API | update advisories; diagnosis chat | `check`/`fix`/`gate` and default `scan` are fully offline |
+
+dsh-xray rates this project C3 (a capability-surface rating, not intent); the table above is its human-readable counterpart.
+
 ## Roadmap
 
 - **Desktop adaptation.** The official desktop app runs its own plugin tree without a CLI launch point; dsh-ops will adapt once the desktop plugin-management ecosystem exposes a boot hook. File-level `scan`/`fix` already work against desktop profiles.
@@ -91,7 +109,7 @@ ignorePackages:
 
 ```sh
 pnpm install && pnpm run build
-pnpm run typecheck && pnpm run test      # 62 tests (core 38 + bundle 14 + cli 10)
+pnpm run typecheck && pnpm run test      # 89 tests (core 62 + bundle 14 + cli 13)
 node packages/cli/lib/index.js selftest  # engine self-check
 node scripts/e2e/scan-fix.e2e.mjs        # offline E2E (real pnpm repair)
 node scripts/e2e/gate.e2e.mjs            # gate scenarios (pass/block/bypass/attribution/headless)

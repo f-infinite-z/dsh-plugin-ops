@@ -2,6 +2,21 @@
 
 All notable changes are tracked here.
 
+## 0.6.1 — 2026-09-13
+
+### Documentation transparency and CLI help
+
+- README (en/zh): the stale status line now tracks the published version, and
+  the documented test count matches the suite. A new **Permissions and data
+  access** section spells out every sensitive surface — profile files, the
+  patch layer, command execution, the local server, LLM credentials, and
+  network use — with its guardrails, as the human-readable counterpart of the
+  dsh-xray capability card. The card and the awesome-dsh-plugin listing now
+  appear as badges.
+- CLI: `--help`/`-h` after a subcommand prints usage instead of executing the
+  command (`dsh-ops check --help`); a help flag after the `gate --`
+  passthrough separator still belongs to the dsh command.
+
 ## 0.6.0 — 2026-09-11
 
 ### In-panel feedback entry

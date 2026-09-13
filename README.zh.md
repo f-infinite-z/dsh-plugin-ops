@@ -2,9 +2,12 @@
 
 [English](README.md) | 中文
 
+[![dsh-xray](https://img.shields.io/endpoint?url=https%3A%2F%2Funstone.github.io%2Fdsh-xray%2Fbadge%2Ff-infinite-z__dsh-plugin-ops.json)](https://unstone.github.io/dsh-xray/registry.html#f-infinite-z__dsh-plugin-ops)
+[![awesome-dsh-plugin](https://img.shields.io/badge/awesome-dsh--plugin-listed-blue)](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)
+
 > DeepSeek Harness 插件运维（Plugin Operations）：一条命令全量体检、启动前预检拦截、失败归因与恢复、依赖树治理——插件生态的"医生"，长期收敛为插件管理增强一体化。
 
-**状态：v0.1.1 已发布 npm；拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
+**状态：v0.6.1 已发布 npm；拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
 
 ## 命名
 
@@ -81,6 +84,21 @@ ignorePackages:
 - 规则消息单语英文（CLI/JSON/面板单一事实）；面板 UI 词典化中英切换。dsh-ops serve 面板含诊断对话（ModelChannel 通道：显式 DSH_OPS_LLM_API_KEY/_BASE_URL/_MODEL 覆盖，或探测 DEEPSEEK/ARK/DASHSCOPE/OPENAI 的 env/.env/.credentials.yaml 凭据；内嵌形态优先复用官方 ctx.llm seam，无 llm 服务时降级直连）。
 - 写操作白名单 + 同源校验 + 自动备份；故障注入测试有 temp 沙箱路径断言。
 
+## 权限与数据访问
+
+dsh-ops 按设计会触达敏感面；下面说明具体触达什么、何时触达、有何护栏。所有动作都由用户显式触发。
+
+| 面 | 访问内容 | 用途 | 护栏 |
+|---|---|---|---|
+| profile 文件 | `package.json`、`pnpm-lock.yaml`、`node_modules` 元数据、patch YAML | 诊断本身（`check`/`scan`） | 只读；写操作只走下方两条白名单修复通道 |
+| 补丁层 | 向 profile 用户补丁层 `cordis.patch.yml` 结构化写入 `disabled` 行 | 禁用导致启动失败的插件行 | plan→确认→备份→校验写入；删行即恢复；官方 `@deepseek-ai/*` 行拒绝禁用（403） |
+| 命令执行 | `pnpm install --frozen-lockfile --force`（固定参数）；`gate` 中传入的 `dsh` 命令 | lockfile 对齐；预检通过后启动 dsh | 绝不执行任意命令；仅在显式确认或用户自己输入的命令上执行 |
+| 本地 HTTP 服务 | 回环 `127.0.0.1:8912`（`serve` 面板）；内嵌 bundle 复用 dsh 自带 web 服务 | Web 面板 | 同源校验、仅回环、路由白名单 |
+| LLM 凭据 | `DSH_OPS_LLM_*`，或 env / `.env` / `.credentials.yaml` 中的 provider key | 仅可选的诊断对话 | 只在对话使用时读取；全部静态功能无 key 可用 |
+| 网络 | `pnpm outdated`（`--updates` 可选）；配置的 LLM API | 更新提示；诊断对话 | `check`/`fix`/`gate` 与默认 `scan` 完全离线 |
+
+dsh-xray 给本项目的评级为 C3（衡量能力面而非意图）；上表是该能力卡的人类可读版本。
+
 ## 后续方向
 
 - **官方桌面端适配**：官方桌面端运行独立插件树且无 CLI 启动点；待官方桌面端插件管理生态开放启动钩子后适配。文件级 `scan`/`fix` 已可直接用于 desktop profile。
@@ -91,7 +109,7 @@ ignorePackages:
 
 ```sh
 pnpm install && pnpm run build
-pnpm run typecheck && pnpm run test      # 62 单测（core 38 + bundle 14 + cli 10）
+pnpm run typecheck && pnpm run test      # 89 单测（core 62 + bundle 14 + cli 13）
 node packages/cli/lib/index.js selftest  # 引擎自检
 node scripts/e2e/scan-fix.e2e.mjs        # 离线 E2E（真实 pnpm 修复）
 node scripts/e2e/gate.e2e.mjs            # gate 场景（放行/阻断/旁路/归因/headless）
