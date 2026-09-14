@@ -32,11 +32,24 @@ export function registryDependencies(manifest: ProfileManifest): Record<string, 
 }
 
 /**
+ * Find the dsh installation manifest through the shared closure. The closure
+ * projects `@deepseek-ai/dsh` as a link to the running installation, whose
+ * nested `node_modules` holds every package of the installation dependency
+ * closure — including official packages the closure mirror has not linked yet
+ * (a dsh upgrade heals the mirror at the next boot, so a scan right after an
+ * upgrade must still resolve them). Returns null when no link exists.
+ */
+function anchorInstallationManifest(sharedDir: string): string | null {
+  const manifest = join(sharedDir, '@deepseek-ai', 'dsh', 'package.json')
+  return existsSync(manifest) ? manifest : null
+}
+
+/**
  * Find a real package.json inside the shared installation closure directory
  * (`$DSH_HOME/profiles/node_modules`), which mirrors the dsh installation's
- * dependency closure. The Loader resolves from that anchor first, so bundles
- * installed only there must be found from it. Returns null when the closure is
- * absent (fresh machine, nothing installed yet).
+ * dependency closure. Bundles installed only there must be found from it.
+ * Returns null when the closure is absent (fresh machine, nothing installed
+ * yet).
  */
 function anchorInsideSharedClosure(sharedDir: string): string | null {
   if (!existsSync(sharedDir)) return null
@@ -57,11 +70,16 @@ function anchorInsideSharedClosure(sharedDir: string): string | null {
 
 /**
  * Resolution anchors in Loader order: the profile's own dependency tree first,
- * then the shared installation closure. Mirrors the official two-anchor
- * contract (profile-local copy vs installation copy).
+ * then the dsh installation closure (the running installation's nested
+ * `node_modules`, reached through the shared closure's dsh link), then the
+ * shared installation closure mirror. Mirrors the official two-anchor
+ * contract (profile-local copy vs installation copy) extended with the
+ * mirror, so an upgraded installation still resolves before the mirror heals.
  */
 export function anchorFiles(paths: DshPaths): string[] {
   const anchors = [paths.profileManifest]
+  const installation = anchorInstallationManifest(paths.sharedProfilesDir)
+  if (installation !== null) anchors.push(installation)
   const shared = anchorInsideSharedClosure(paths.sharedProfilesDir)
   if (shared !== null) anchors.push(shared)
   return anchors

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { scanProfile, reportOk } from '../src/index.js'
-import { makeHome, writeProfile, writeInstalledPackages, writeLockfile } from './helpers.js'
+import { scanProfile, reportOk, anchorFiles } from '../src/index.js'
+import { makeHome, writeProfile, writeInstalledPackages, writeLockfile, writeJson } from './helpers.js'
 
 function cleanProfileSetup() {
   const fixture = makeHome()
@@ -210,6 +210,52 @@ describe('rule 2: dependency drift', () => {
       const report = await scanProfile({ paths: fixture.paths, profileName: 'web' })
       expect(reportOk(report)).toBe(true)
       expect(report.findings.some((f) => f.message.includes('not declared in profile dependencies'))).toBe(false)
+    } finally {
+      fixture.dispose()
+    }
+  })
+
+  it('resolves official rows from the installation closure before the mirror heals', async () => {
+    const fixture = makeHome()
+    try {
+      writeProfile(fixture.paths, { dependencies: {}, bundles: ['@deepseek-ai/dsh-web-app'] })
+      // The shared mirror still reflects the previous dsh generation: the dsh
+      // link points at the upgraded installation, whose nested node_modules
+      // carries the new official package, but the mirror has no top-level link
+      // for it yet (healed at the next dsh boot).
+      const installRoot = join(fixture.paths.sharedProfilesDir, '@deepseek-ai', 'dsh')
+      writeJson(join(installRoot, 'package.json'), { name: '@deepseek-ai/dsh', version: '0.1.5-rc.2' })
+      const nested = join(installRoot, 'node_modules', '@deepseek-ai')
+      const webAppDir = join(nested, 'dsh-web-app')
+      writeJson(join(webAppDir, 'package.json'), {
+        name: '@deepseek-ai/dsh-web-app',
+        version: '0.1.5-rc.2',
+        dsh: { bundle: { patch: 'cordis.patch.yml' } },
+      })
+      writeFileSync(join(webAppDir, 'cordis.patch.yml'), [
+        '- id: ui-sidebar-documentpreview',
+        "  name: '@deepseek-ai/dsh-client-ui-sidebar-documentpreview'",
+        '',
+      ].join('\n'), 'utf8')
+      writeJson(join(nested, 'dsh-client-ui-sidebar-documentpreview', 'package.json'), {
+        name: '@deepseek-ai/dsh-client-ui-sidebar-documentpreview',
+        version: '0.1.5-rc.2',
+      })
+      writeLockfile(fixture.paths, {})
+      const report = await scanProfile({ paths: fixture.paths, profileName: 'web' })
+      expect(reportOk(report)).toBe(true)
+      expect(report.findings.some((f) => f.ruleId === 'patch-resolution')).toBe(false)
+    } finally {
+      fixture.dispose()
+    }
+  })
+
+  it('anchors resolution at the dsh installation manifest when the closure links it', () => {
+    const fixture = makeHome()
+    try {
+      const installRoot = join(fixture.paths.sharedProfilesDir, '@deepseek-ai', 'dsh')
+      writeJson(join(installRoot, 'package.json'), { name: '@deepseek-ai/dsh', version: '0.1.5-rc.2' })
+      expect(anchorFiles(fixture.paths)).toContain(join(installRoot, 'package.json'))
     } finally {
       fixture.dispose()
     }

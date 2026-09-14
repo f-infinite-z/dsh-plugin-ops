@@ -2,6 +2,23 @@
 
 All notable changes are tracked here.
 
+## 0.6.2 — 2026-09-14
+
+### dsh 0.1.5 compatibility: installation-closure resolution
+
+- Resolution anchors now include the dsh installation manifest, reached
+  through the shared closure's `@deepseek-ai/dsh` link. npm's nested
+  installation layout keeps every official package inside the dsh package's
+  own `node_modules`, and the shared closure mirror only links them at the
+  next dsh boot — a scan between a dsh upgrade and the first boot reported
+  official patch rows (for example
+  `@deepseek-ai/dsh-client-ui-sidebar-documentpreview` after the 0.1.5
+  upgrade) as unresolvable fatals. Rules 1/4/5/7 now resolve them from the
+  installation while the mirror is still one generation behind.
+- Verified against dsh 0.1.5-rc.2: `check` reports all profiles clean before
+  and after the boot heal; the embedded panel renders in the 0.1.5 settings
+  page unchanged.
+
 ## 0.6.1 — 2026-09-13
 
 ### Documentation transparency and CLI help
