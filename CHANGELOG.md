@@ -2,6 +2,21 @@
 
 All notable changes are tracked here.
 
+## 0.6.3 — 2026-09-16
+
+### dsh 0.1.6 compatibility: flat installation layouts
+
+- Resolution anchors now include the physical target of the shared closure's
+  `@deepseek-ai/dsh` link (`realpath`). `npx` (the documented way to run dsh)
+  and local installs hoist official packages next to the dsh package instead
+  of nesting them under it; the link path alone walks the mirror's parents and
+  never reaches the installation's own `node_modules`, so a scan between a
+  dsh upgrade and the first boot reported every bundle as unresolvable (fatal).
+  Rules 1/4/5/7 now resolve flat layouts through the resolved link target.
+- Verified against dsh 0.1.6-alpha.1: `check` reports the profile clean before
+  and after the boot heal; the embedded panel (bundle 0.6.2) renders in the
+  0.1.6 settings page unchanged.
+
 ## 0.6.2 — 2026-09-14
 
 ### dsh 0.1.5 compatibility: installation-closure resolution
