@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { scanProfile, reportOk, anchorFiles } from '../src/index.js'
 import { makeHome, writeProfile, writeInstalledPackages, writeLockfile, writeJson } from './helpers.js'
@@ -256,6 +256,39 @@ describe('rule 2: dependency drift', () => {
       const installRoot = join(fixture.paths.sharedProfilesDir, '@deepseek-ai', 'dsh')
       writeJson(join(installRoot, 'package.json'), { name: '@deepseek-ai/dsh', version: '0.1.5-rc.2' })
       expect(anchorFiles(fixture.paths)).toContain(join(installRoot, 'package.json'))
+    } finally {
+      fixture.dispose()
+    }
+  })
+
+  it('resolves the flat installation layout through the physical link target', async () => {
+    const fixture = makeHome()
+    try {
+      writeProfile(fixture.paths, { dependencies: {}, bundles: ['@deepseek-ai/dsh-web-app'] })
+      // npx-style flat installation: official packages are hoisted next to the
+      // dsh package instead of nested under it.
+      const installModules = join(fixture.home, 'npx-cache', 'node_modules')
+      writeJson(join(installModules, '@deepseek-ai', 'dsh', 'package.json'), {
+        name: '@deepseek-ai/dsh',
+        version: '0.1.6-alpha.1',
+      })
+      const webAppDir = join(installModules, '@deepseek-ai', 'dsh-web-app')
+      writeJson(join(webAppDir, 'package.json'), {
+        name: '@deepseek-ai/dsh-web-app',
+        version: '0.1.6-alpha.1',
+        dsh: { bundle: { patch: 'cordis.patch.yml' } },
+      })
+      writeFileSync(join(webAppDir, 'cordis.patch.yml'), '- id: probe\n', 'utf8')
+      // The shared mirror links dsh into the profile home; the link path alone
+      // walks the mirror's parents, so only the resolved target exposes the
+      // hoisted package.
+      const linkParent = join(fixture.paths.sharedProfilesDir, '@deepseek-ai')
+      mkdirSync(linkParent, { recursive: true })
+      symlinkSync(join(installModules, '@deepseek-ai', 'dsh'), join(linkParent, 'dsh'), 'junction')
+      writeLockfile(fixture.paths, {})
+      const report = await scanProfile({ paths: fixture.paths, profileName: 'web' })
+      expect(reportOk(report)).toBe(true)
+      expect(report.findings.some((f) => f.ruleId === 'bundle-declaration')).toBe(false)
     } finally {
       fixture.dispose()
     }

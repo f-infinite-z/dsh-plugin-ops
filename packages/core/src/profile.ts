@@ -1,4 +1,4 @@
-import { existsSync, readdirSync } from 'node:fs'
+import { existsSync, readdirSync, realpathSync } from 'node:fs'
 import { join } from 'node:path'
 import { readJsonFile } from './fsutil.js'
 import { packageDirFromAnchor, packageDirFromAnchors, readPackageManifest, type PackageManifest } from './package-tree.js'
@@ -72,17 +72,39 @@ function anchorInsideSharedClosure(sharedDir: string): string | null {
  * Resolution anchors in Loader order: the profile's own dependency tree first,
  * then the dsh installation closure (the running installation's nested
  * `node_modules`, reached through the shared closure's dsh link), then the
- * shared installation closure mirror. Mirrors the official two-anchor
- * contract (profile-local copy vs installation copy) extended with the
- * mirror, so an upgraded installation still resolves before the mirror heals.
+ * same link resolved to its physical target, then the shared installation
+ * closure mirror. Mirrors the official two-anchor contract (profile-local copy
+ * vs installation copy) extended with the mirror, so an upgraded installation
+ * still resolves before the mirror heals.
+ *
+ * The physical-target anchor covers flat installation layouts (`npx` and local
+ * installs hoist every official package next to the dsh package instead of
+ * nesting them under it): the link path walks the mirror's parents, which
+ * never reach the installation's own `node_modules`, so only the resolved
+ * target exposes the hoisted packages.
  */
 export function anchorFiles(paths: DshPaths): string[] {
   const anchors = [paths.profileManifest]
   const installation = anchorInstallationManifest(paths.sharedProfilesDir)
-  if (installation !== null) anchors.push(installation)
+  if (installation !== null) {
+    anchors.push(installation)
+    const physical = physicalPath(installation)
+    if (physical !== null && physical !== installation && !anchors.includes(physical)) {
+      anchors.push(physical)
+    }
+  }
   const shared = anchorInsideSharedClosure(paths.sharedProfilesDir)
   if (shared !== null) anchors.push(shared)
   return anchors
+}
+
+/** Resolve symlinks/junctions to the physical target; null when unreadable. */
+function physicalPath(file: string): string | null {
+  try {
+    return realpathSync.native(file)
+  } catch {
+    return null
+  }
 }
 
 export interface ResolvedBundle {
