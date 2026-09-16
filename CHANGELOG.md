@@ -2,6 +2,21 @@
 
 All notable changes are tracked here.
 
+## 0.6.4 — 2026-09-16
+
+### Runtime resolve guards are no longer fatal
+
+- Rule 5 (patch resolution) recognizes rows whose `disabled` expression probes
+  the row's own package through `require.resolve`/`import.meta.resolve` and
+  reports them at info level when the package is absent: the Loader skips such
+  rows at boot, so they cannot fail the tree. `@deepseek-harness-tui/dsh-tui`
+  guards its `code-runtime` row this way after dsh 0.1.6 replaced
+  `@deepseek-ai/dsh-code-runtime-worker-thread` with the PTC runtime — the row
+  previously surfaced as a false-positive fatal on an otherwise healthy
+  profile. Rows without the guard keep the fatal severity.
+- Verified against the real dsh-tui profile on dsh 0.1.6-alpha.1: the scan
+  drops the fatal and reports the guarded row at info level.
+
 ## 0.6.3 — 2026-09-16
 
 ### dsh 0.1.6 compatibility: flat installation layouts
