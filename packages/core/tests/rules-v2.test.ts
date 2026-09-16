@@ -129,6 +129,38 @@ describe('rule 5: patch resolution', () => {
       fixture.dispose()
     }
   })
+
+  it('downgrades an unresolvable row guarded by a runtime resolve check', async () => {
+    const fixture = makeHome()
+    try {
+      writeProfile(fixture.paths, { dependencies: {}, bundles: [] })
+      mkdirSync(fixture.paths.profileDir, { recursive: true })
+      writeFileSync(join(fixture.paths.profileDir, 'cordis.patch.yml'),
+        '- id: row-a\n  name: ghost-package\n  disabled: !!js "(() => { try { require.resolve(\'ghost-package\') } catch { return true } return false })()"\n', 'utf8')
+      const report = await scanProfile({ paths: fixture.paths, profileName: 'web', updateCheck: false })
+      const finding = report.findings.find((f) => f.ruleId === 'patch-resolution')
+      expect(finding?.severity).toBe('info')
+      expect(finding?.message).toContain('runtime resolve guard')
+      expect(report.findings.some((f) => f.ruleId === 'patch-resolution' && f.severity === 'fatal')).toBe(false)
+    } finally {
+      fixture.dispose()
+    }
+  })
+
+  it('still flags an unresolvable row whose js expression does not probe the package', async () => {
+    const fixture = makeHome()
+    try {
+      writeProfile(fixture.paths, { dependencies: {}, bundles: [] })
+      mkdirSync(fixture.paths.profileDir, { recursive: true })
+      writeFileSync(join(fixture.paths.profileDir, 'cordis.patch.yml'),
+        "- id: row-a\n  name: ghost-package\n  disabled: !!js \"process.env.CI === '1'\"\n", 'utf8')
+      const report = await scanProfile({ paths: fixture.paths, profileName: 'web', updateCheck: false })
+      const finding = report.findings.find((f) => f.ruleId === 'patch-resolution')
+      expect(finding?.severity).toBe('fatal')
+    } finally {
+      fixture.dispose()
+    }
+  })
 })
 
 describe('rule 7: structure integrity', () => {

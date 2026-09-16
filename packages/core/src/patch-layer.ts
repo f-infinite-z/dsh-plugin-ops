@@ -8,7 +8,8 @@ export const PROFILE_PATCH_FILENAME = 'cordis.patch.yml'
 export interface PatchRow {
   id?: string
   name?: string
-  disabled?: boolean
+  /** Static boolean, or the raw text of a `!!js` expression (never evaluated here). */
+  disabled?: boolean | string
 }
 
 export interface PatchFileState {
