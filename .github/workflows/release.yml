@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   publish:
@@ -18,11 +19,16 @@ jobs:
           node-version: 24
           registry-url: https://registry.npmjs.org
           cache: pnpm
+      # Trusted publishing (OIDC) needs npm CLI >= 11.5.1.
+      - run: npm install -g npm@latest
       - run: pnpm install --frozen-lockfile
       # Build before test: workspace packages resolve each other through
       # published artifacts (core's lib/types and dist).
       - run: pnpm run build
       - run: pnpm run test
+      # pnpm's own publish does not implement npm's OIDC flow, so pack with
+      # pnpm (rewrites workspace: protocols) and publish the tarball with npm
+      # (authenticates through the Trusted Publisher configured on npmjs.com).
       - name: publish core, cli, then bundle (dependency order, skip existing)
         run: |
           publish_if_missing() {
@@ -32,11 +38,13 @@ jobs:
             if npm view "$pkg@$version" version >/dev/null 2>&1; then
               echo "$pkg@$version already published; skipping"
             else
-              pnpm --filter "$pkg" publish --no-git-checks
+              mkdir -p /tmp/publish
+              (cd "packages/$dir" && pnpm pack --pack-destination /tmp/publish)
+              tarball=$(ls /tmp/publish/*.tgz | head -1)
+              npm publish "$tarball" --access public
+              rm -f "$tarball"
             fi
           }
           publish_if_missing dsh-plugin-ops-core core
           publish_if_missing dsh-plugin-ops cli
           publish_if_missing dsh-plugin-ops-bundle bundle
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
