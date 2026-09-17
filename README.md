@@ -7,7 +7,7 @@ English | [中文](README.zh.md)
 
 > DeepSeek Harness plugin operations: one-command health check, pre-boot gate, failure attribution and recovery, dependency-tree governance — the doctor for the plugin ecosystem, converging into an integrated plugin-management suite.
 
-**Status: v0.6.4 published on npm. Interception, repair, and memory mechanics: [docs/architecture.md](docs/architecture.md).**
+**Status: v0.7.0 published on npm. Interception, repair, and memory mechanics: [docs/architecture.md](docs/architecture.md).**
 
 ## Names
 
@@ -60,7 +60,7 @@ Real-ecosystem validation: dangling peer declarations (authors referencing offic
 | `gate` | block-first graded disposition: fatal findings block (auto-fix then pass; complex ones get loud guidance; `--bypass` is a logged escape hatch); a boot failure attributes the changed packages and offers interactive disable-and-retry; one-shot headless profiles pass exit codes through without attribution |
 | `serve` | local web panel: health cards / findings / fix execution / **plugin-row management** (health badges, severity filter, 10-per-page paging, official-row protection, enable/disable) / fault timeline / **diagnosis chat** with an **enhanced-retrieval (RAG) toggle** — troubleshooting experience deposits as Markdown and matching entries are retrieved into the chat (BM25 + optional embedding re-rank), zh/en switch |
 | `selftest` | engine self-check over six built-in fault samples |
-| `verify` | publish-time check for plugin authors: bundle patch declaration/parse, patch-row resolution, dependency protocols (`file:`/`workspace:`), ESM entry + `apply` export, client export contract and bundle shape, files completeness (`--json`, `--strict` for CI) |
+| `verify` | publish-time check for plugin authors: accepts a local directory or an **npm package spec** (`dsh-ops verify <name\|@scope/name\|name@version>`, downloaded from the registry); covers bundle patch declaration/parse, patch-row resolution, dependency protocols (`file:`/`workspace:`), ESM entry and exports, client export contract and bundle shape, files completeness (`--json`, `--strict` for CI) |
 | Embedded bundle (`dsh-plugin-ops-bundle`) | adds a "dsh-ops" health section to the dsh Web settings page (scan / rows / timeline / chat with the RAG knowledge base); the host half shares the same engine and route whitelist as `serve`; chat prefers the official `ctx.llm` seam and falls back to a direct channel |
 
 Exit codes: `0` ok (or dsh's own code) / `1` fatal findings remain / `2` usage or profile missing / `3` gate blocked by fatal findings / `4-5` gate attribution outcomes.
@@ -102,14 +102,14 @@ dsh-xray rates this project C3 (a capability-surface rating, not intent); the ta
 ## Roadmap
 
 - **Desktop adaptation.** The official desktop app runs its own plugin tree without a CLI launch point; dsh-ops will adapt once the desktop plugin-management ecosystem exposes a boot hook. File-level `scan`/`fix` already work against desktop profiles.
-- **Consistency verification for plugin authors.** `dsh-ops verify <dir>` ships the core publish-time checks (bundle patch declaration/parse, patch-row resolution, ESM entry, client export contract) so authors can develop and update plugins with confidence that they will load; more checks (client bundle shape, files completeness, peer contracts) follow.
+- **Consistency verification for plugin authors.** `dsh-ops verify` accepts a local directory or an npm package spec and ships eight checks (bundle patch declaration/parse, patch-row resolution, ESM entry and exports, client export contract and bundle shape, files completeness); false positives were triaged against 30 real ecosystem plugins (28 report zero findings). Next: peer contracts, runtime verification.
 - **Integrated plugin management (v2).** Absorb the ecosystem's change-time protections (canary runs, enable/disable, update checks, market) into the startup-lifecycle guard, with the pre-boot gate as the single entry point.
 
 ## Development
 
 ```sh
 pnpm install && pnpm run build
-pnpm run typecheck && pnpm run test      # 94 tests (core 67 + bundle 14 + cli 13)
+pnpm run typecheck && pnpm run test      # 105 tests (core 74 + bundle 14 + cli 17)
 node packages/cli/lib/index.js selftest  # engine self-check
 node scripts/e2e/scan-fix.e2e.mjs        # offline E2E (real pnpm repair)
 node scripts/e2e/gate.e2e.mjs            # gate scenarios (pass/block/bypass/attribution/headless)
