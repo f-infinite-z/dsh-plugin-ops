@@ -2,6 +2,30 @@
 
 All notable changes are tracked here.
 
+## 0.7.0 — 2026-09-17
+
+### False-positive triage against a real-plugin corpus
+
+- **`verify` accepts npm package specs**:
+  `dsh-ops verify <name|@scope/name|name@version>` downloads the published
+  tarball through `npm pack` and runs the same static checks, so authors can
+  validate what they actually shipped instead of a local checkout. Specs are
+  validated before reaching the command line; ranges are rejected because
+  Windows runs `npm pack` through `cmd.exe`.
+- **Three false-positive classes removed**, found by scanning 30 real ecosystem
+  plugins (10 hot tier / 20 ordinary tier):
+  - `entry-exports` no longer requires an `apply` named export. Cordis accepts
+    a default export, any named export, or a re-export; the rule now reports
+    only an entry with no export statement at all. Previously it warned on
+    dsh-im, dsh-tui, dsh-whale-widget, dsh-aimail and dsh-web3 — all healthy.
+  - `esm-entry`/`entry-exports` skip pure bundle meta-packages (a patch whose
+    rows all reference other packages, e.g. dsh-undo-plugin): they have no
+    entry by design.
+  - `files-completeness` glob matching: `lib/**/*.js` now covers
+    `lib/index.js` (`**/` matches zero or more directory levels).
+- Result: 28/30 corpus plugins report zero findings (the other 2 are not
+  published on npm).
+
 ## 0.6.4 — 2026-09-16
 
 ### Runtime resolve guards are no longer fatal

@@ -99,7 +99,15 @@ function filesCover(files: readonly string[], rel: string): boolean {
     if (normalized.startsWith(`${pattern}/`)) return true
     if (pattern.includes('*')) {
       const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&')
-      const regex = new RegExp(`^${escaped.replace(/\*\*/g, '\u0000').replace(/\*/g, '[^/]*').replace(/\u0000/g, '.*')}$`)
+      // Glob semantics: `**/` matches zero or more directory levels, so
+      // `lib/**/*.js` must cover `lib/index.js` as well as `lib/a/b.js`.
+      const regex = new RegExp(
+        `^${escaped
+          .replace(/\*\*\//g, '\u0000')
+          .replace(/\*\*/g, '.*')
+          .replace(/\*/g, '[^/]*')
+          .replace(/\u0000/g, '(?:.*/)?')}$`,
+      )
       if (regex.test(normalized)) return true
     }
   }
@@ -221,6 +229,12 @@ export function verifyPluginPackage(packageDir: string): VerifyReport {
     }
   }
 
+  // A pure bundle meta-package ships only patch rows that reference other
+  // packages; it has no entry of its own, so entry checks do not apply.
+  const selfReferenced =
+    rows !== null && patchRowNames(rows).some((name) => splitBareSpecifier(name).pkg === packageName)
+  const isPureBundle = patchRel !== null && rows !== null && !selfReferenced
+
   // ---- V8: publishable dependency protocols ----
   const depFields: Array<[string, Record<string, string> | undefined]> = [
     ['dependencies', manifest.dependencies],
@@ -253,7 +267,9 @@ export function verifyPluginPackage(packageDir: string): VerifyReport {
   const dot = exportsSubpath(manifest.exports, '.')
   let defaultEntry = firstString(dot, 'import', 'default', 'require')
   if (defaultEntry === null && typeof manifest.main === 'string') defaultEntry = manifest.main
-  if (defaultEntry === null) {
+  if (isPureBundle) {
+    // pure bundle meta-package: no own entry expected
+  } else if (defaultEntry === null) {
     findings.push({
       ruleId: 'esm-entry',
       severity: 'warn',
@@ -274,19 +290,22 @@ export function verifyPluginPackage(packageDir: string): VerifyReport {
     })
   }
 
-  // ---- V4: named plugin exports ----
-  if (defaultEntry !== null && existsSync(join(packageDir, defaultEntry))) {
+  // ---- V4: plugin entry exports ----
+  if (!isPureBundle && defaultEntry !== null && existsSync(join(packageDir, defaultEntry))) {
     const content = readTextSafe(join(packageDir, defaultEntry))
     if (content !== null) {
-      const hasApply =
-        /\bexport\s+(?:async\s+)?(?:function|const|let|var)\s+apply\b/.test(content) ||
-        /\bexport\s*\{[^}]*\bapply\b[^}]*\}/.test(content)
-      if (!hasApply) {
+      // Cordis accepts a default export, any named export, or a re-export; a
+      // file with no export statement at all is the only statically certain defect.
+      const hasAnyExport =
+        /\bexport\s/.test(content) ||
+        /\bmodule\.exports\b/.test(content) ||
+        /\bexports\.[A-Za-z_$]/.test(content)
+      if (!hasAnyExport) {
         findings.push({
           ruleId: 'entry-exports',
           severity: 'warn',
-          message: `could not find an "apply" named export in ${defaultEntry}`,
-          detail: 'the Loader needs ESM named exports for plugin function namespaces; ignore this if the entry is a re-export or a minified build artifact',
+          message: `no export statements found in ${defaultEntry}`,
+          detail: 'the Loader needs an exported plugin (apply function, default export, or re-export); this entry may be empty or misbuilt',
         })
       }
     }

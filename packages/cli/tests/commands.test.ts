@@ -9,17 +9,20 @@ vi.mock('dsh-plugin-ops-core', async (importOriginal) => {
     ...actual,
     scanProfile: vi.fn(),
     alignToLockfile: vi.fn(),
+    fetchNpmPackage: vi.fn(),
   }
 })
 
 import * as core from 'dsh-plugin-ops-core'
 import { runFixCommand } from '../src/fix-cmd.js'
 import { runGateCommand } from '../src/gate-cmd.js'
+import { runVerifyCommand } from '../src/verify-cmd.js'
 import { helpRequested } from '../src/args.js'
 import type { ScanReport, Finding } from 'dsh-plugin-ops-core'
 
 const mockedScan = vi.mocked(core.scanProfile)
 const mockedAlign = vi.mocked(core.alignToLockfile)
+const mockedFetch = vi.mocked(core.fetchNpmPackage)
 
 function makeHome(profile = 'web'): { home: string; paths: core.DshPaths; dispose(): void } {
   const home = mkdtempSync(join(tmpdir(), 'dsh-ops-cli-test-'))
@@ -216,5 +219,83 @@ describe('help flag', () => {
   it('is false without a help flag', () => {
     expect(helpRequested('verify', ['--json'])).toBe(false)
     expect(helpRequested(undefined, [])).toBe(false)
+  })
+})
+
+describe('verify command', () => {
+  beforeEach(() => {
+    mockedFetch.mockReset()
+  })
+
+  function makePluginDir(): string {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-ops-verify-cmd-'))
+    mkdirSync(join(dir, 'lib'), { recursive: true })
+    writeFileSync(
+      join(dir, 'package.json'),
+      JSON.stringify({
+        name: 'good-plugin',
+        version: '1.0.0',
+        type: 'module',
+        main: 'lib/index.js',
+        exports: { '.': { default: './lib/index.js' } },
+        dsh: { bundle: { patch: './cordis.patch.yml' } },
+      }),
+      'utf8',
+    )
+    writeFileSync(join(dir, 'cordis.patch.yml'), '- insert:\n    - id: good\n      name: good-plugin\n', 'utf8')
+    writeFileSync(join(dir, 'lib/index.js'), 'export function apply() {}\n', 'utf8')
+    return dir
+  }
+
+  it('verifies a local plugin directory without touching the registry', async () => {
+    const dir = makePluginDir()
+    try {
+      const code = await runVerifyCommand({ dir, json: true, strict: false })
+      expect(code).toBe(0)
+      expect(mockedFetch).not.toHaveBeenCalled()
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects a path-like input that does not exist', async () => {
+    const code = await runVerifyCommand({ dir: './definitely-not-a-dir-dshops', json: false, strict: false })
+    expect(code).toBe(2)
+    expect(mockedFetch).not.toHaveBeenCalled()
+  })
+
+  it('fetches an npm spec and cleans up the temp directory', async () => {
+    const fetchedDir = makePluginDir()
+    let cleaned = false
+    mockedFetch.mockResolvedValue({
+      ok: true,
+      packageDir: fetchedDir,
+      cleanup: () => {
+        cleaned = true
+      },
+    })
+    try {
+      const code = await runVerifyCommand({ dir: 'good-plugin', json: true, strict: false })
+      expect(code).toBe(0)
+      expect(mockedFetch).toHaveBeenCalledWith('good-plugin')
+      expect(cleaned).toBe(true)
+    } finally {
+      rmSync(fetchedDir, { recursive: true, force: true })
+    }
+  })
+
+  it('returns 2 when the npm fetch fails and still runs cleanup', async () => {
+    let cleaned = false
+    mockedFetch.mockResolvedValue({
+      ok: false,
+      packageDir: null,
+      error: 'boom',
+      cleanup: () => {
+        cleaned = true
+      },
+    })
+    const code = await runVerifyCommand({ dir: 'broken-plugin', json: false, strict: false })
+    expect(code).toBe(2)
+    expect(cleaned).toBe(true)
   })
 })

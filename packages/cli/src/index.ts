@@ -18,7 +18,7 @@ usage:
   dsh-ops gate  [--profile <name>] [--home <dir>] [--bypass] [--no-attribution]
                 [--boot-threshold-ms <n>] [--config <file>] [--] <dsh command...>
   dsh-ops serve [--home <dir>] [--port <n>] [--host <addr>] [--config <file>]
-  dsh-ops verify [<dir>] [--json] [--strict]
+  dsh-ops verify [<dir>|<npm-package>] [--json] [--strict]
   dsh-ops selftest
   dsh-ops help
 
@@ -132,7 +132,7 @@ async function main(): Promise<number> {
     }
     case 'verify': {
       const { values, positionals } = parse(rest)
-      return runVerifyCommand({
+      return await runVerifyCommand({
         dir: positionals[0] ?? '.',
         json: values.json ?? false,
         strict: values.strict ?? false,

@@ -243,10 +243,62 @@ describe('verifyPluginPackage', () => {
     })
   })
 
-  it('warns when the entry has no apply named export (V4)', () => {
-    withPkg({ ...GOOD_FILES, 'lib/index.js': 'export const other = 1\n' }, (dir) => {
+  it('does not warn on a default-only export entry (V4)', () => {
+    withPkg({ ...GOOD_FILES, 'lib/index.js': 'export default { apply() {} }\n' }, (dir) => {
+      const report = verifyPluginPackage(dir)
+      expect(report.findings.some((f) => f.ruleId === 'entry-exports')).toBe(false)
+    })
+  })
+
+  it('does not warn on a named non-apply export entry (V4)', () => {
+    withPkg(
+      { ...GOOD_FILES, 'lib/index.js': 'export function applyWalletPlugin() {}\nexport default applyWalletPlugin\n' },
+      (dir) => {
+        const report = verifyPluginPackage(dir)
+        expect(report.findings.some((f) => f.ruleId === 'entry-exports')).toBe(false)
+      },
+    )
+  })
+
+  it('does not warn on a re-export entry (V4)', () => {
+    withPkg({ ...GOOD_FILES, 'lib/index.js': "export * from 'some-dep'\n" }, (dir) => {
+      const report = verifyPluginPackage(dir)
+      expect(report.findings.some((f) => f.ruleId === 'entry-exports')).toBe(false)
+    })
+  })
+
+  it('warns when the entry has no export statements at all (V4)', () => {
+    withPkg({ ...GOOD_FILES, 'lib/index.js': 'console.log("not a plugin")\n' }, (dir) => {
       const report = verifyPluginPackage(dir)
       expect(report.findings.some((f) => f.ruleId === 'entry-exports' && f.severity === 'warn')).toBe(true)
+    })
+  })
+
+  it('skips entry checks for a pure bundle meta-package (V3/V4)', () => {
+    const manifest = JSON.parse(GOOD_FILES['package.json']!) as Record<string, unknown>
+    delete manifest.main
+    delete manifest.exports
+    delete (manifest.dsh as Record<string, unknown>).client
+    manifest.dependencies = { '@scope/child-plugin': '^1.0.0' }
+    withPkg(
+      {
+        'package.json': JSON.stringify(manifest),
+        'cordis.patch.yml': "- insert:\n    - id: child\n      name: '@scope/child-plugin'\n",
+      },
+      (dir) => {
+        const report = verifyPluginPackage(dir)
+        expect(report.findings.some((f) => f.ruleId === 'esm-entry')).toBe(false)
+        expect(report.findings.some((f) => f.ruleId === 'entry-exports')).toBe(false)
+      },
+    )
+  })
+
+  it('treats lib/**/*.js as covering lib/index.js (V7)', () => {
+    const manifest = JSON.parse(GOOD_FILES['package.json']!) as Record<string, unknown>
+    manifest.files = ['lib/**/*.js', 'lib/**/*.d.ts', 'cordis.patch.yml']
+    withPkg({ ...GOOD_FILES, 'package.json': JSON.stringify(manifest) }, (dir) => {
+      const report = verifyPluginPackage(dir)
+      expect(report.findings.filter((f) => f.ruleId === 'files-completeness')).toHaveLength(0)
     })
   })
 
