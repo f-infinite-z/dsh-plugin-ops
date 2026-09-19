@@ -2,6 +2,24 @@
 
 All notable changes are tracked here.
 
+## 0.8.1 — 2026-09-19
+
+### Fix: selected bundles resolve through the installation anchor
+
+- The runtime generation removed every selected bundle root from its package
+  table, but the launcher resolves a bundle root through the installation
+  anchor first (official `resolveBundleDir`: installation anchor, then the
+  profile directory) — so a patch row referencing an in-box bundle
+  (`@deepseek-ai/dsh-web-app`, `@deepseek-ai/dsh-headless`) reported a
+  false-positive fatal on healthy profiles. Bundle roots are now recorded in
+  their own layer and resolved through it; only profile-only bundle roots
+  leave the fallback entries, matching the official
+  `healProfileModuleFallback` (an installation-closure bundle keeps its
+  installation entry).
+- Verified against the real 0.1.6-alpha.2 web/headless profiles: 0 fatal after
+  the fix. dsh-tui's remaining findings are genuine `package.json` corruption
+  in the local tree, which the tool reports correctly.
+
 ## 0.8.0 — 2026-09-19
 
 ### dsh 0.1.6-alpha.2 compatibility: runtime resolution, official diagnostics, runtime verification
