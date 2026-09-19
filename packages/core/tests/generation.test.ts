@@ -105,7 +105,7 @@ describe('generation: closure construction', () => {
     }
   })
 
-  it('keeps installation names reserved and excludes bundle roots from fallback entries', () => {
+  it('keeps an installation-closure bundle root in the table and records every bundle root', () => {
     const { fixture } = installFixture()
     try {
       writeProfile(fixture.paths, { dependencies: {}, bundles: ['@deepseek-ai/dsh-web-app'] })
@@ -113,8 +113,49 @@ describe('generation: closure construction', () => {
       const anchor = locateInstallAnchor(fixture.paths, null)
       const { resolved } = resolveBundles(fixture.paths, manifest, anchor)
       const generation = buildResolutionGeneration(anchor, resolved, fixture.paths.profileDir)
-      expect(generation.entries.has('@deepseek-ai/dsh-web-app')).toBe(false)
+      // dsh-web-app is also a dsh dependency, so the installation closure owns
+      // it; the profile-bundle half must not delete that entry.
+      expect(generation.entries.has('@deepseek-ai/dsh-web-app')).toBe(true)
       expect(generation.entries.has('@deepseek-ai/dsh-client-ui')).toBe(true)
+      expect(generation.bundleRoots.get('@deepseek-ai/dsh-web-app')).toBe(resolved[0]!.dir)
+    } finally {
+      fixture.dispose()
+    }
+  })
+
+  it('removes a profile-only bundle root from fallback entries but keeps it resolvable as a bundle', () => {
+    const { fixture } = installFixture()
+    try {
+      writeProfile(fixture.paths, { dependencies: {}, bundles: ['@deepseek-ai/dsh-web-app', 'third-party-bundle'] })
+      writeJson(join(fixture.paths.profileDir, 'node_modules', 'third-party-bundle', 'package.json'), {
+        name: 'third-party-bundle',
+        version: '1.0.0',
+        dsh: { bundle: { patch: 'cordis.patch.yml' } },
+      })
+      const manifest = readProfileManifest(fixture.paths.profileManifest)!
+      const anchor = locateInstallAnchor(fixture.paths, null)
+      const { resolved } = resolveBundles(fixture.paths, manifest, anchor)
+      const generation = buildResolutionGeneration(anchor, resolved, fixture.paths.profileDir)
+      expect(generation.entries.has('third-party-bundle')).toBe(false)
+      expect(generation.bundleRoots.get('third-party-bundle')).toBeDefined()
+      const resolvedPackage = resolvePackageDir(generation, fixture.paths, 'third-party-bundle')
+      expect(resolvedPackage?.source).toBe('bundle')
+    } finally {
+      fixture.dispose()
+    }
+  })
+
+  it('resolves a bundle root through the installation anchor, not the generation table', () => {
+    const { fixture } = installFixture()
+    try {
+      writeProfile(fixture.paths, { dependencies: {}, bundles: ['@deepseek-ai/dsh-web-app'] })
+      const manifest = readProfileManifest(fixture.paths.profileManifest)!
+      const anchor = locateInstallAnchor(fixture.paths, null)
+      const { resolved } = resolveBundles(fixture.paths, manifest, anchor)
+      const generation = buildResolutionGeneration(anchor, resolved, fixture.paths.profileDir)
+      const resolvedPackage = resolvePackageDir(generation, fixture.paths, '@deepseek-ai/dsh-web-app')
+      expect(resolvedPackage?.source).toBe('bundle')
+      expect(resolvedPackage?.dir).toBe(resolved[0]!.dir)
     } finally {
       fixture.dispose()
     }

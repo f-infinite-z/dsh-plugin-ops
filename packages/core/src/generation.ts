@@ -47,13 +47,25 @@ export interface ResolutionGeneration {
   installAnchor: string | null
   /** First-wins package table in precedence order. */
   entries: Map<string, GenerationEntry>
+  /**
+   * Bundle roots resolved through the installation anchor, mirroring the
+   * official `resolveBundleDir` contract ("installation anchor first, then the
+   * profile directory"). Bundle roots are deliberately absent from
+   * {@link entries}; the launcher resolves them through this path, so a patch
+   * row referencing one must resolve here.
+   */
+  bundleRoots: Map<string, string>
 }
 
 /** One resolved package and the resolution layer that produced it. */
 export interface ResolvedPackage {
   dir: string
-  /** `profile-local` = the profile's own dependency tree; `generation` = the runtime fallback table. */
-  source: 'profile-local' | 'generation'
+  /**
+   * `bundle` = a selected bundle root resolved through the installation anchor
+   * (the official `resolveBundleDir` contract); `profile-local` = the profile's
+   * own dependency tree; `generation` = the runtime fallback table.
+   */
+  source: 'bundle' | 'profile-local' | 'generation'
 }
 
 function versionOf(manifest: PackageManifest | null): string | null {
@@ -182,6 +194,7 @@ export function buildResolutionGeneration(
   profileDir: string,
 ): ResolutionGeneration {
   const entries = new Map<string, GenerationEntry>()
+  const bundleRoots = new Map<string, string>()
   if (installAnchor !== null) {
     const appManifest = readPackageManifest(dirname(installAnchor))
     if (appManifest !== null) {
@@ -204,8 +217,12 @@ export function buildResolutionGeneration(
     return isProfileFallbackProjection(profileDir, name)
   }
   for (const bundle of bundles) {
-    if (installationNames.has(bundle.name)) continue
     const canonicalDir = realModuleDirectory(bundle.dir)
+    // Every selected bundle root resolves through the installation anchor
+    // first (official resolveBundleDir), so the root is recorded regardless of
+    // whether the installation closure already carries the name.
+    bundleRoots.set(bundle.name, canonicalDir)
+    if (installationNames.has(bundle.name)) continue
     const anchor = join(canonicalDir, 'package.json')
     const manifest = readPackageManifest(canonicalDir) ?? bundle.manifest
     if (typeof manifest.name !== 'string') continue
@@ -220,8 +237,13 @@ export function buildResolutionGeneration(
     }
     walkClosure(entries, anchor, manifest, 'profile', excludeProjection)
   }
-  for (const bundle of bundles) entries.delete(bundle.name)
-  return { installAnchor, entries }
+  // Official semantics remove bundle roots only from the profile-bundle half;
+  // an installation-closure bundle root (an in-box bundle that is also a dsh
+  // dependency) keeps its installation entry.
+  for (const bundle of bundles) {
+    if (!installationNames.has(bundle.name)) entries.delete(bundle.name)
+  }
+  return { installAnchor, entries, bundleRoots }
 }
 
 function isWithin(child: string, parent: string): boolean {
@@ -230,20 +252,24 @@ function isWithin(child: string, parent: string): boolean {
 }
 
 /**
- * Resolve a package with runtime semantics: the profile's own dependency tree
- * wins natively (fallback projections excluded), then the generation table.
- * Mirrors the launcher's virtual fallback position, where the generation is
- * authoritative and legacy disk links no longer participate.
+ * Resolve a package with runtime semantics. A selected bundle root resolves
+ * through the installation anchor first — the official contract keeps in-box
+ * bundles on the running installation and never on a profile-local copy.
+ * Everything else follows the launcher's virtual fallback position: the
+ * profile's own tree wins natively (fallback projections excluded), then the
+ * generation table. Legacy disk links no longer participate.
  * @param generation - generation built by {@link buildResolutionGeneration}.
  * @param paths - resolved DSH paths.
  * @param name - bare package name to resolve.
- * @returns the resolved directory and its layer, or null when neither layer owns the name.
+ * @returns the resolved directory and its layer, or null when no layer owns the name.
  */
 export function resolvePackageDir(
   generation: ResolutionGeneration,
   paths: DshPaths,
   name: string,
 ): ResolvedPackage | null {
+  const bundleDir = generation.bundleRoots.get(name)
+  if (bundleDir !== undefined) return { dir: bundleDir, source: 'bundle' }
   const profileNodeModules = join(paths.profileDir, 'node_modules')
   const local = packageDirFromAnchor(paths.profileManifest, name, (candidate) => {
     if (!isWithin(candidate, profileNodeModules)) return true
