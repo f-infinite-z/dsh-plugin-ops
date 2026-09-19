@@ -2,6 +2,39 @@
 
 All notable changes are tracked here.
 
+## 0.8.0 — 2026-09-19
+
+### dsh 0.1.6-alpha.2 compatibility: runtime resolution, official diagnostics, runtime verification
+
+- **Runtime resolution table (rules 1/4/5)**: dsh 0.1.6-alpha.2 defaults to
+  runtime resolution — the launcher builds one immutable package table from the
+  installation manifest plus the selected bundles and installs it into Node's
+  resolvers without materializing the `$DSH_HOME/profiles/node_modules` mirror.
+  Static checks now rebuild the same table on disk (`generation.ts`, a port of
+  the official `resolveModuleFallbackEntries` / `healProfileModuleFallback`):
+  the profile's own tree wins natively (fallback projections excluded), then
+  the generation table decides. The frozen disk mirror no longer decides; an
+  explicit `installAnchor` config value covers runtime-only installs that never
+  materialized the shared mirror.
+- **Patch-row failures stay fatal — verified against the real launcher**: a bad
+  bundle patch row aborts the whole boot (`failed to apply loader entry
+  include`), because patch rows apply through the required bootstrap Include.
+  The 0.1.6 optional-plugin tolerance covers activation failures of already
+  imported plugins, not this import stage; rule 5 keeps the fatal severity
+  (resolve-guarded rows stay at info).
+- **Official startup diagnostics in gate attribution**: a failed boot reads the
+  CLI's saved report (`$DSH_HOME/logs/startup-*.log`), extracts the dsh
+  version, profile, and inactive-entry list, and marks changed packages the
+  launcher already reported as failed.
+- **`verify --runtime` (isolated boot check)**: packs the plugin — a local
+  directory is packed with `pnpm pack` so `workspace:` protocols resolve and
+  the package's own dependencies install (a directory install only links it) —
+  installs it into an isolated DSH home through the official `dsh plugin`
+  command, boots a web profile, and reports whether the boot survives. A failed
+  boot names the failed loader entries extracted from the output and reads the
+  official diagnostics when present. The Windows `.cmd` launch goes through a
+  fixed, fully quoted `cmd.exe` argv (Node refuses `.cmd` without a shell).
+
 ## 0.7.0 — 2026-09-17
 
 ### False-positive triage against a real-plugin corpus
