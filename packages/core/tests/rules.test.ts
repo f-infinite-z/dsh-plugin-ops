@@ -215,22 +215,28 @@ describe('rule 2: dependency drift', () => {
     }
   })
 
-  it('resolves official rows from the installation closure before the mirror heals', async () => {
+  it('resolves official rows through the installation dependency graph, mirror not needed', async () => {
     const fixture = makeHome()
     try {
       writeProfile(fixture.paths, { dependencies: {}, bundles: ['@deepseek-ai/dsh-web-app'] })
       // The shared mirror still reflects the previous dsh generation: the dsh
-      // link points at the upgraded installation, whose nested node_modules
-      // carries the new official package, but the mirror has no top-level link
-      // for it yet (healed at the next dsh boot).
+      // link points at the installation whose nested node_modules carries the
+      // new official package, but the mirror has no top-level link for it.
+      // Runtime resolution follows the installation manifest's dependency
+      // graph, so the nested package resolves without any mirror entry.
       const installRoot = join(fixture.paths.sharedProfilesDir, '@deepseek-ai', 'dsh')
-      writeJson(join(installRoot, 'package.json'), { name: '@deepseek-ai/dsh', version: '0.1.5-rc.2' })
+      writeJson(join(installRoot, 'package.json'), {
+        name: '@deepseek-ai/dsh',
+        version: '0.1.6-alpha.2',
+        dependencies: { '@deepseek-ai/dsh-web-app': '0.1.6-alpha.2' },
+      })
       const nested = join(installRoot, 'node_modules', '@deepseek-ai')
       const webAppDir = join(nested, 'dsh-web-app')
       writeJson(join(webAppDir, 'package.json'), {
         name: '@deepseek-ai/dsh-web-app',
-        version: '0.1.5-rc.2',
+        version: '0.1.6-alpha.2',
         dsh: { bundle: { patch: 'cordis.patch.yml' } },
+        dependencies: { '@deepseek-ai/dsh-client-ui-sidebar-documentpreview': '0.1.6-alpha.2' },
       })
       writeFileSync(join(webAppDir, 'cordis.patch.yml'), [
         '- id: ui-sidebar-documentpreview',
@@ -239,7 +245,7 @@ describe('rule 2: dependency drift', () => {
       ].join('\n'), 'utf8')
       writeJson(join(nested, 'dsh-client-ui-sidebar-documentpreview', 'package.json'), {
         name: '@deepseek-ai/dsh-client-ui-sidebar-documentpreview',
-        version: '0.1.5-rc.2',
+        version: '0.1.6-alpha.2',
       })
       writeLockfile(fixture.paths, {})
       const report = await scanProfile({ paths: fixture.paths, profileName: 'web' })

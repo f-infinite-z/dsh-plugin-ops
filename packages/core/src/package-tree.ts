@@ -7,13 +7,19 @@ import { readJsonFile } from './fsutil.js'
  * Node's own node_modules lookup order, same algorithm the dsh Loader uses
  * (behavioral port of `packageDirFromAnchor` in the official
  * packages/boot/app-boot/src/profile.ts; ~20 lines, kept in-process so we
- * never import the harness runtime).
+ * never import the harness runtime). The optional `exclude` hook mirrors the
+ * official signature: candidates it rejects are skipped, so a managed
+ * fallback projection never claims local precedence.
  */
-export function packageDirFromAnchor(anchorFile: string, packageName: string): string | null {
+export function packageDirFromAnchor(
+  anchorFile: string,
+  packageName: string,
+  exclude?: (candidate: string, packageName: string) => boolean,
+): string | null {
   const require_ = createRequire(anchorFile)
   for (const searchPath of require_.resolve.paths(packageName) ?? []) {
     const candidate = join(searchPath, packageName)
-    if (existsSync(join(candidate, 'package.json'))) return candidate
+    if (existsSync(join(candidate, 'package.json')) && !(exclude?.(candidate, packageName) ?? false)) return candidate
   }
   return null
 }

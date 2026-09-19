@@ -16,6 +16,8 @@ export interface DshPaths {
   knowledgeDir: string
   sharedProfilesDir: string
   configFile: string
+  /** Official startup diagnostic reports (`startup-*.log`), written by the dsh CLI on a failed boot. */
+  logsDir: string
 }
 
 export function resolveDshPaths(profileName: string, configuredHome?: string): DshPaths {
@@ -33,5 +35,6 @@ export function resolveDshPaths(profileName: string, configuredHome?: string): D
     knowledgeDir: join(memoryDir, KNOWLEDGE_DIR_NAME),
     sharedProfilesDir: join(profilesDir, 'node_modules'),
     configFile: join(home, DEFAULT_CONFIG_FILENAME),
+    logsDir: join(home, 'logs'),
   }
 }

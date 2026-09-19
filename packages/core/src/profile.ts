@@ -122,8 +122,15 @@ export interface BundleResolution {
   problems: { name: string; message: string }[]
 }
 
-export function resolveBundles(paths: DshPaths, manifest: ProfileManifest): BundleResolution {
-  const anchors = anchorFiles(paths)
+export function resolveBundles(
+  paths: DshPaths,
+  manifest: ProfileManifest,
+  installAnchor: string | null = null,
+): BundleResolution {
+  const anchors = [
+    ...(installAnchor === null ? [] : [installAnchor]),
+    ...anchorFiles(paths),
+  ].filter((anchor, index, all) => all.indexOf(anchor) === index)
   const profileNodeModules = join(paths.profileDir, 'node_modules')
   const resolved: ResolvedBundle[] = []
   const problems: { name: string; message: string }[] = []

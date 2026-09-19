@@ -1,12 +1,30 @@
 export { resolveDshPaths, MEMORY_DIR_NAME, MEMORY_FILENAME, KNOWLEDGE_DIR_NAME, type DshPaths } from './paths.js'
+export { readLatestStartupReport, type StartupReport, type StartupReportEntry } from './startup-log.js'
 export { OPS_VERSION } from './version.js'
 export { readProfileManifest, profileBundles, registryDependencies, resolveBundles, anchorFiles, type ProfileManifest, type ResolvedBundle, type BundleResolution } from './profile.js'
 export { packageDirFromAnchor, packageDirFromAnchors, readPackageManifest, type PackageManifest } from './package-tree.js'
+export {
+  buildResolutionGeneration,
+  locateInstallAnchor,
+  resolvePackageDir,
+  isProfileFallbackProjection,
+  PROFILE_MODULE_FALLBACK_DIR,
+  type GenerationEntry,
+  type ResolutionGeneration,
+  type ResolvedPackage,
+} from './generation.js'
 export { readLockedDirectDeps, hasLockfile, type LockedDirectDeps } from './lockfile.js'
 export { appendMemory, lastSuccessSnapshot, recentEvents, diffSnapshots, type MemoryEvent } from './memory.js'
 export { scanProfile, ScanError, declaredRegistryNames, type ScanInput } from './scan.js'
 export { renderHuman, renderJson, reportOk, countSeverities } from './report.js'
-export { readPatchFile, appendDisabledRow, removeDisabledRow, patchFileExists, PROFILE_PATCH_FILENAME, type PatchRow, type PatchFileState, type PatchWriteResult } from './patch-layer.js'
+export { readPatchFile, appendDisabledRow, appendActivationRow, removeDisabledRow, patchFileExists, PROFILE_PATCH_FILENAME, type PatchRow, type PatchFileState, type PatchWriteResult } from './patch-layer.js'
+export {
+  readRuntimeVerifyPlan,
+  runtimeRowId,
+  classifyBootOutcome,
+  type RuntimeVerifyPlan,
+  type RuntimeBootOutcome,
+} from './runtime-verify.js'
 export { allVisibleRows, rowIdsForPackage, type RowRef } from './rows.js'
 export { pnpmBin, runCommand, runPnpm, alignToLockfile, disableRow, type RunResult, type AlignResult, type DisableResult } from './fix.js'
 export { checkOutdated, type OutdatedState, type OutdatedEntry } from './outdated.js'
@@ -17,7 +35,7 @@ export { rulePeerGap, rulePeerDrift } from './peers.js'
 export { rulePatchResolution } from './patchres.js'
 export { ruleStructure } from './structure.js'
 export { verifyPluginPackage, verifyOk, type VerifyReport, type VerifyFinding, type VerifyRuleId } from './verify.js'
-export { fetchNpmPackage, type FetchedPackage } from './npm-fetch.js'
+export { fetchNpmPackage, packLocalPackage, type FetchedPackage, type PackedPackage } from './npm-fetch.js'
 export { runSelfTest, type SelfTestResult } from './selftest.js'
 export { handlePanelApi, PanelApiError, isScanError, type PanelApiOptions, type RowView } from './panel-api.js'
 export { resolveModelConfig, lookupSecret, OpenAiCompatibleChannel, buildSystemPrompt, buildChatContext, type ChatMessage, type ChatContext, type ChatReply, type ModelChannel, type ResolvedModelConfig } from './chat.js'

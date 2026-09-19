@@ -7,7 +7,8 @@ import {
   type ResolvedBundle,
   registryDependencies,
 } from './profile.js'
-import { packageDirFromAnchors, readPackageManifest } from './package-tree.js'
+import { readPackageManifest } from './package-tree.js'
+import { resolvePackageDir, type ResolutionGeneration } from './generation.js'
 import type { LockedDirectDeps } from './lockfile.js'
 import { lastSuccessSnapshot, diffSnapshots } from './memory.js'
 import type { OutdatedState } from './outdated.js'
@@ -16,7 +17,8 @@ export interface RuleContext {
   profileName: string
   paths: DshPaths
   manifest: ProfileManifest
-  anchors: string[]
+  /** Runtime resolution table the launcher would install for this profile. */
+  generation: ResolutionGeneration
   locked: LockedDirectDeps
 }
 
@@ -61,6 +63,19 @@ export function trackedPackageNames(ctx: RuleContext, resolved: ResolvedBundle[]
 }
 
 /**
+ * Resolve one tracked package's directory. A selected bundle keeps its own
+ * resolution result because bundle roots are deliberately excluded from the
+ * runtime generation's fallback entries (the launcher resolves them through
+ * the installation anchor first, then the profile); every other name goes
+ * through the runtime resolution table.
+ */
+export function trackedPackageDir(ctx: RuleContext, resolved: ResolvedBundle[], name: string): string | null {
+  const bundle = resolved.find((candidate) => candidate.name === name)
+  if (bundle !== undefined) return bundle.dir
+  return resolvePackageDir(ctx.generation, ctx.paths, name)?.dir ?? null
+}
+
+/**
  * Bundles resolved from the shared installation closure (the official box
  * bundles) are not expected in the profile's own dependencies; only
  * profile-local packages must be declared there.
@@ -69,8 +84,8 @@ export function bundleSources(resolved: ResolvedBundle[]): Map<string, 'profile'
   return new Map(resolved.map((bundle) => [bundle.name, bundle.from]))
 }
 
-function installedVersion(ctx: RuleContext, name: string): { version: string | null; declaredInDeps: boolean } {
-  const dir = packageDirFromAnchors(ctx.anchors, name)
+function installedVersion(ctx: RuleContext, resolved: ResolvedBundle[], name: string): { version: string | null; declaredInDeps: boolean } {
+  const dir = trackedPackageDir(ctx, resolved, name)
   const manifest = dir === null ? null : readPackageManifest(dir)
   const declaredInDeps = ctx.manifest.dependencies !== undefined && name in ctx.manifest.dependencies
   return { version: manifest?.version === undefined ? null : String(manifest.version), declaredInDeps }
@@ -129,7 +144,7 @@ export function ruleDependencyDrift(ctx: RuleContext, resolved: ResolvedBundle[]
   for (const name of trackedPackageNames(ctx, resolved)) {
     const declared = registryDependencies(ctx.manifest)[name] ?? null
     const lockedVersion = locked[name] ?? null
-    const { version: installed, declaredInDeps } = installedVersion(ctx, name)
+    const { version: installed, declaredInDeps } = installedVersion(ctx, resolved, name)
 
     if (!declaredInDeps && sources.get(name) !== 'closure') {
       findings.push({

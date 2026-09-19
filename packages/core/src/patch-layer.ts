@@ -101,6 +101,36 @@ export function appendDisabledRow(profileDir: string, rowId: string): PatchWrite
 }
 
 /**
+ * Append a flat activation row (`id + name`) to the user patch layer by pushing
+ * a node into the root sequence. Used by runtime verification to mount a plain
+ * plugin into an isolated profile. Structural append is required because the
+ * official profile template ships a comment header plus an empty `[]`
+ * placeholder — text-concatenating after it would corrupt the document. Never
+ * writes through an unparsable file and always leaves a backup.
+ */
+export function appendActivationRow(profileDir: string, rowId: string, packageName: string): PatchWriteResult {
+  const file = join(profileDir, PROFILE_PATCH_FILENAME)
+  const raw = readTextFile(file)
+  const backup = backupFile(file)
+  let doc: ReturnType<typeof parseDocument>
+  try {
+    doc = parseDocument(raw ?? '')
+    if (doc.contents === null) {
+      doc.contents = doc.createNode([])
+    }
+    const seq = doc.contents as unknown as YAMLSeq
+    if (!Array.isArray(doc.toJS())) {
+      return { ok: false, problem: 'patch file root is not a YAML list; refusing to write', backup }
+    }
+    seq.items.push(doc.createNode({ id: rowId, name: packageName }))
+    writeTextAtomic(file, doc.toString())
+    return { ok: true, backup }
+  } catch (error) {
+    return { ok: false, problem: `patch layer is not valid YAML: ${String(error)}`, backup }
+  }
+}
+
+/**
  * Remove the trailing flat row that this tool appended for `rowId` (the last
  * root-level row carrying that id with `disabled: true`), restoring the
  * previous state. Root-level flat rows are what appendDisabledRow writes, so

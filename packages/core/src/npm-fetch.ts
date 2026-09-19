@@ -120,3 +120,61 @@ export async function fetchNpmPackage(spec: string, timeoutMs = 180000): Promise
   }
   return { ok: true, packageDir, cleanup }
 }
+
+/** A locally packed plugin tarball ready for a tarball install. */
+export interface PackedPackage {
+  ok: boolean
+  /** Absolute tarball path; null when packing failed. */
+  tarball: string | null
+  error?: string
+  /** Remove the temporary directory. Safe to call multiple times. */
+  cleanup: () => void
+}
+
+/**
+ * Pack one local plugin directory into the tarball shape the registry would
+ * serve. Runtime verification installs the tarball instead of the directory:
+ * a tarball install resolves the package's own dependencies, while a
+ * directory install only links it (pnpm `link:`) and leaves dependencies such
+ * as the embedded engine unresolved, which fails the boot. The command runs
+ * inside the package directory so the workspace context (`pnpm-workspace.yaml`
+ * and sibling packages) resolves `workspace:` protocols, and
+ * `--pack-destination` keeps the tarball out of the user's tree. `pnpm pack`
+ * is used because it rewrites those protocols exactly as the publish tooling
+ * does; `npm pack` rejects them. The destination is passed unquoted because
+ * cmd.exe keeps quotes inside the value and pnpm then fails parsing it as a
+ * JSON config key; a destination with spaces is refused instead.
+ * @param dir - absolute plugin directory to pack.
+ * @param timeoutMs - pnpm pack timeout.
+ * @returns the tarball path with its temporary directory cleanup.
+ */
+export async function packLocalPackage(dir: string, timeoutMs = 180000): Promise<PackedPackage> {
+  const tmp = mkdtempSync(join(tmpdir(), 'dsh-ops-pack-'))
+  const cleanup = (): void => {
+    try {
+      rmSync(tmp, { recursive: true, force: true })
+    } catch {
+      /* best effort: temp dirs are safe to leave behind */
+    }
+  }
+
+  if (tmp.includes(' ')) {
+    cleanup()
+    return { ok: false, tarball: null, error: `temporary directory path contains spaces: ${tmp}`, cleanup }
+  }
+
+  const pack = isWindows()
+    ? await runProcess('cmd.exe', ['/d', '/s', '/c', `pnpm pack --pack-destination ${tmp}`], dir, timeoutMs)
+    : await runProcess('pnpm', ['pack', '--pack-destination', tmp], dir, timeoutMs)
+  if (pack.code !== 0) {
+    cleanup()
+    return { ok: false, tarball: null, error: `pnpm pack failed: ${tail(pack.output)}`, cleanup }
+  }
+
+  const tarball = readdirSync(tmp).find((name) => name.endsWith('.tgz'))
+  if (tarball === undefined) {
+    cleanup()
+    return { ok: false, tarball: null, error: 'pnpm pack produced no tarball', cleanup }
+  }
+  return { ok: true, tarball: join(tmp, tarball), cleanup }
+}

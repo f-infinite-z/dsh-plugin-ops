@@ -4,7 +4,8 @@ import semver from 'semver'
 import type { Finding } from './types.js'
 import type { RuleContext } from './rules.js'
 import type { ResolvedBundle } from './profile.js'
-import { packageDirFromAnchors, readPackageManifest } from './package-tree.js'
+import { readPackageManifest } from './package-tree.js'
+import { resolvePackageDir } from './generation.js'
 
 /**
  * The vendored framework core. A second physical copy of any of these next to
@@ -52,7 +53,7 @@ export function rulePeerGap(ctx: RuleContext, resolved: ResolvedBundle[]): Findi
       const key = `${bundle.name}\u0000${peerName}`
       if (seen.has(key)) continue
       seen.add(key)
-      const host = packageDirFromAnchors(ctx.anchors, peerName)
+      const host = resolvePackageDir(ctx.generation, ctx.paths, peerName)?.dir ?? null
       const internal = embedded(peerName)
       if (host !== null && internal !== null) {
         const core = CORE_PACKAGES.has(peerName)
@@ -91,7 +92,7 @@ export function rulePeerDrift(ctx: RuleContext, resolved: ResolvedBundle[]): Fin
   const { missing, incompatible, versions: locked } = ctx.locked
   if (missing || incompatible) return findings
   for (const bundle of resolved) {
-    const dir = packageDirFromAnchors(ctx.anchors, bundle.name)
+    const dir = resolvePackageDir(ctx.generation, ctx.paths, bundle.name)?.dir ?? null
     const manifest = dir === null ? null : readPackageManifest(dir)
     if (manifest === null) continue
     for (const [peerName, range] of Object.entries(manifest.peerDependencies ?? {})) {

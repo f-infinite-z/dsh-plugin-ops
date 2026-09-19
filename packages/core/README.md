@@ -2,13 +2,15 @@
 
 Shared engine for [dsh-plugin-ops](https://github.com/f-infinite-z/dsh-plugin-ops),
 the startup-lifecycle guard for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)
-plugins: profile readers, the seven static scan rules, fault memory, the fix
-planner, the panel API, and the chat protocol shared by both panels.
+plugins: profile readers, the seven static scan rules, the runtime resolution
+generation port (dsh 0.1.6+), the official startup-diagnostics reader, fault
+memory, the fix planner, the panel API, and the chat protocol shared by both
+panels.
 
 Published as a self-contained single file (`dist/index.js`): every runtime
 dependency is inlined, so importing it inside the harness plugin tree carries
-no dependency-tree risk (a missing transitive peer would otherwise abort the
-whole tree).
+no dependency-tree risk (a missing transitive peer would otherwise fail the
+plugin row).
 
 ## Install
 
@@ -23,7 +25,9 @@ Most users want the CLI (`dsh-plugin-ops`) or the embedded bundle
 
 `resolveDshPaths`, `scanProfile`, `handlePanelApi`, `readOpsConfig`,
 `alignToLockfile`, `appendDisabledRow`, `readPatchFile`, `recentEvents`,
-`resolveModelConfig`, `buildSystemPrompt`, `buildChatContext`, `ModelChannel`, …
+`resolveModelConfig`, `buildSystemPrompt`, `buildChatContext`, `ModelChannel`,
+`buildResolutionGeneration`, `locateInstallAnchor`, `resolvePackageDir`,
+`readLatestStartupReport`, …
 See `lib/index.d.ts` and the main repository documentation.
 
 ## License

@@ -18,9 +18,9 @@ English | [中文](README.zh.md)
 
 ## Why
 
-The DeepSeek Harness (dsh) plugin ecosystem has grown explosively since August 2026, but the loading model is: static patches apply first → plugin rows activate concurrently → **any single failure aborts the whole tree**. After installing a few plugins, "it booted yesterday but not today" becomes routine.
+The DeepSeek Harness (dsh) plugin ecosystem has grown explosively since August 2026, but its loading model is unforgiving: static patches apply through a required bootstrap Include, so **one patch row that cannot be imported aborts the whole boot**. Since 0.1.6, an already-imported plugin that fails to activate is only skipped with a warning — its features silently disappear instead of failing loud. The same version moved the launcher to **runtime resolution**: the package table is built in-process from the installation's dependency graph plus the selected bundles, so checks that trust the disk layout alone drift from what the launcher actually resolves.
 
-Existing ecosystem tools cover **change-time protection** (dry runs during install/update) and runtime observation; **none do whole-tree pre-boot checks and automatic attribution after a failed boot**. dsh-plugin-ops fills that gap.
+Existing ecosystem tools cover **change-time protection** (dry runs during install/update) and runtime observation; **none do whole-tree pre-boot checks, follow the launcher's runtime resolution table, and attribute a failed boot through the official diagnostics**. dsh-plugin-ops fills that gap.
 
 ## Quick start
 
@@ -44,9 +44,11 @@ dsh-ops selftest               # run built-in fault samples through all rules
 | 2 | Three-way dependency drift | fatal / auto-fix | package.json declaration vs pnpm-lock.yaml vs disk |
 | 3 | Registry version comparison | warn | updates via `pnpm outdated`; advisory, never blocks |
 | 4 | Peer gaps / double instances | double instance fatal | peers that cannot resolve; two physical copies of framework core |
-| 5 | Patch-row resolution | fatal | packages referenced by patch rows (including subpaths) unresolvable |
+| 5 | Patch-row resolution | fatal | packages referenced by patch rows (including subpaths) unresolvable; patch rows apply through the required bootstrap Include, so one bad row aborts the boot (verified against dsh 0.1.6-alpha.2) |
 | 6 | Fault memory | info/warn | packages that changed since the last successful boot (attribution baseline) |
 | 7 | Structure integrity | fatal/warn | missing default entry / CJS entry (the Loader needs ESM named exports) / missing types or client |
+
+Resolution follows the launcher's runtime generation (0.1.6+): the profile's own tree wins natively, then the package table rebuilt from the installation manifest and the selected bundles — the frozen disk mirror no longer decides.
 
 Real-ecosystem validation: dangling peer declarations (authors referencing official packages that were never published) were detected on multiple third-party plugins.
 
@@ -57,7 +59,7 @@ Real-ecosystem validation: dangling peer declarations (authors referencing offic
 | `check` | one-shot health check across all profiles (offline by default) |
 | `scan` | single-profile deep scan: rules 1-7 plus optional update check |
 | `fix` | auto-fix set: disk↔lockfile realign (`pnpm install --frozen-lockfile --force`); plan → confirm → execute → backup |
-| `gate` | block-first graded disposition: fatal findings block (auto-fix then pass; complex ones get loud guidance; `--bypass` is a logged escape hatch); a boot failure attributes the changed packages and offers interactive disable-and-retry; one-shot headless profiles pass exit codes through without attribution |
+| `gate` | block-first graded disposition: fatal findings block (auto-fix then pass; complex ones get loud guidance; `--bypass` is a logged escape hatch); a boot failure reads the official startup diagnostics (`$DSH_HOME/logs/startup-*.log`), attributes the changed packages and the launcher-reported failed plugins, and offers interactive disable-and-retry; one-shot headless profiles pass exit codes through without attribution |
 | `serve` | local web panel: health cards / findings / fix execution / **plugin-row management** (health badges, severity filter, 10-per-page paging, official-row protection, enable/disable) / fault timeline / **diagnosis chat** with an **enhanced-retrieval (RAG) toggle** — troubleshooting experience deposits as Markdown and matching entries are retrieved into the chat (BM25 + optional embedding re-rank), zh/en switch |
 | `selftest` | engine self-check over six built-in fault samples |
 | `verify` | publish-time check for plugin authors: accepts a local directory or an **npm package spec** (`dsh-ops verify <name\|@scope/name\|name@version>`, downloaded from the registry); covers bundle patch declaration/parse, patch-row resolution, dependency protocols (`file:`/`workspace:`), ESM entry and exports, client export contract and bundle shape, files completeness (`--json`, `--strict` for CI) |

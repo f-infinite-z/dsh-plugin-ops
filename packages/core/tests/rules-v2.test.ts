@@ -101,6 +101,20 @@ describe('rule 5: patch resolution', () => {
     }
   })
 
+  it('keeps patch-row failures fatal regardless of the row id: the Include stage aborts the boot', async () => {
+    const fixture = makeHome()
+    try {
+      writeProfile(fixture.paths, { dependencies: {}, bundles: [] })
+      mkdirSync(fixture.paths.profileDir, { recursive: true })
+      writeFileSync(join(fixture.paths.profileDir, 'cordis.patch.yml'), '- id: agent-loop\n  name: ghost-package\n', 'utf8')
+      const report = await scanProfile({ paths: fixture.paths, profileName: 'web', updateCheck: false })
+      const finding = report.findings.find((f) => f.ruleId === 'patch-resolution')
+      expect(finding?.severity).toBe('fatal')
+    } finally {
+      fixture.dispose()
+    }
+  })
+
   it('accepts package subpath references when the package resolves', async () => {
     const fixture = makeHome()
     try {

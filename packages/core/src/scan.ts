@@ -1,10 +1,11 @@
-import { readProfileManifest, resolveBundles, anchorFiles, registryDependencies, type ProfileManifest } from './profile.js'
+import { readProfileManifest, resolveBundles, registryDependencies, type ProfileManifest } from './profile.js'
 import { readLockedDirectDeps } from './lockfile.js'
-import { ruleBundleDeclaration, ruleDependencyDrift, ruleSessionMemory, ruleRegistryVersion, type RuleContext, trackedPackageNames } from './rules.js'
+import { ruleBundleDeclaration, ruleDependencyDrift, ruleSessionMemory, ruleRegistryVersion, trackedPackageDir, type RuleContext, trackedPackageNames } from './rules.js'
 import { rulePeerGap, rulePeerDrift } from './peers.js'
 import { rulePatchResolution } from './patchres.js'
 import { ruleStructure } from './structure.js'
-import { packageDirFromAnchors, readPackageManifest } from './package-tree.js'
+import { readPackageManifest } from './package-tree.js'
+import { buildResolutionGeneration, locateInstallAnchor } from './generation.js'
 import { checkOutdated } from './outdated.js'
 import { applyConfig, type OpsConfig } from './config.js'
 import type { ScanReport, PackageSnapshot, Finding } from './types.js'
@@ -30,15 +31,16 @@ export async function scanProfile(input: ScanInput): Promise<ScanReport> {
       + "start the profile once with dsh to initialize it, or check DSH_HOME",
     )
   }
-  const anchors = anchorFiles(input.paths)
-  const { resolved } = resolveBundles(input.paths, manifest)
+  const installAnchor = locateInstallAnchor(input.paths, input.config?.installAnchor ?? null)
+  const { resolved } = resolveBundles(input.paths, manifest, installAnchor)
+  const generation = buildResolutionGeneration(installAnchor, resolved, input.paths.profileDir)
   const locked = await readLockedDirectDeps(input.paths.profileDir)
 
   const ctx: RuleContext = {
     profileName: input.profileName,
     paths: input.paths,
     manifest,
-    anchors,
+    generation,
     locked,
   }
 
@@ -75,7 +77,7 @@ function collectSnapshot(ctx: RuleContext, resolved: ResolvedBundle[]): PackageS
   const tracked = trackedPackageNames(ctx, resolved)
   const packages: Record<string, string | null> = {}
   for (const name of tracked) {
-    const dir = packageDirFromAnchors(ctx.anchors, name)
+    const dir = trackedPackageDir(ctx, resolved, name)
     const manifest = dir === null ? null : readPackageManifest(dir)
     packages[name] = manifest?.version === undefined ? null : String(manifest.version)
   }

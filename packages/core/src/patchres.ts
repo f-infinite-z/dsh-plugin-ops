@@ -5,7 +5,7 @@ import type { RuleContext } from './rules.js'
 import type { ResolvedBundle } from './profile.js'
 import { allVisibleRows } from './rows.js'
 import type { PatchRow } from './patch-layer.js'
-import { packageDirFromAnchors } from './package-tree.js'
+import { resolvePackageDir } from './generation.js'
 
 /**
  * Split a bare specifier into its package part and optional subpath:
@@ -40,12 +40,16 @@ function hasResolveGuard(row: PatchRow, pkg: string): boolean {
 /**
  * Rule 5: patch rows must resolve. Every visible Loader row (bundle patches +
  * the user layer) names a module — a bare package (with optional subpath)
- * through Node resolution, a relative path against the profile directory, or a
- * `cordis:` builtin. An unresolvable row fails the boot, so this rule is
- * fatal, mirroring the official verify-cordis-config gate on the runtime
- * plane. Statically disabled rows are skipped; a row whose `disabled`
- * expression carries a runtime resolve guard for its own package is reported
- * at info level because the Loader self-disables it when the package is absent.
+ * through the runtime resolution table, a relative path against the profile
+ * directory, or a `cordis:` builtin. Patch rows are applied through the
+ * bootstrap Include, which is a required entry: an unresolvable row fails the
+ * whole boot (verified against dsh 0.1.6-alpha.2: a bad bundle row aborts
+ * startup with `failed to apply loader entry include`). The optional-plugin
+ * tolerance of the startup audit covers activation failures of already
+ * imported plugins, not this import stage. Statically disabled rows are
+ * skipped; a row whose `disabled` expression carries a runtime resolve guard
+ * for its own package is reported at info level because the Loader
+ * self-disables it when the package is absent.
  */
 export function rulePatchResolution(ctx: RuleContext, resolved: ResolvedBundle[]): Finding[] {
   const findings: Finding[] = []
@@ -76,8 +80,8 @@ export function rulePatchResolution(ctx: RuleContext, resolved: ResolvedBundle[]
     }
     if (name.startsWith('/')) continue
     const { pkg } = splitBareSpecifier(name)
-    const dir = packageDirFromAnchors(ctx.anchors, pkg)
-    if (dir === null) {
+    const resolvedPackage = resolvePackageDir(ctx.generation, ctx.paths, pkg)
+    if (resolvedPackage === null) {
       if (hasResolveGuard(row, pkg)) {
         findings.push({
           ruleId: 'patch-resolution',
@@ -94,10 +98,10 @@ export function rulePatchResolution(ctx: RuleContext, resolved: ResolvedBundle[]
         ruleId: 'patch-resolution',
         severity: 'fatal',
         ...(row.id !== undefined ? { packageName: row.id } : {}),
-        message: `patch row ${JSON.stringify(row.id ?? name)} references package ${pkg} that does not resolve from the profile tree`,
+        message: `patch row ${JSON.stringify(row.id ?? name)} references package ${pkg} that does not resolve`,
         detail: isOfficial
-          ? `declared in ${ref.source}. Official packages resolve through the shared plugin closure, which is mirrored at dsh boot; if you just upgraded dsh, start it once so the closure syncs (then re-scan), otherwise reinstall dsh.`
-          : `declared in ${ref.source}; install the package or fix the row`,
+          ? `declared in ${ref.source}. Official packages resolve from the running dsh installation's dependency closure; if the installation is intact, start dsh once so the runtime table covers it (then re-scan), otherwise reinstall dsh.`
+          : `declared in ${ref.source}; install the package (dsh plugin --profile <name> add ${pkg}) or fix the row`,
         fix: { kind: 'none' },
       })
     }

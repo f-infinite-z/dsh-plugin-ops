@@ -11,6 +11,12 @@ export interface RuleOverride {
 export interface OpsConfig {
   rules?: Partial<Record<RuleId, RuleOverride>>
   ignorePackages?: string[]
+  /**
+   * Explicit dsh installation directory (or its package.json path) used as the
+   * resolution generation's root when the shared mirror link is absent, e.g.
+   * for a runtime-only install that never materialized `profiles/node_modules`.
+   */
+  installAnchor?: string
 }
 
 export interface ConfigRead {

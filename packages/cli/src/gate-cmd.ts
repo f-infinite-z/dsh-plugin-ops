@@ -3,9 +3,10 @@ import { createInterface } from 'node:readline/promises'
 import {
   scanProfile, renderHuman, reportOk, alignToLockfile, appendMemory, recordFixKnowledge, ScanError,
   readProfileManifest, resolveBundles, allVisibleRows, rowIdsForPackage,
-  lastSuccessSnapshot, diffSnapshots, disableRow,
+  lastSuccessSnapshot, diffSnapshots, disableRow, locateInstallAnchor, readLatestStartupReport,
   type Finding, type ScanReport, type DshPaths, type OpsConfig,
 } from 'dsh-plugin-ops-core'
+import { spawnDsh } from './spawn-dsh.js'
 
 export interface GateCommandOptions {
   paths: DshPaths
@@ -110,7 +111,7 @@ export async function runGateCommand(options: GateCommandOptions): Promise<numbe
     process.stderr.write(`\ndsh exited ${dshCode} after ${elapsed}ms; profile ${options.profileName} is one-shot, so the exit code is the task result, not a boot signal (pass --no-attribution to silence this note)\n`)
     return dshCode
   }
-  return attributeAndRecover(options, report, dshCode)
+  return attributeAndRecover(options, report, dshCode, start)
 }
 
 function runDsh(command: string[]): Promise<number> {
@@ -119,17 +120,18 @@ function runDsh(command: string[]): Promise<number> {
     process.stderr.write('gate: empty dsh command\n')
     return Promise.resolve(2)
   }
-  const bin = bin0 === 'dsh' && process.platform === 'win32' ? 'dsh.cmd' : bin0
   const args = command.slice(1)
   return new Promise((resolve) => {
-    const child = spawn(bin, args, { stdio: 'inherit', shell: false })
+    const child = bin0 === 'dsh'
+      ? spawnDsh(args, { stdio: 'inherit' })
+      : spawn(bin0, args, { stdio: 'inherit', shell: false })
     const forward = (signal: NodeJS.Signals) => {
       if (child.exitCode === null && !child.killed) child.kill(signal)
     }
     process.on('SIGINT', () => forward('SIGINT'))
     process.on('SIGTERM', () => forward('SIGTERM'))
     child.on('error', (error) => {
-      process.stderr.write(`gate: failed to launch ${bin}: ${error.message}\n`)
+      process.stderr.write(`gate: failed to launch ${bin0}: ${error.message}\n`)
       resolve(127)
     })
     child.on('close', (code) => {
@@ -140,7 +142,25 @@ function runDsh(command: string[]): Promise<number> {
   })
 }
 
-async function attributeAndRecover(options: GateCommandOptions, report: ScanReport, dshCode: number): Promise<number> {
+async function attributeAndRecover(options: GateCommandOptions, report: ScanReport, dshCode: number, startedMs: number): Promise<number> {
+  const startupReport = readLatestStartupReport(options.paths, startedMs - 2000)
+  if (startupReport !== null) {
+    process.stderr.write('\n' + '='.repeat(60) + '\n')
+    process.stderr.write('OFFICIAL STARTUP DIAGNOSTICS (saved by the dsh CLI):\n')
+    process.stderr.write(`  file: ${startupReport.file}\n`)
+    if (startupReport.dshVersion !== null || startupReport.timestamp !== null) {
+      process.stderr.write(`  dsh ${startupReport.dshVersion ?? 'unknown'} at ${startupReport.timestamp ?? 'unknown'}\n`)
+    }
+    if (startupReport.entries.length > 0) {
+      process.stderr.write('  inactive entries:\n')
+      for (const entry of startupReport.entries) {
+        process.stderr.write(`    [${entry.required ? 'required' : 'optional'}] ${entry.id} — ${entry.module}\n`)
+      }
+    } else {
+      process.stderr.write('  (no inactive-entry list parsed; open the file for raw diagnostics)\n')
+    }
+  }
+
   const last = lastSuccessSnapshot(options.paths, options.profileName)
   if (last === null) {
     process.stderr.write(`\ndsh exited ${dshCode} shortly after launch and no successful baseline exists.\n`)
@@ -155,15 +175,21 @@ async function attributeAndRecover(options: GateCommandOptions, report: ScanRepo
   }
 
   const manifest = readProfileManifest(options.paths.profileManifest)
-  const bundles = manifest === null ? [] : resolveBundles(options.paths, manifest).resolved
+  const installAnchor = locateInstallAnchor(options.paths, options.config.installAnchor ?? null)
+  const bundles = manifest === null ? [] : resolveBundles(options.paths, manifest, installAnchor).resolved
   const refs = allVisibleRows(options.paths.profileDir, bundles)
-  const suspects = diff.map((entry) => ({ ...entry, rows: rowIdsForPackage(refs, entry.name) }))
+  const failedModules = new Set(startupReport?.entries.map((entry) => entry.module) ?? [])
+  const suspects = diff.map((entry) => ({
+    ...entry,
+    rows: rowIdsForPackage(refs, entry.name),
+    launcherFailed: failedModules.has(entry.name),
+  }))
 
   process.stderr.write('\n' + '='.repeat(60) + '\n')
   process.stderr.write(`BOOT FAILURE ATTRIBUTION: dsh exited ${dshCode} after launch; these packages changed since the last successful boot (${last.at}):\n`)
   suspects.forEach((s, index) => {
     process.stderr.write(`  [${index + 1}] ${s.name} (${s.change}: ${s.previous ?? 'absent'} -> ${s.current ?? 'absent'})`)
-    process.stderr.write(s.rows.length > 0 ? ` — rows: ${s.rows.join(', ')}\n` : ' — no loadable row found\n')
+    process.stderr.write(s.launcherFailed ? ' — launcher reported this plugin failed\n' : s.rows.length > 0 ? ` — rows: ${s.rows.join(', ')}\n` : ' — no loadable row found\n')
   })
 
   const disableable = suspects.filter((s) => s.rows.length > 0)

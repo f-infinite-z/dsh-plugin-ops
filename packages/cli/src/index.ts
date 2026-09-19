@@ -18,12 +18,16 @@ usage:
   dsh-ops gate  [--profile <name>] [--home <dir>] [--bypass] [--no-attribution]
                 [--boot-threshold-ms <n>] [--config <file>] [--] <dsh command...>
   dsh-ops serve [--home <dir>] [--port <n>] [--host <addr>] [--config <file>]
-  dsh-ops verify [<dir>|<npm-package>] [--json] [--strict]
+  dsh-ops verify [<dir>|<npm-package>] [--json] [--strict] [--runtime] [--runtime-timeout <s>]
   dsh-ops selftest
   dsh-ops help
 
 config: read from <DSH_HOME>/dsh-ops.yml by default (rules on/off, severity
   demotion, ignorePackages); corrupt config fails loud.
+
+verify --runtime boots the package in an isolated DSH home (official install +
+  launch) and reports whether the boot survives; needs the dsh command on PATH
+  and network access for the isolated install.
 
 exit codes:
   0  ok (or dsh's own exit code after a gate pass)
@@ -46,12 +50,14 @@ const OPTIONS = {
   'skip-update-check': { type: 'boolean', default: false },
   updates: { type: 'boolean', default: false },
   strict: { type: 'boolean', default: false },
+  runtime: { type: 'boolean', default: false },
+  'runtime-timeout': { type: 'string' },
   port: { type: 'string' },
   host: { type: 'string', default: '127.0.0.1' },
   'boot-threshold-ms': { type: 'string' },
 } as const
 
-type Flags = { profile: string; home?: string; json?: boolean; 'dry-run'?: boolean; yes?: boolean; bypass?: boolean; 'no-attribution'?: boolean; config?: string; 'skip-update-check'?: boolean; updates?: boolean; strict?: boolean; port?: string; host?: string; 'boot-threshold-ms'?: string }
+type Flags = { profile: string; home?: string; json?: boolean; 'dry-run'?: boolean; yes?: boolean; bypass?: boolean; 'no-attribution'?: boolean; config?: string; 'skip-update-check'?: boolean; updates?: boolean; strict?: boolean; runtime?: boolean; 'runtime-timeout'?: string; port?: string; host?: string; 'boot-threshold-ms'?: string }
 
 function parse(rawArgs: string[]): { values: Flags; positionals: string[] } {
   const { values, positionals } = parseArgs({
@@ -132,10 +138,17 @@ async function main(): Promise<number> {
     }
     case 'verify': {
       const { values, positionals } = parse(rest)
+      const runtimeTimeoutSec = values['runtime-timeout'] === undefined ? 45 : Number(values['runtime-timeout'])
+      if (!Number.isFinite(runtimeTimeoutSec) || runtimeTimeoutSec <= 0) {
+        process.stderr.write('invalid --runtime-timeout\n')
+        return 2
+      }
       return await runVerifyCommand({
         dir: positionals[0] ?? '.',
         json: values.json ?? false,
         strict: values.strict ?? false,
+        runtime: values.runtime ?? false,
+        runtimeTimeoutSec,
       })
     }
     case 'selftest': {
