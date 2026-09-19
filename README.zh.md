@@ -7,7 +7,7 @@
 
 > DeepSeek Harness 插件运维（Plugin Operations）：一条命令全量体检、启动前预检拦截、失败归因与恢复、依赖树治理——插件生态的"医生"，长期收敛为插件管理增强一体化。
 
-**状态：v0.7.0 已发布 npm；拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
+**状态：v0.8.0 已发布 npm；拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
 
 ## 命名
 
@@ -62,7 +62,7 @@ dsh-ops selftest               # 自检：内置故障样本跑全规则
 | `gate` | 先阻断分级处置：fatal 先拦（自动修→放行；复杂→醒目指引；`--bypass` 逃生舱记录不静默）；dsh 启动秒退 → 读取官方启动诊断（`$DSH_HOME/logs/startup-*.log`）→ 归因差异包与启动器报告的失败插件 → 交互禁用重试；headless 一次性 profile 退出码透传不归因 |
 | `serve` | 本地 Web 面板：健康卡/结果列表/修复执行/**插件行管理**（健康徽标、致命/警告/正常筛选、每页 10 行分页、官方行保护、启停开关）/故障时间线/**诊断对话（带增强检索 RAG 开关）**——排障经验沉淀为 Markdown，开启后自动检索命中条目注入对话（BM25 + 可选向量重排），zh/en 切换 |
 | `selftest` | 引擎自检（6 内置故障样本），验证安装健康 |
-| `verify` | 面向插件作者的发布前校验：支持本地目录或 **npm 包名**（`dsh-ops verify <name\|@scope/name\|name@version>`，从 registry 下载发布物校验）；检查 bundle patch 声明与解析、patch 行可解析性、依赖协议（`file:`/`workspace:`）、ESM 入口与导出、client 导出契约与产物形状、files 完整性（`--json`、CI 用 `--strict`） |
+| `verify` | 面向插件作者的发布前校验：支持本地目录或 **npm 包名**（`dsh-ops verify <name\|@scope/name\|name@version>`，从 registry 下载发布物校验）；检查 bundle patch 声明与解析、patch 行可解析性、依赖协议（`file:`/`workspace:`）、ESM 入口与导出、client 导出契约与产物形状、files 完整性（`--json`、CI 用 `--strict`）；**`--runtime`** 追加隔离启动验证——在独立 DSH home 中经官方命令安装并启动，报告能否存活并指出失败的 loader entry |
 | 内嵌 bundle（`dsh-plugin-ops-bundle`） | 装进 profile 后在 dsh Web 设置页出现"dsh-ops"健康页（扫描/行管理/时间线/带 RAG 知识库的诊断对话）；host 半边与 `serve` 复用同一引擎与路由白名单，诊断对话优先走官方 `ctx.llm`、无 llm 时降级直连 |
 
 退出码：`0` 通过（或 dsh 自身码）/ `1` 仍有 fatal / `2` 用法或 profile 缺失 / `3` gate 被需人工处置的 fatal 阻断 / `4-5` gate 归因相关。
@@ -104,14 +104,14 @@ dsh-xray 给本项目的评级为 C3（衡量能力面而非意图）；上表�
 ## 后续方向
 
 - **官方桌面端适配**：官方桌面端运行独立插件树且无 CLI 启动点；待官方桌面端插件管理生态开放启动钩子后适配。文件级 `scan`/`fix` 已可直接用于 desktop profile。
-- **面向插件作者的一致性验证**：`dsh-ops verify` 已支持本地目录与 npm 包名两种输入，覆盖 bundle patch 声明与解析、patch 行可解析性、ESM 入口与导出、client 导出契约与产物形状、files 完整性八项检查；并已用 30 个真实生态插件（热门/普通两档）校准误报（28 个零 findings）。后续：peer 契约检查、运行级验证。
+- **面向插件作者的一致性验证**：`dsh-ops verify` 已支持本地目录与 npm 包名两种输入，覆盖 bundle patch 声明与解析、patch 行可解析性、ESM 入口与导出、client 导出契约与产物形状、files 完整性八项检查；并已用 30 个真实生态插件（热门/普通两档）校准误报（28 个零 findings）。`verify --runtime` 在独立 DSH home 中经官方安装与启动命令做隔离启动验证，报告能否存活。后续：peer 契约检查。
 - **一体化插件管理（v2）**：把生态"变更时防护"（canary 试运行、启停、更新检查、市场）按自有架构吸收进启动生命周期防护，以启动门为统一入口。
 
 ## 开发
 
 ```sh
 pnpm install && pnpm run build
-pnpm run typecheck && pnpm run test      # 105 单测（core 74 + bundle 14 + cli 17）
+pnpm run typecheck && pnpm run test      # 129 单测（core 98 + bundle 14 + cli 17）
 node packages/cli/lib/index.js selftest  # 引擎自检
 node scripts/e2e/scan-fix.e2e.mjs        # 离线 E2E（真实 pnpm 修复）
 node scripts/e2e/gate.e2e.mjs            # gate 场景（放行/阻断/旁路/归因/headless）
