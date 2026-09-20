@@ -17,6 +17,13 @@ export interface OpsConfig {
    * for a runtime-only install that never materialized `profiles/node_modules`.
    */
   installAnchor?: string
+  /**
+   * Session-container pre-check through `@argszero/cordis-plugin-session-audit`
+   * (run by `gate` before launching dsh). Enabled automatically when the
+   * command is on PATH; `{ enabled: false }` opts out, and `{ command: '...' }`
+   * points at a custom executable (path or name).
+   */
+  sessionAudit?: { enabled?: boolean; command?: string }
 }
 
 export interface ConfigRead {

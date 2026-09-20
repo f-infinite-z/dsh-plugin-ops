@@ -7,6 +7,7 @@ import { runGateCommand } from './gate-cmd.js'
 import { serve } from './serve.js'
 import { runCheckCommand } from './check-cmd.js'
 import { runVerifyCommand } from './verify-cmd.js'
+import { runSessionsCommand } from './sessions-cmd.js'
 import { helpRequested } from './args.js'
 
 const USAGE = `dsh-ops — DeepSeek Harness plugin operations
@@ -19,6 +20,7 @@ usage:
                 [--boot-threshold-ms <n>] [--config <file>] [--] <dsh command...>
   dsh-ops serve [--home <dir>] [--port <n>] [--host <addr>] [--config <file>]
   dsh-ops verify [<dir>|<npm-package>] [--json] [--strict] [--runtime] [--runtime-timeout <s>]
+  dsh-ops sessions [--home <dir>] [--json] [--repair-paths] [--quarantine]
   dsh-ops selftest
   dsh-ops help
 
@@ -52,12 +54,14 @@ const OPTIONS = {
   strict: { type: 'boolean', default: false },
   runtime: { type: 'boolean', default: false },
   'runtime-timeout': { type: 'string' },
+  'repair-paths': { type: 'boolean', default: false },
+  quarantine: { type: 'boolean', default: false },
   port: { type: 'string' },
   host: { type: 'string', default: '127.0.0.1' },
   'boot-threshold-ms': { type: 'string' },
 } as const
 
-type Flags = { profile: string; home?: string; json?: boolean; 'dry-run'?: boolean; yes?: boolean; bypass?: boolean; 'no-attribution'?: boolean; config?: string; 'skip-update-check'?: boolean; updates?: boolean; strict?: boolean; runtime?: boolean; 'runtime-timeout'?: string; port?: string; host?: string; 'boot-threshold-ms'?: string }
+type Flags = { profile: string; home?: string; json?: boolean; 'dry-run'?: boolean; yes?: boolean; bypass?: boolean; 'no-attribution'?: boolean; config?: string; 'skip-update-check'?: boolean; updates?: boolean; strict?: boolean; runtime?: boolean; 'runtime-timeout'?: string; 'repair-paths'?: boolean; quarantine?: boolean; port?: string; host?: string; 'boot-threshold-ms'?: string }
 
 function parse(rawArgs: string[]): { values: Flags; positionals: string[] } {
   const { values, positionals } = parseArgs({
@@ -149,6 +153,16 @@ async function main(): Promise<number> {
         strict: values.strict ?? false,
         runtime: values.runtime ?? false,
         runtimeTimeoutSec,
+      })
+    }
+    case 'sessions': {
+      const { values } = parse(rest)
+      const paths = resolveDshPaths('web', values.home)
+      return await runSessionsCommand({
+        paths,
+        json: values.json ?? false,
+        repairPaths: values['repair-paths'] ?? false,
+        quarantine: values.quarantine ?? false,
       })
     }
     case 'selftest': {

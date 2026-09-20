@@ -1,5 +1,14 @@
 export { resolveDshPaths, MEMORY_DIR_NAME, MEMORY_FILENAME, KNOWLEDGE_DIR_NAME, type DshPaths } from './paths.js'
 export { readLatestStartupReport, type StartupReport, type StartupReportEntry } from './startup-log.js'
+export {
+  scanSessions,
+  repairSessionPaths,
+  quarantineSessions,
+  type SessionFinding,
+  type SessionScanResult,
+  type SessionMove,
+  type SessionRepairResult,
+} from './session-repair.js'
 export { OPS_VERSION } from './version.js'
 export { readProfileManifest, profileBundles, registryDependencies, resolveBundles, anchorFiles, type ProfileManifest, type ResolvedBundle, type BundleResolution } from './profile.js'
 export { packageDirFromAnchor, packageDirFromAnchors, readPackageManifest, type PackageManifest } from './package-tree.js'

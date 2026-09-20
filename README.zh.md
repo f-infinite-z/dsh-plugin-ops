@@ -63,6 +63,7 @@ dsh-ops selftest               # 自检：内置故障样本跑全规则
 | `serve` | 本地 Web 面板：健康卡/结果列表/修复执行/**插件行管理**（健康徽标、致命/警告/正常筛选、每页 10 行分页、官方行保护、启停开关）/故障时间线/**诊断对话（带增强检索 RAG 开关）**——排障经验沉淀为 Markdown，开启后自动检索命中条目注入对话（BM25 + 可选向量重排），zh/en 切换 |
 | `selftest` | 引擎自检（6 内置故障样本），验证安装健康 |
 | `verify` | 面向插件作者的发布前校验：支持本地目录或 **npm 包名**（`dsh-ops verify <name\|@scope/name\|name@version>`，从 registry 下载发布物校验）；检查 bundle patch 声明与解析、patch 行可解析性、依赖协议（`file:`/`workspace:`）、ESM 入口与导出、client 导出契约与产物形状、files 完整性（`--json`、CI 用 `--strict`）；**`--runtime`** 追加隔离启动验证——在独立 DSH home 中经官方命令安装并启动，报告能否存活并指出失败的 loader entry |
+| `sessions` | 会话容器修复：扫描 `$DSH_HOME/sessions` 中两类会阻断启动的损坏（首帧无法解码的产物；目录名与 header id 不匹配的会话目录）；`--repair-paths` 把被改名的目录移回其 header id，`--quarantine` 把不可读会话目录移入 `$DSH_HOME/cache/dsh-ops/quarantine`（永不删除）；默认只读计划，深层事件级诊断仍由 `@argszero/cordis-plugin-session-audit` 覆盖 |
 | 内嵌 bundle（`dsh-plugin-ops-bundle`） | 装进 profile 后在 dsh Web 设置页出现"dsh-ops"健康页（扫描/行管理/时间线/带 RAG 知识库的诊断对话）；host 半边与 `serve` 复用同一引擎与路由白名单，诊断对话优先走官方 `ctx.llm`、无 llm 时降级直连 |
 
 退出码：`0` 通过（或 dsh 自身码）/ `1` 仍有 fatal / `2` 用法或 profile 缺失 / `3` gate 被需人工处置的 fatal 阻断 / `4-5` gate 归因相关。
@@ -94,7 +95,8 @@ dsh-ops 按设计会触达敏感面；下面说明具体触达什么、何时触
 |---|---|---|---|
 | profile 文件 | `package.json`、`pnpm-lock.yaml`、`node_modules` 元数据、patch YAML | 诊断本身（`check`/`scan`） | 只读；写操作只走下方两条白名单修复通道 |
 | 补丁层 | 向 profile 用户补丁层 `cordis.patch.yml` 结构化写入 `disabled` 行 | 禁用导致启动失败的插件行 | plan→确认→备份→校验写入；删行即恢复；官方 `@deepseek-ai/*` 行拒绝禁用（403） |
-| 命令执行 | `pnpm install --frozen-lockfile --force`（固定参数）；`gate` 中传入的 `dsh` 命令 | lockfile 对齐；预检通过后启动 dsh | 绝不执行任意命令；仅在显式确认或用户自己输入的命令上执行 |
+| 会话容器 | 读取 `$DSH_HOME/sessions` 目录树；`--repair-paths` 把会话目录改名为其 header id，`--quarantine` 把会话目录移入 dsh-ops 缓存 | `sessions` 修复命令 | 仅显式 flag；永不删除；先跑只读计划并报告每一步移动 |
+| 命令执行 | `pnpm install --frozen-lockfile --force`（固定参数）；`gate` 中传入的 `dsh` 命令；存在时调用 `session-audit` | lockfile 对齐；预检通过后启动 dsh；会话容器预检 | 绝不执行任意命令；仅在显式确认或用户自己输入的命令上执行 |
 | 本地 HTTP 服务 | 回环 `127.0.0.1:8912`（`serve` 面板）；内嵌 bundle 复用 dsh 自带 web 服务 | Web 面板 | 同源校验、仅回环、路由白名单 |
 | LLM 凭据 | `DSH_OPS_LLM_*`，或 env / `.env` / `.credentials.yaml` 中的 provider key | 仅可选的诊断对话 | 只在对话使用时读取；全部静态功能无 key 可用 |
 | 网络 | `pnpm outdated`（`--updates` 可选）；配置的 LLM API | 更新提示；诊断对话 | `check`/`fix`/`gate` 与默认 `scan` 完全离线 |

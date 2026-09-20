@@ -1,4 +1,6 @@
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 import { createInterface } from 'node:readline/promises'
 import {
   scanProfile, renderHuman, reportOk, alignToLockfile, appendMemory, recordFixKnowledge, ScanError,
@@ -6,7 +8,7 @@ import {
   lastSuccessSnapshot, diffSnapshots, disableRow, locateInstallAnchor, readLatestStartupReport,
   type Finding, type ScanReport, type DshPaths, type OpsConfig,
 } from 'dsh-plugin-ops-core'
-import { spawnDsh } from './spawn-dsh.js'
+import { spawnCli, spawnDsh } from './spawn-dsh.js'
 
 export interface GateCommandOptions {
   paths: DshPaths
@@ -32,6 +34,56 @@ export function attributionEnabled(options: GateCommandOptions): boolean {
 
 async function currentReport(options: GateCommandOptions): Promise<ScanReport> {
   return scanProfile({ paths: options.paths, profileName: options.profileName, config: options.config, updateCheck: false })
+}
+
+/** Whether a command name or path resolves (checked before spawning, so a missing tool never reads as an audit failure). */
+function commandExists(command: string): boolean {
+  // A path form is checked directly: `where` rejects absolute paths because the
+  // drive colon parses as a path:pattern separator.
+  if (/[\\/]/.test(command)) return existsSync(command)
+  const probe = process.platform === 'win32' ? 'where.exe' : 'which'
+  const result = spawnSync(probe, [command], { stdio: 'ignore' })
+  return result.status === 0
+}
+
+/**
+ * Run the session-container audit (`@argszero/cordis-plugin-session-audit`)
+ * when the tool is available. Advisory coverage on top of the plugin-tree
+ * checks: the audit's output goes straight to the terminal, and its exit code
+ * (1 = needs manual attention) can block the gate like a fatal finding.
+ * A missing tool, a missing sessions root, a tool error, or a timeout returns
+ * null — the audit never blocks a boot by itself failing.
+ * @param options - gate options carrying the config and Harness home.
+ * @returns the audit exit code, or null when the check did not run.
+ */
+async function sessionContainerCheck(options: GateCommandOptions): Promise<number | null> {
+  const config = options.config.sessionAudit
+  if (config?.enabled === false) return null
+  const sessionsRoot = join(options.paths.home, 'sessions')
+  if (!existsSync(sessionsRoot)) return null
+  const command = config?.command ?? 'session-audit'
+  if (!commandExists(command)) return null
+  return new Promise((resolve) => {
+    const child = spawnCli(command, [sessionsRoot], { stdio: ['ignore', 'inherit', 'inherit'] })
+    const timer = setTimeout(() => {
+      if (child.pid !== undefined) {
+        if (process.platform === 'win32') {
+          spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' })
+        } else {
+          try { process.kill(child.pid, 'SIGTERM') } catch { /* already gone */ }
+        }
+      }
+      resolve(null)
+    }, 120_000)
+    child.on('error', () => {
+      clearTimeout(timer)
+      resolve(null)
+    })
+    child.on('close', (code) => {
+      clearTimeout(timer)
+      resolve(code)
+    })
+  })
 }
 
 export async function runGateCommand(options: GateCommandOptions): Promise<number> {
@@ -94,6 +146,23 @@ export async function runGateCommand(options: GateCommandOptions): Promise<numbe
     } else {
       return 3
     }
+  }
+
+  // --- session containers (advisory coverage on top of the plugin tree) ----
+  const sessionAuditCode = await sessionContainerCheck(options)
+  if (sessionAuditCode === 1) {
+    process.stderr.write('\n' + '='.repeat(60) + '\n')
+    process.stderr.write('GATE BLOCKED: session containers need manual attention (session-audit exit 1)\n')
+    process.stderr.write('='.repeat(60) + '\n')
+    process.stderr.write('The audit above names the artifacts. Move them out of the sessions root\n')
+    process.stderr.write('(or restore them), then re-run the gate. Pass --bypass to start anyway (not recommended).\n')
+    if (options.bypass) {
+      appendMemory(options.paths, { type: 'bypass', ts: new Date().toISOString(), profile: options.profileName, detail: 'bypassed session-audit exit 1' })
+    } else {
+      return 3
+    }
+  } else if (sessionAuditCode !== null && sessionAuditCode !== 0) {
+    process.stderr.write(`\ngate: session-audit exited ${sessionAuditCode}; container coverage skipped for this run\n`)
   }
 
   // --- launch dsh ----------------------------------------------------------

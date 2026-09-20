@@ -44,6 +44,18 @@ async function fakeDsh(exitCode: number): Promise<string> {
   return file
 }
 
+/** A fake session-audit executable: `.cmd` on Windows (npm-shim shape), a shell script elsewhere. */
+function fakeAudit(exitCode: number): string {
+  if (process.platform === 'win32') {
+    const file = join(tmpdir(), `dsh-ops-fake-audit-${process.pid}-${Math.random().toString(36).slice(2)}.cmd`)
+    writeFileSync(file, `@exit /b ${exitCode}\r\n`, 'utf8')
+    return file
+  }
+  const file = join(tmpdir(), `dsh-ops-fake-audit-${process.pid}-${Math.random().toString(36).slice(2)}.sh`)
+  writeFileSync(file, `#!/bin/sh\nexit ${exitCode}\n`, { mode: 0o755 })
+  return file
+}
+
 describe('fix command', () => {
   beforeEach(() => {
     mockedScan.mockReset()
@@ -150,6 +162,62 @@ describe('gate command', () => {
         bootThresholdMs: 20000, config: {}, dshCommand: ['node', 'nope'],
       })
       expect(code).toBe(3)
+    } finally {
+      fixture.dispose()
+    }
+  })
+
+  it('blocks the gate when session-audit reports container problems', async () => {
+    const fixture = makeHome()
+    const audit = fakeAudit(1)
+    try {
+      mkdirSync(join(fixture.home, 'sessions'), { recursive: true })
+      mockedScan.mockResolvedValue(report([], fixture.paths.profileDir))
+      const code = await runGateCommand({
+        paths: fixture.paths, profileName: 'web', bypass: false, noAttribution: false,
+        bootThresholdMs: 20000, config: { sessionAudit: { command: audit } }, dshCommand: ['node', 'nope'],
+      })
+      expect(code).toBe(3)
+    } finally {
+      rmSync(audit, { force: true })
+      fixture.dispose()
+    }
+  })
+
+  it('continues to dsh when session-audit is clean', async () => {
+    const fixture = makeHome()
+    const audit = fakeAudit(0)
+    try {
+      mkdirSync(join(fixture.home, 'sessions'), { recursive: true })
+      const fake = await fakeDsh(0)
+      mockedScan.mockResolvedValue(report([], fixture.paths.profileDir))
+      const code = await runGateCommand({
+        paths: fixture.paths, profileName: 'web', bypass: false, noAttribution: false,
+        bootThresholdMs: 20000, config: { sessionAudit: { command: audit } }, dshCommand: ['node', fake],
+      })
+      expect(code).toBe(0)
+    } finally {
+      rmSync(audit, { force: true })
+      fixture.dispose()
+    }
+  })
+
+  it('skips the session audit when the tool is missing or disabled', async () => {
+    const fixture = makeHome()
+    try {
+      mkdirSync(join(fixture.home, 'sessions'), { recursive: true })
+      const fake = await fakeDsh(0)
+      mockedScan.mockResolvedValue(report([], fixture.paths.profileDir))
+      const missing = await runGateCommand({
+        paths: fixture.paths, profileName: 'web', bypass: false, noAttribution: false,
+        bootThresholdMs: 20000, config: { sessionAudit: { command: 'definitely-missing-audit-xyz' } }, dshCommand: ['node', fake],
+      })
+      expect(missing).toBe(0)
+      const disabled = await runGateCommand({
+        paths: fixture.paths, profileName: 'web', bypass: false, noAttribution: false,
+        bootThresholdMs: 20000, config: { sessionAudit: { enabled: false, command: 'definitely-missing-audit-xyz' } }, dshCommand: ['node', fake],
+      })
+      expect(disabled).toBe(0)
     } finally {
       fixture.dispose()
     }
