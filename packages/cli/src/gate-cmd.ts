@@ -161,6 +161,18 @@ async function attributeAndRecover(options: GateCommandOptions, report: ScanRepo
     }
   }
 
+  if (startupReport !== null && startupReport.containerFailure) {
+    process.stderr.write('\n' + '='.repeat(60) + '\n')
+    process.stderr.write('SESSION CONTAINER FAILURE (not a plugin-tree problem):\n')
+    process.stderr.write('  the boot failed while the workspace registry listed stored sessions\n')
+    if (startupReport.containerPath !== null) {
+      process.stderr.write(`  corrupt artifact: ${startupReport.containerPath}\n`)
+    }
+    process.stderr.write('  recover: move the artifact out of the sessions root (or restore it), then boot again\n')
+    process.stderr.write('  pre-boot audit for the whole sessions tree: @argszero/cordis-plugin-session-audit\n')
+    return dshCode
+  }
+
   const last = lastSuccessSnapshot(options.paths, options.profileName)
   if (last === null) {
     process.stderr.write(`\ndsh exited ${dshCode} shortly after launch and no successful baseline exists.\n`)

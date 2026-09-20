@@ -175,6 +175,58 @@ describe('rule 5: patch resolution', () => {
       fixture.dispose()
     }
   })
+
+  it('lets a user-layer row with the same id override a bundle-layer row', async () => {
+    const fixture = makeHome()
+    try {
+      writeProfile(fixture.paths, { dependencies: { 'pkg-a': '^1.0.0' }, bundles: ['pkg-a'] })
+      writeInstalledPackages(fixture.paths, [{ name: 'pkg-a', version: '1.0.0', dshBundlePatch: 'cordis.patch.yml' }])
+      // The bundle layer carries a bare row that cannot resolve.
+      writeFileSync(join(fixture.paths.profileDir, 'node_modules', 'pkg-a', 'cordis.patch.yml'),
+        '- id: row-a\n  name: ghost-package\n', 'utf8')
+      // The user layer overrides the same id with a resolve guard.
+      writeFileSync(join(fixture.paths.profileDir, 'cordis.patch.yml'),
+        '- id: row-a\n  name: ghost-package\n  disabled: !!js "(() => { try { require.resolve(\'ghost-package\') } catch { return true } return false })()"\n', 'utf8')
+      const report = await scanProfile({ paths: fixture.paths, profileName: 'web', updateCheck: false })
+      expect(report.findings.some((f) => f.ruleId === 'patch-resolution' && f.severity === 'fatal')).toBe(false)
+      const info = report.findings.find((f) => f.ruleId === 'patch-resolution')
+      expect(info?.severity).toBe('info')
+      expect(info?.message).toContain('runtime resolve guard')
+    } finally {
+      fixture.dispose()
+    }
+  })
+
+  it('lets a user-layer static disable neutralize a bundle-layer row', async () => {
+    const fixture = makeHome()
+    try {
+      writeProfile(fixture.paths, { dependencies: { 'pkg-a': '^1.0.0' }, bundles: ['pkg-a'] })
+      writeInstalledPackages(fixture.paths, [{ name: 'pkg-a', version: '1.0.0', dshBundlePatch: 'cordis.patch.yml' }])
+      writeFileSync(join(fixture.paths.profileDir, 'node_modules', 'pkg-a', 'cordis.patch.yml'),
+        '- id: row-a\n  name: ghost-package\n', 'utf8')
+      writeFileSync(join(fixture.paths.profileDir, 'cordis.patch.yml'),
+        '- id: row-a\n  name: ghost-package\n  disabled: true\n', 'utf8')
+      const report = await scanProfile({ paths: fixture.paths, profileName: 'web', updateCheck: false })
+      expect(report.findings.some((f) => f.ruleId === 'patch-resolution')).toBe(false)
+    } finally {
+      fixture.dispose()
+    }
+  })
+
+  it('keeps a bundle-layer row fatal when no later layer overrides its id', async () => {
+    const fixture = makeHome()
+    try {
+      writeProfile(fixture.paths, { dependencies: { 'pkg-a': '^1.0.0' }, bundles: ['pkg-a'] })
+      writeInstalledPackages(fixture.paths, [{ name: 'pkg-a', version: '1.0.0', dshBundlePatch: 'cordis.patch.yml' }])
+      writeFileSync(join(fixture.paths.profileDir, 'node_modules', 'pkg-a', 'cordis.patch.yml'),
+        '- id: row-a\n  name: ghost-package\n', 'utf8')
+      const report = await scanProfile({ paths: fixture.paths, profileName: 'web', updateCheck: false })
+      const finding = report.findings.find((f) => f.ruleId === 'patch-resolution')
+      expect(finding?.severity).toBe('fatal')
+    } finally {
+      fixture.dispose()
+    }
+  })
 })
 
 describe('rule 7: structure integrity', () => {

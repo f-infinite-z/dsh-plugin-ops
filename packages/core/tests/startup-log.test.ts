@@ -111,6 +111,46 @@ describe('startup diagnostics reader', () => {
       const report = readLatestStartupReport(fixture.paths)
       expect(report?.dshVersion).toBe('0.1.6-alpha.2')
       expect(report?.entries).toEqual([])
+      expect(report?.containerFailure).toBe(false)
+    } finally {
+      fixture.dispose()
+    }
+  })
+
+  it('flags a corrupt session container and extracts the artifact path', () => {
+    const fixture = makeHome()
+    try {
+      writeReport(fixture.home, 'startup-2026-09-19T07-44-42.859Z-abc.log', [
+        '{',
+        "  timestamp: '2026-09-19T07:44:42.859Z',",
+        "  dshVersion: '0.1.6-alpha.2',",
+        "  profile: 'web',",
+        '  error: Error: dsh: plugin tree failed to load: failed to apply loader entry workspace',
+        '    corrupt session log "C:/Users/x/.dsh/sessions/--w--/session-ba79/session.v3.jsonl.zstd": header id and cwd identify',
+        '}',
+      ])
+      const report = readLatestStartupReport(fixture.paths)
+      expect(report?.containerFailure).toBe(true)
+      expect(report?.containerPath).toBe('C:/Users/x/.dsh/sessions/--w--/session-ba79/session.v3.jsonl.zstd')
+    } finally {
+      fixture.dispose()
+    }
+  })
+
+  it('flags a corrupt container even when no artifact path is named', () => {
+    const fixture = makeHome()
+    try {
+      writeReport(fixture.home, 'startup-2026-09-19T07-44-42.859Z-abc.log', [
+        '{',
+        "  timestamp: '2026-09-19T07:44:42.859Z',",
+        "  dshVersion: '0.1.6-alpha.2',",
+        "  profile: 'web',",
+        '  error: Error: corrupt Zstandard session log: invalid frame magic at byte 0',
+        '}',
+      ])
+      const report = readLatestStartupReport(fixture.paths)
+      expect(report?.containerFailure).toBe(true)
+      expect(report?.containerPath).toBeNull()
     } finally {
       fixture.dispose()
     }

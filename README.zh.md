@@ -124,6 +124,8 @@ node scripts/e2e/real-plugins.e2e.mjs    # 真实第三方插件沙箱（需网�
 
 不是第 N 个市场/管理器，而是启动生命周期防护：补全生态"变更时防护"缺失的**每次启动**环；后续版本将按自有架构吸收市场/启停/升级防护等功能，收敛为一体化插件管理增强。
 
+互补面：存储的会话容器由 [@argszero/cordis-plugin-session-audit](https://github.com/argszero/cordis-plugin-session-audit) 审计——面向 `$DSH_HOME/sessions` 目录树的启动前检查，带可供启动门消费的退出码；当启动失败来自 workspace 注册表而非插件树时，`gate` 会指向它。
+
 ## 平台支持
 
 Windows / macOS / Linux（Node `^22.19 || >=24`，与 dsh 相同）；CI 在三平台跑构建、类型检查、单测与离线 e2e。

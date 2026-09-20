@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import type { Finding } from './types.js'
 import type { RuleContext } from './rules.js'
 import type { ResolvedBundle } from './profile.js'
-import { allVisibleRows } from './rows.js'
+import { allVisibleRows, type RowRef } from './rows.js'
 import type { PatchRow } from './patch-layer.js'
 import { resolvePackageDir } from './generation.js'
 
@@ -46,19 +46,32 @@ function hasResolveGuard(row: PatchRow, pkg: string): boolean {
  * whole boot (verified against dsh 0.1.6-alpha.2: a bad bundle row aborts
  * startup with `failed to apply loader entry include`). The optional-plugin
  * tolerance of the startup audit covers activation failures of already
- * imported plugins, not this import stage. Statically disabled rows are
- * skipped; a row whose `disabled` expression carries a runtime resolve guard
- * for its own package is reported at info level because the Loader
+ * imported plugins, not this import stage.
+ *
+ * Patch layers apply in order — bundle patches first, the user layer last —
+ * and a later row with the same id overrides earlier rows, so only the last
+ * occurrence of an id decides whether that row resolves (a user-layer guard or
+ * disable neutralizes a bundle-layer row). Rows without an id cannot be
+ * matched by an override and are judged individually. Statically disabled rows
+ * are skipped; a row whose `disabled` expression carries a runtime resolve
+ * guard for its own package is reported at info level because the Loader
  * self-disables it when the package is absent.
  */
 export function rulePatchResolution(ctx: RuleContext, resolved: ResolvedBundle[]): Finding[] {
   const findings: Finding[] = []
   const refs = allVisibleRows(ctx.paths.profileDir, resolved)
+  const lastById = new Map<string, RowRef>()
+  for (const ref of refs) {
+    const id = typeof ref.row.id === 'string' && ref.row.id.length > 0 ? ref.row.id : null
+    if (id !== null) lastById.set(id, ref)
+  }
   const seen = new Set<string>()
   for (const ref of refs) {
     const row = ref.row
     const name = typeof row.name === 'string' ? row.name : null
     if (name === null) continue
+    const id = typeof row.id === 'string' && row.id.length > 0 ? row.id : null
+    if (id !== null && lastById.get(id) !== ref) continue
     if (row.disabled === true) continue
     if (name.startsWith('cordis:')) continue
     const key = `${ref.source}\u0000${name}`

@@ -124,6 +124,8 @@ Release: core, then cli, then bundle (order enforced by the CI release workflow)
 
 Not another market or manager, but startup-lifecycle protection: it fills the **every-boot** gap that change-time protection leaves open. Later versions absorb market/enable-disable/update protection into the same architecture, converging into an integrated plugin-management suite.
 
+Complementary surface: stored session containers are audited by [@argszero/cordis-plugin-session-audit](https://github.com/argszero/cordis-plugin-session-audit) — a pre-boot audit for the `$DSH_HOME/sessions` tree with an exit code a launcher can gate on. `gate` points at it when a failed boot comes from the workspace registry instead of the plugin tree.
+
 ## Platform support
 
 Windows, macOS, and Linux (Node `^22.19 || >=24` — the same engines as dsh). CI runs build, typecheck, unit tests, and the offline e2e suite on all three platforms.

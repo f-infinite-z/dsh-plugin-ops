@@ -40,6 +40,15 @@ export interface StartupReport {
   profile: string | null
   /** Inactive entries; empty when the report could not be parsed that far. */
   entries: StartupReportEntry[]
+  /**
+   * True when the report names a corrupt session container. That failure comes
+   * from the workspace registry's session listing, not from the plugin tree,
+   * so attribution should point at the artifact rather than at changed
+   * packages.
+   */
+  containerFailure: boolean
+  /** The corrupt artifact path when the report names one. */
+  containerPath: string | null
 }
 
 const FILE_PREFIX = 'startup-'
@@ -58,6 +67,13 @@ function parseEntries(text: string): StartupReportEntry[] {
     entries.push({ id: match[1]!, module: match[2]!, required: match[3] === 'true' })
   }
   return entries
+}
+
+/** Detect the workspace registry's session-container failures in a report body. */
+function containerEvidence(text: string): { failure: boolean; path: string | null } {
+  if (!/corrupt (Zstandard )?session log/.test(text)) return { failure: false, path: null }
+  const match = /corrupt session log "([^"]+)"/.exec(text)
+  return { failure: true, path: match === null ? null : match[1]! }
 }
 
 /**
@@ -95,12 +111,15 @@ export function readLatestStartupReport(paths: DshPaths, sinceMs?: number): Star
       continue
     }
     if (text.length > MAX_BYTES) text = text.slice(0, MAX_BYTES)
+    const container = containerEvidence(text)
     return {
       file,
       timestamp: stringField(text, 'timestamp'),
       dshVersion: stringField(text, 'dshVersion'),
       profile: stringField(text, 'profile'),
       entries: parseEntries(text),
+      containerFailure: container.failure,
+      containerPath: container.path,
     }
   }
   return null
