@@ -17,8 +17,9 @@ import * as core from 'dsh-plugin-ops-core'
 import { runFixCommand } from '../src/fix-cmd.js'
 import { runGateCommand } from '../src/gate-cmd.js'
 import { runVerifyCommand } from '../src/verify-cmd.js'
+import { runDevCommand, renderDevStatic } from '../src/dev-cmd.js'
 import { helpRequested } from '../src/args.js'
-import type { ScanReport, Finding } from 'dsh-plugin-ops-core'
+import type { ScanReport, Finding, VerifyReport } from 'dsh-plugin-ops-core'
 
 const mockedScan = vi.mocked(core.scanProfile)
 const mockedAlign = vi.mocked(core.alignToLockfile)
@@ -318,7 +319,7 @@ describe('verify command', () => {
   it('verifies a local plugin directory without touching the registry', async () => {
     const dir = makePluginDir()
     try {
-      const code = await runVerifyCommand({ dir, json: true, strict: false })
+      const code = await runVerifyCommand({ dir, json: true, strict: false, runtime: false, runtimeTimeoutSec: 45 })
       expect(code).toBe(0)
       expect(mockedFetch).not.toHaveBeenCalled()
     } finally {
@@ -327,7 +328,7 @@ describe('verify command', () => {
   })
 
   it('rejects a path-like input that does not exist', async () => {
-    const code = await runVerifyCommand({ dir: './definitely-not-a-dir-dshops', json: false, strict: false })
+    const code = await runVerifyCommand({ dir: './definitely-not-a-dir-dshops', json: false, strict: false, runtime: false, runtimeTimeoutSec: 45 })
     expect(code).toBe(2)
     expect(mockedFetch).not.toHaveBeenCalled()
   })
@@ -343,7 +344,7 @@ describe('verify command', () => {
       },
     })
     try {
-      const code = await runVerifyCommand({ dir: 'good-plugin', json: true, strict: false })
+      const code = await runVerifyCommand({ dir: 'good-plugin', json: true, strict: false, runtime: false, runtimeTimeoutSec: 45 })
       expect(code).toBe(0)
       expect(mockedFetch).toHaveBeenCalledWith('good-plugin')
       expect(cleaned).toBe(true)
@@ -362,8 +363,27 @@ describe('verify command', () => {
         cleaned = true
       },
     })
-    const code = await runVerifyCommand({ dir: 'broken-plugin', json: false, strict: false })
+    const code = await runVerifyCommand({ dir: 'broken-plugin', json: false, strict: false, runtime: false, runtimeTimeoutSec: 45 })
     expect(code).toBe(2)
     expect(cleaned).toBe(true)
+  })
+})
+
+describe('dev command', () => {
+  it('rejects a non-directory input', async () => {
+    const code = await runDevCommand({ dir: join(tmpdir(), 'definitely-missing-dir-xyz'), runtime: false, runtimeTimeoutSec: 10 })
+    expect(code).toBe(2)
+  })
+
+  it('renders clean and failing static results', () => {
+    const clean: VerifyReport = { packageDir: '/x', packageName: 'p', version: '1.0.0', findings: [] }
+    expect(renderDevStatic(clean)[0]).toContain('OK')
+    const failing: VerifyReport = {
+      packageDir: '/x', packageName: 'p', version: '1.0.0',
+      findings: [{ ruleId: 'entry-exports', severity: 'error', message: 'no exports' }],
+    }
+    const lines = renderDevStatic(failing)
+    expect(lines[0]).toContain('1 error')
+    expect(lines[1]).toContain('no exports')
   })
 })

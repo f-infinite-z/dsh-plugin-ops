@@ -120,7 +120,7 @@ function tail(text: string, max = 2000): string {
 }
 
 /** How the isolated profile should obtain the package under verification. */
-interface RuntimeInstallSource {
+export interface RuntimeInstallSource {
   kind: 'spec' | 'dir'
   value: string
 }
@@ -134,8 +134,7 @@ interface RuntimeInstallSource {
  * the tarball install matches what a registry user gets. A failed boot reads
  * the official startup diagnostics from the isolated home.
  */
-async function runRuntimeVerify(pluginDir: string, installSource: RuntimeInstallSource, timeoutSec: number): Promise<RuntimeVerifyResult> {
-  const plan = readRuntimeVerifyPlan(pluginDir)
+export async function runRuntimeVerify(pluginDir: string, installSource: RuntimeInstallSource, timeoutSec: number): Promise<RuntimeVerifyResult> {  const plan = readRuntimeVerifyPlan(pluginDir)
   if (plan === null) {
     return { ok: false, detail: 'package manifest is unreadable or unnamed', exitCode: null, elapsedMs: 0, startupReport: null, outputTail: '', failedEntries: [] }
   }

@@ -64,6 +64,7 @@ dsh-ops selftest               # 自检：内置故障样本跑全规则
 | `selftest` | 引擎自检（6 内置故障样本），验证安装健康 |
 | `verify` | 面向插件作者的发布前校验：支持本地目录或 **npm 包名**（`dsh-ops verify <name\|@scope/name\|name@version>`，从 registry 下载发布物校验）；检查 bundle patch 声明与解析、patch 行可解析性、依赖协议（`file:`/`workspace:`）、ESM 入口与导出、client 导出契约与产物形状、files 完整性（`--json`、CI 用 `--strict`）；**`--runtime`** 追加隔离启动验证——在独立 DSH home 中经官方命令安装并启动，报告能否存活并指出失败的 loader entry |
 | `sessions` | 会话容器修复：扫描 `$DSH_HOME/sessions` 中两类会阻断启动的损坏（首帧无法解码的产物；目录名与 header id 不匹配的会话目录）；`--repair-paths` 把被改名的目录移回其 header id，`--quarantine` 把不可读会话目录移入 `$DSH_HOME/cache/dsh-ops/quarantine`（永不删除）；默认只读计划，深层事件级诊断仍由 `@argszero/cordis-plugin-session-audit` 覆盖 |
+| `dev` | 单插件目录的开发监视器：每次变更后（防抖）跑静态检查，`--runtime` 在每次通过后追加隔离 DSH home 启动冒烟；全程不触碰正在运行的 dsh |
 | 内嵌 bundle（`dsh-plugin-ops-bundle`） | 装进 profile 后在 dsh Web 设置页出现"dsh-ops"健康页（扫描/行管理/时间线/带 RAG 知识库的诊断对话）；host 半边与 `serve` 复用同一引擎与路由白名单，诊断对话优先走官方 `ctx.llm`、无 llm 时降级直连 |
 
 退出码：`0` 通过（或 dsh 自身码）/ `1` 仍有 fatal / `2` 用法或 profile 缺失 / `3` gate 被需人工处置的 fatal 阻断 / `4-5` gate 归因相关。

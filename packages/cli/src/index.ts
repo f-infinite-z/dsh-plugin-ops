@@ -8,6 +8,7 @@ import { serve } from './serve.js'
 import { runCheckCommand } from './check-cmd.js'
 import { runVerifyCommand } from './verify-cmd.js'
 import { runSessionsCommand } from './sessions-cmd.js'
+import { runDevCommand } from './dev-cmd.js'
 import { helpRequested } from './args.js'
 
 const USAGE = `dsh-ops — DeepSeek Harness plugin operations
@@ -21,6 +22,7 @@ usage:
   dsh-ops serve [--home <dir>] [--port <n>] [--host <addr>] [--config <file>]
   dsh-ops verify [<dir>|<npm-package>] [--json] [--strict] [--runtime] [--runtime-timeout <s>]
   dsh-ops sessions [--home <dir>] [--json] [--repair-paths] [--quarantine]
+  dsh-ops dev   <plugin-dir> [--runtime] [--runtime-timeout <s>]
   dsh-ops selftest
   dsh-ops help
 
@@ -163,6 +165,19 @@ async function main(): Promise<number> {
         json: values.json ?? false,
         repairPaths: values['repair-paths'] ?? false,
         quarantine: values.quarantine ?? false,
+      })
+    }
+    case 'dev': {
+      const { values, positionals } = parse(rest)
+      const runtimeTimeoutSec = values['runtime-timeout'] === undefined ? 45 : Number(values['runtime-timeout'])
+      if (!Number.isFinite(runtimeTimeoutSec) || runtimeTimeoutSec <= 0) {
+        process.stderr.write('invalid --runtime-timeout\n')
+        return 2
+      }
+      return await runDevCommand({
+        dir: positionals[0] ?? '.',
+        runtime: values.runtime ?? false,
+        runtimeTimeoutSec,
       })
     }
     case 'selftest': {
