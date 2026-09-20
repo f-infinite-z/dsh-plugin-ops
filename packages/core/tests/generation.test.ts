@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   buildResolutionGeneration,
@@ -9,6 +9,15 @@ import {
   readProfileManifest,
 } from '../src/index.js'
 import { makeHome, writeProfile, writeJson } from './helpers.js'
+
+/** Canonicalize like the generation does, so Windows 8.3 short paths compare equal. */
+function canonical(path: string): string {
+  try {
+    return realpathSync.native(path)
+  } catch {
+    return path
+  }
+}
 
 function installFixture() {
   const fixture = makeHome()
@@ -117,7 +126,7 @@ describe('generation: closure construction', () => {
       // it; the profile-bundle half must not delete that entry.
       expect(generation.entries.has('@deepseek-ai/dsh-web-app')).toBe(true)
       expect(generation.entries.has('@deepseek-ai/dsh-client-ui')).toBe(true)
-      expect(generation.bundleRoots.get('@deepseek-ai/dsh-web-app')).toBe(resolved[0]!.dir)
+      expect(generation.bundleRoots.get('@deepseek-ai/dsh-web-app')).toBe(canonical(resolved[0]!.dir))
     } finally {
       fixture.dispose()
     }
@@ -155,7 +164,7 @@ describe('generation: closure construction', () => {
       const generation = buildResolutionGeneration(anchor, resolved, fixture.paths.profileDir)
       const resolvedPackage = resolvePackageDir(generation, fixture.paths, '@deepseek-ai/dsh-web-app')
       expect(resolvedPackage?.source).toBe('bundle')
-      expect(resolvedPackage?.dir).toBe(resolved[0]!.dir)
+      expect(canonical(resolvedPackage!.dir)).toBe(canonical(resolved[0]!.dir))
     } finally {
       fixture.dispose()
     }
