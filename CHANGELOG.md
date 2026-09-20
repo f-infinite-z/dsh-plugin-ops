@@ -2,6 +2,27 @@
 
 All notable changes are tracked here.
 
+## 0.8.2 — 2026-09-20
+
+### Patch-layer override semantics, container-failure attribution, ecosystem cross-reference
+
+- **Rule 5 honors patch-layer overrides**: patch layers apply in order (bundle
+  patches first, the user layer last) and a later row with the same id
+  overrides earlier rows — only the last occurrence of an id decides whether
+  the row resolves. A user-layer guard or static disable now neutralizes a
+  bundle-layer row instead of leaving a false-positive fatal behind. Rows
+  without an id are judged individually, as before.
+- **Gate attribution recognizes session-container failures**: when the official
+  startup diagnostics name a corrupt session container (`corrupt session log` /
+  `corrupt Zstandard session log`), the gate reports it as a workspace-registry
+  failure (with the artifact path when present), points at
+  `@argszero/cordis-plugin-session-audit` for a pre-boot audit of the sessions
+  tree, and skips the changed-package diff that would misattribute the boot
+  failure to plugins.
+- README ecosystem section cross-references session-audit as the complementary
+  surface (plugin tree vs session containers), aligning with the maintainer
+  discussion in deepseek-harness discussions#7161.
+
 ## 0.8.1 — 2026-09-19
 
 ### Fix: selected bundles resolve through the installation anchor
