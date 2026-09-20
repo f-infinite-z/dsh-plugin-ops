@@ -2,6 +2,26 @@
 
 All notable changes are tracked here.
 
+## 0.9.0 — 2026-09-20
+
+### Session-container repair and gate session-audit integration
+
+- **New `dsh-ops sessions` command**: repairs the two session-container
+  corruption classes that abort a dsh boot — an artifact whose first frame
+  cannot be decoded (Node's built-in zstd probes the header frame, so no
+  external dependency is needed) and a session directory that does not match
+  its header id. Read-only by default (a plan with exit 1 when anything needs
+  attention); `--repair-paths` moves a renamed directory back to its header id
+  (an existing target is refused), `--quarantine` moves unreadable session
+  directories into `$DSH_HOME/cache/dsh-ops/quarantine` (never deleted). Deep
+  event-level diagnostics (seq gaps, unknown types, empty text blocks, ...)
+  stay with `@argszero/cordis-plugin-session-audit`, and the command points
+  there for them.
+- **Gate runs session-audit before launching dsh** when the tool is on PATH
+  (config `sessionAudit: { enabled, command }`): exit 1 blocks the gate like a
+  fatal finding (`--bypass` stays the escape hatch); a missing tool, a missing
+  sessions root, a tool error, or a timeout skips the check without blocking.
+
 ## 0.8.2 — 2026-09-20
 
 ### Patch-layer override semantics, container-failure attribution, ecosystem cross-reference
