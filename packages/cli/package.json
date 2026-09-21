@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-ops",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "type": "module",
   "description": "DeepSeek Harness plugin operations: pre-boot health gate (scan/fix/gate), fault memory, dependency governance, and a local web panel",
   "license": "MIT",

@@ -2,6 +2,20 @@
 
 All notable changes are tracked here.
 
+## 0.10.0 — 2026-09-21
+
+### Development watcher for plugin directories
+
+- **New `dsh-ops dev <dir>` command**: watches one plugin directory
+  (debounced; `node_modules`, `.git`, and the dsh fallback projection are
+  ignored) and reruns the static publish checks after every change, so plugin
+  authors see a broken entry, patch, or bundle shape without a manual scan.
+  `--runtime` additionally boots the package in an isolated DSH home after
+  each clean pass — nothing touches a running dsh, and the isolated home is
+  removed afterwards. The command runs until interrupted.
+- `runRuntimeVerify` is exported from the verify command so `dev` reuses the
+  same isolated-boot path.
+
 ## 0.9.0 — 2026-09-20
 
 ### Session-container repair and gate session-audit integration
