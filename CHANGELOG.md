@@ -2,6 +2,23 @@
 
 All notable changes are tracked here.
 
+## 0.10.1 — 2026-09-22
+
+### Version-aware severity for the 0.1.7 optional tolerance
+
+- dsh 0.1.7-alpha.1 continues Profile loading past unreadable optional bundles
+  and entries (skipped with a warning; the plugin manager keeps disable/remove
+  controls). Rule 5 (patch-row resolution) and rule 1 (bundle declaration) now
+  read the installed dsh version: on 0.1.7+ an optional entry or bundle that
+  cannot be read reports `warn` with the version in the message, while a
+  required entry id (`agent-loop`, `webserver`, `modules`, `connection`,
+  `headless-runner`, `acp`, `sdk-jsonrpc-server`) stays `fatal`. Older releases
+  keep the `fatal` severity because they abort the whole boot (verified
+  against 0.1.6-alpha.2 and 0.1.7-alpha.1 with an isolated corrupt-bundle
+  profile).
+- Rule 1 now resolves bundles through the same installation anchor as the
+  generation (it previously used the profile anchors only).
+
 ## 0.10.0 — 2026-09-21
 
 ### Development watcher for plugin directories

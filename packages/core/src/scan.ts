@@ -5,7 +5,7 @@ import { rulePeerGap, rulePeerDrift } from './peers.js'
 import { rulePatchResolution } from './patchres.js'
 import { ruleStructure } from './structure.js'
 import { readPackageManifest } from './package-tree.js'
-import { buildResolutionGeneration, locateInstallAnchor } from './generation.js'
+import { buildResolutionGeneration, dshVersionOf, locateInstallAnchor } from './generation.js'
 import { checkOutdated } from './outdated.js'
 import { applyConfig, type OpsConfig } from './config.js'
 import type { ScanReport, PackageSnapshot, Finding } from './types.js'
@@ -34,6 +34,7 @@ export async function scanProfile(input: ScanInput): Promise<ScanReport> {
   const installAnchor = locateInstallAnchor(input.paths, input.config?.installAnchor ?? null)
   const { resolved } = resolveBundles(input.paths, manifest, installAnchor)
   const generation = buildResolutionGeneration(installAnchor, resolved, input.paths.profileDir)
+  const dshVersion = dshVersionOf(generation)
   const locked = await readLockedDirectDeps(input.paths.profileDir)
 
   const ctx: RuleContext = {
@@ -41,6 +42,7 @@ export async function scanProfile(input: ScanInput): Promise<ScanReport> {
     paths: input.paths,
     manifest,
     generation,
+    dshVersion,
     locked,
   }
 

@@ -311,3 +311,71 @@ describe('config application', () => {
     expect(demoted[1]?.severity).toBe('warn')
   })
 })
+
+describe('version-aware severity (dsh 0.1.7 tolerance)', () => {
+  function writeDshAnchor(paths, version) {
+    writeJson(join(paths.sharedProfilesDir, '@deepseek-ai', 'dsh', 'package.json'), { name: '@deepseek-ai/dsh', version })
+  }
+
+  it('downgrades an optional row failure to warn on 0.1.7+', async () => {
+    const fixture = makeHome()
+    try {
+      writeProfile(fixture.paths, { dependencies: {}, bundles: [] })
+      writeDshAnchor(fixture.paths, '0.1.7-alpha.1')
+      mkdirSync(fixture.paths.profileDir, { recursive: true })
+      writeFileSync(join(fixture.paths.profileDir, 'cordis.patch.yml'), '- id: row-a\n  name: ghost-package\n', 'utf8')
+      const report = await scanProfile({ paths: fixture.paths, profileName: 'web', updateCheck: false })
+      const finding = report.findings.find((f) => f.ruleId === 'patch-resolution')
+      expect(finding?.severity).toBe('warn')
+      expect(finding?.message).toContain('skips this optional entry')
+    } finally {
+      fixture.dispose()
+    }
+  })
+
+  it('keeps the optional row fatal on older dsh releases', async () => {
+    const fixture = makeHome()
+    try {
+      writeProfile(fixture.paths, { dependencies: {}, bundles: [] })
+      writeDshAnchor(fixture.paths, '0.1.6-alpha.2')
+      mkdirSync(fixture.paths.profileDir, { recursive: true })
+      writeFileSync(join(fixture.paths.profileDir, 'cordis.patch.yml'), '- id: row-a\n  name: ghost-package\n', 'utf8')
+      const report = await scanProfile({ paths: fixture.paths, profileName: 'web', updateCheck: false })
+      const finding = report.findings.find((f) => f.ruleId === 'patch-resolution')
+      expect(finding?.severity).toBe('fatal')
+    } finally {
+      fixture.dispose()
+    }
+  })
+
+  it('keeps a required entry fatal even on 0.1.7+', async () => {
+    const fixture = makeHome()
+    try {
+      writeProfile(fixture.paths, { dependencies: {}, bundles: [] })
+      writeDshAnchor(fixture.paths, '0.1.7-alpha.1')
+      mkdirSync(fixture.paths.profileDir, { recursive: true })
+      writeFileSync(join(fixture.paths.profileDir, 'cordis.patch.yml'), '- id: agent-loop\n  name: ghost-package\n', 'utf8')
+      const report = await scanProfile({ paths: fixture.paths, profileName: 'web', updateCheck: false })
+      const finding = report.findings.find((f) => f.ruleId === 'patch-resolution')
+      expect(finding?.severity).toBe('fatal')
+    } finally {
+      fixture.dispose()
+    }
+  })
+
+  it('downgrades an unreadable bundle to warn on 0.1.7+', async () => {
+    const fixture = makeHome()
+    try {
+      writeProfile(fixture.paths, { dependencies: {}, bundles: ['broken-bundle'] })
+      writeDshAnchor(fixture.paths, '0.1.7-alpha.1')
+      mkdirSync(join(fixture.paths.profileDir, 'node_modules', 'broken-bundle'), { recursive: true })
+      writeFileSync(join(fixture.paths.profileDir, 'node_modules', 'broken-bundle', 'package.json'), '{not json', 'utf8')
+      const report = await scanProfile({ paths: fixture.paths, profileName: 'web', updateCheck: false })
+      const finding = report.findings.find((f) => f.ruleId === 'bundle-declaration' && f.packageName === 'broken-bundle')
+      expect(finding?.severity).toBe('warn')
+      expect(finding?.message).toContain('skips this bundle')
+    } finally {
+      fixture.dispose()
+    }
+  })
+})

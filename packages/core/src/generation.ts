@@ -20,12 +20,41 @@
 
 import { existsSync, lstatSync, readlinkSync, realpathSync } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
+import semver from 'semver'
 import { packageDirFromAnchor, readPackageManifest, type PackageManifest } from './package-tree.js'
 import type { DshPaths } from './paths.js'
 import type { ResolvedBundle } from './profile.js'
 
 /** Profile-private package links projected into its pnpm-managed node_modules. */
 export const PROFILE_MODULE_FALLBACK_DIR = '.dsh-module-fallback'
+
+/**
+ * dsh releases at or after this version tolerate unreadable optional bundles
+ * and entries: the profile keeps loading, the failing bundle/entry is skipped
+ * with a warning, and the plugin manager retains disable/remove controls
+ * (verified against 0.1.7-alpha.1). Older releases abort the whole boot.
+ */
+export const OPTIONAL_TOLERANCE_MIN_VERSION = '0.1.7-alpha.1'
+
+/**
+ * Whether the installed dsh tolerates unreadable optional bundles and entries.
+ * @param dshVersion - installed dsh version, or null when unknown.
+ * @returns true when the release is at or after {@link OPTIONAL_TOLERANCE_MIN_VERSION}.
+ */
+export function toleratesOptionalBundles(dshVersion: string | null): boolean {
+  return dshVersion !== null && semver.valid(dshVersion) !== null && semver.gte(dshVersion, OPTIONAL_TOLERANCE_MIN_VERSION)
+}
+
+/**
+ * Read the installed dsh version from the generation's installation manifest.
+ * @param generation - generation built by {@link buildResolutionGeneration}.
+ * @returns the version string, or null when the installation is unknown.
+ */
+export function dshVersionOf(generation: ResolutionGeneration): string | null {
+  if (generation.installAnchor === null) return null
+  const manifest = readPackageManifest(dirname(generation.installAnchor))
+  return typeof manifest?.version === 'string' ? manifest.version : null
+}
 
 /** One package selected by the generation, mirroring the official entry. */
 export interface GenerationEntry {

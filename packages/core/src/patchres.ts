@@ -5,7 +5,25 @@ import type { RuleContext } from './rules.js'
 import type { ResolvedBundle } from './profile.js'
 import { allVisibleRows, type RowRef } from './rows.js'
 import type { PatchRow } from './patch-layer.js'
-import { resolvePackageDir } from './generation.js'
+import { resolvePackageDir, toleratesOptionalBundles } from './generation.js'
+
+/**
+ * Entry ids whose presence defines a usable dsh application. Ported from the
+ * official startup audit (`requiredStartupEntryIds` in
+ * packages/boot/app-boot/src/index.ts; unchanged in 0.1.7-alpha.1): only these
+ * entries abort the boot when inactive. An optional entry's failure is skipped
+ * with a warning on 0.1.7+ and aborts older releases, so severity follows both
+ * this list and the installed dsh version.
+ */
+export const REQUIRED_ENTRY_IDS = new Set([
+  'agent-loop',
+  'webserver',
+  'modules',
+  'connection',
+  'headless-runner',
+  'acp',
+  'sdk-jsonrpc-server',
+])
 
 /**
  * Split a bare specifier into its package part and optional subpath:
@@ -80,11 +98,15 @@ export function rulePatchResolution(ctx: RuleContext, resolved: ResolvedBundle[]
     if (name.startsWith('.')) {
       const target = join(ctx.paths.profileDir, name)
       if (!existsSync(target)) {
+        const required = typeof row.id === 'string' && REQUIRED_ENTRY_IDS.has(row.id)
+        const tolerant = !required && toleratesOptionalBundles(ctx.dshVersion)
         findings.push({
           ruleId: 'patch-resolution',
-          severity: 'fatal',
+          severity: tolerant ? 'warn' : 'fatal',
           ...(row.id !== undefined ? { packageName: row.id } : {}),
-          message: `patch row ${JSON.stringify(row.id ?? name)} references a relative module that does not exist: ${name}`,
+          message: tolerant
+            ? `patch row ${JSON.stringify(row.id ?? name)} references a relative module that does not exist: ${name}; dsh ${ctx.dshVersion} skips this optional entry and continues the boot`
+            : `patch row ${JSON.stringify(row.id ?? name)} references a relative module that does not exist: ${name}; the boot aborts on this row`,
           detail: `declared in ${ref.source}`,
           fix: { kind: 'none' },
         })
@@ -107,11 +129,17 @@ export function rulePatchResolution(ctx: RuleContext, resolved: ResolvedBundle[]
         continue
       }
       const isOfficial = pkg.startsWith('@deepseek-ai/')
+      const required = typeof row.id === 'string' && REQUIRED_ENTRY_IDS.has(row.id)
+      const tolerant = !required && toleratesOptionalBundles(ctx.dshVersion)
       findings.push({
         ruleId: 'patch-resolution',
-        severity: 'fatal',
+        severity: tolerant ? 'warn' : 'fatal',
         ...(row.id !== undefined ? { packageName: row.id } : {}),
-        message: `patch row ${JSON.stringify(row.id ?? name)} references package ${pkg} that does not resolve`,
+        message: required
+          ? `patch row ${JSON.stringify(row.id ?? name)} references package ${pkg} that does not resolve; the row id is a required startup entry, so the boot aborts`
+          : tolerant
+            ? `patch row ${JSON.stringify(row.id ?? name)} references package ${pkg} that does not resolve; dsh ${ctx.dshVersion} skips this optional entry and continues the boot`
+            : `patch row ${JSON.stringify(row.id ?? name)} references package ${pkg} that does not resolve; the boot aborts on this row`,
         detail: isOfficial
           ? `declared in ${ref.source}. Official packages resolve from the running dsh installation's dependency closure; if the installation is intact, start dsh once so the runtime table covers it (then re-scan), otherwise reinstall dsh.`
           : `declared in ${ref.source}; install the package (dsh plugin --profile <name> add ${pkg}) or fix the row`,

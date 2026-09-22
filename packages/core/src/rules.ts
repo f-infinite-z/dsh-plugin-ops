@@ -8,7 +8,7 @@ import {
   registryDependencies,
 } from './profile.js'
 import { readPackageManifest } from './package-tree.js'
-import { resolvePackageDir, type ResolutionGeneration } from './generation.js'
+import { resolvePackageDir, toleratesOptionalBundles, type ResolutionGeneration } from './generation.js'
 import type { LockedDirectDeps } from './lockfile.js'
 import { lastSuccessSnapshot, diffSnapshots } from './memory.js'
 import type { OutdatedState } from './outdated.js'
@@ -19,6 +19,8 @@ export interface RuleContext {
   manifest: ProfileManifest
   /** Runtime resolution table the launcher would install for this profile. */
   generation: ResolutionGeneration
+  /** Installed dsh version from the installation manifest; null when unknown. */
+  dshVersion: string | null
   locked: LockedDirectDeps
 }
 
@@ -93,13 +95,18 @@ function installedVersion(ctx: RuleContext, resolved: ResolvedBundle[], name: st
 
 export function ruleBundleDeclaration(ctx: RuleContext): Finding[] {
   const findings: Finding[] = []
-  const { problems, resolved } = resolveBundles(ctx.paths, ctx.manifest)
+  const { problems, resolved } = resolveBundles(ctx.paths, ctx.manifest, ctx.generation.installAnchor)
   for (const problem of problems) {
+    // 0.1.7+ skips an unreadable optional bundle and keeps loading the profile
+    // (verified against 0.1.7-alpha.1); older releases abort the boot.
+    const tolerant = toleratesOptionalBundles(ctx.dshVersion) && problem.message.includes('unreadable')
     findings.push({
       ruleId: 'bundle-declaration',
-      severity: 'fatal',
+      severity: tolerant ? 'warn' : 'fatal',
       packageName: problem.name,
-      message: problem.message,
+      message: tolerant
+        ? `${problem.message}; dsh ${ctx.dshVersion} skips this bundle and continues the boot`
+        : problem.message,
       fix: { kind: 'none' },
     })
   }
