@@ -45,8 +45,10 @@ function rowsOfFile(file: string, label: string): RowRef[] {
 export function allVisibleRows(profileDir: string, bundles: ResolvedBundle[]): RowRef[] {
   const refs: RowRef[] = []
   for (const bundle of bundles) {
-    const patchFile = join(bundle.dir, bundle.patch)
-    refs.push(...rowsOfFile(patchFile, `${bundle.name}@${bundle.patch}`))
+    for (const patch of bundle.patches) {
+      const patchFile = join(bundle.dir, patch)
+      refs.push(...rowsOfFile(patchFile, `${bundle.name}@${patch}`))
+    }
   }
   refs.push(...rowsOfFile(join(profileDir, PROFILE_PATCH_FILENAME), `${PROFILE_PATCH_FILENAME} (user layer)`))
   return refs

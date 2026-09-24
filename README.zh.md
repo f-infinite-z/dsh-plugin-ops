@@ -7,7 +7,7 @@
 
 > DeepSeek Harness 插件运维（Plugin Operations）：一条命令全量体检、启动前预检拦截、失败归因与恢复、依赖树治理——插件生态的"医生"，长期收敛为插件管理增强一体化。
 
-**状态：v0.10.1 已发布 npm；拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
+**状态：v0.11.0 — 适配 dsh 0.1.7-rc.2（多 patch bundle、插件版本兼容性）。拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
 
 ## 命名
 
@@ -36,17 +36,18 @@ dsh-ops selftest               # 自检：内置故障样本跑全规则
 
 `check` 输出每个 profile 一行总评 + 逐条 fatal 修复提示；`--json` 适合交给对话里的模型解读。
 
-## 扫描规则（7 条，全部静态确定性）
+## 扫描规则（8 条，全部静态确定性）
 
 | # | 规则 | 严重度 | 作用 |
 |---|---|---|---|
-| 1 | bundle 声明完整性 | fatal | 层列表里的包不可解析 / 无 `dsh.bundle.patch` / patch 文件缺失 |
+| 1 | bundle 声明完整性 | fatal | 层列表里的包不可解析 / 无 `dsh.bundle.patch` / patch 文件缺失（bundle 可声明有序多 patch 文件，0.1.7+） |
 | 2 | 依赖三方漂移 | fatal/自动修 | package.json 声明 vs pnpm-lock.yaml 锁定 vs 磁盘实际 |
 | 3 | registry 版本对比 | warn | 经 `pnpm outdated`，有更新提示；advisory 不阻断 |
 | 4 | peer 缺口/双实例 | 双实例 fatal | 声明了不存在的 peer；框架核心出现两份物理副本 |
 | 5 | patch 行解析悬空 | fatal | 补丁引用的包（含子路径）不可解析；补丁行经必需的 bootstrap Include 应用，一行坏行即中止启动（已对照 dsh 0.1.6-alpha.2 验证） |
 | 6 | 故障记忆 | info/warn | 自上次成功启动后变化的包清单（归因基础） |
 | 7 | 结构完整性 | fatal/warn | 缺默认入口 / CJS 入口（Loader 需 ESM 命名导出）/ 缺 types/client |
+| 8 | 插件版本兼容性 | fatal / info（已豁免） | `@deepseek-ai/dsh*` peer 范围拒绝当前 dsh 版本——dsh 0.1.7-rc.1+ 会跳过该 bundle，功能静默缺失，除非授予 exact-version 豁免 |
 
 解析跟随启动器的运行时 generation（0.1.6+）：profile 自身依赖树原生优先，其次是从安装清单与所选 bundle 重建的包表——冻结的磁盘镜像不再参与判定。
 
@@ -57,7 +58,7 @@ dsh-ops selftest               # 自检：内置故障样本跑全规则
 | 面 | 说明 |
 |---|---|
 | `check` | 全 profile 一键体检（默认无网络），人类与模型双友好 |
-| `scan` | 单 profile 深扫：规则 1-7 + 可选更新检查 |
+| `scan` | 单 profile 深扫：规则 1-8 + 可选更新检查 |
 | `fix` | 自动可修集：磁盘↔lockfile 对齐（`pnpm install --frozen-lockfile --force`）；plan→确认→执行→备份 |
 | `gate` | 先阻断分级处置：fatal 先拦（自动修→放行；复杂→醒目指引；`--bypass` 逃生舱记录不静默）；dsh 启动秒退 → 读取官方启动诊断（`$DSH_HOME/logs/startup-*.log`）→ 归因差异包与启动器报告的失败插件 → 交互禁用重试；headless 一次性 profile 退出码透传不归因 |
 | `serve` | 本地 Web 面板：健康卡/结果列表/修复执行/**插件行管理**（健康徽标、致命/警告/正常筛选、每页 10 行分页、官方行保护、启停开关）/故障时间线/**诊断对话（带增强检索 RAG 开关）**——排障经验沉淀为 Markdown，开启后自动检索命中条目注入对话（BM25 + 可选向量重排），zh/en 切换 |
@@ -114,7 +115,7 @@ dsh-xray 给本项目的评级为 C3（衡量能力面而非意图）；上表�
 
 ```sh
 pnpm install && pnpm run build
-pnpm run typecheck && pnpm run test      # 129 单测（core 98 + bundle 14 + cli 17）
+pnpm run typecheck && pnpm run test      # 163 单测（core 127 + bundle 14 + cli 22）
 node packages/cli/lib/index.js selftest  # 引擎自检
 node scripts/e2e/scan-fix.e2e.mjs        # 离线 E2E（真实 pnpm 修复）
 node scripts/e2e/gate.e2e.mjs            # gate 场景（放行/阻断/旁路/归因/headless）

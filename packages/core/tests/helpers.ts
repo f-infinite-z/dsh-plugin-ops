@@ -42,8 +42,8 @@ export interface InstalledPackage {
   version: string
   /** directory inside node_modules (needed for scoped names). */
   dirName?: string
-  /** declare dsh.bundle.patch; the patch file is created unless patchExists is false. */
-  dshBundlePatch?: string
+  /** declare dsh.bundle.patch (a string, or a list of files for dsh 0.1.7+); patch files are created unless patchExists is false. */
+  dshBundlePatch?: string | string[]
   patchExists?: boolean
 }
 
@@ -52,12 +52,15 @@ export function writeInstalledPackages(paths: DshPaths, packages: InstalledPacka
   for (const pkg of packages) {
     const dir = join(paths.profileDir, 'node_modules', pkg.dirName ?? pkg.name)
     const manifest: Record<string, unknown> = { name: pkg.name, version: pkg.version }
-    if (pkg.dshBundlePatch !== undefined && pkg.dshBundlePatch !== '') {
-      manifest.dsh = { bundle: { patch: pkg.dshBundlePatch } }
+    const declared = typeof pkg.dshBundlePatch === 'string'
+      ? (pkg.dshBundlePatch === '' ? undefined : [pkg.dshBundlePatch])
+      : pkg.dshBundlePatch
+    if (declared !== undefined && declared.length > 0) {
+      manifest.dsh = { bundle: { patch: declared.length === 1 ? declared[0] : declared } }
     }
     writeJson(join(dir, 'package.json'), manifest)
-    if (pkg.dshBundlePatch !== undefined && pkg.dshBundlePatch !== '' && pkg.patchExists !== false) {
-      writeFileSync(join(dir, pkg.dshBundlePatch), '- id: probe\n', 'utf8')
+    if (declared !== undefined && declared.length > 0 && pkg.patchExists !== false) {
+      for (const patch of declared) writeFileSync(join(dir, patch), '- id: probe\n', 'utf8')
     }
   }
 }

@@ -2,6 +2,27 @@
 
 All notable changes are tracked here.
 
+## 0.11.0 — 2026-09-24
+
+### dsh 0.1.7-rc.2 compatibility: multi-patch bundles and plugin version compatibility
+
+- **Multi-patch-file bundles (rules 1/5, verify V1/V7)**: `dsh.bundle.patch` now
+  accepts an ordered list of files in addition to a single path (the official
+  `bundlePatchFiles` contract). Rule 1 reports each missing file; rule 5 composes
+  rows from every declared file in order; `verify` parses each file and merges its
+  rows; `runtime-verify` recognizes a list as a bundle declaration.
+- **New rule 8 (`plugin-compatibility`)**: a static port of the official
+  `evaluatePluginCompatibility`. On dsh 0.1.7-rc.1+ a bundle whose
+  `@deepseek-ai/dsh*` peer ranges reject the running dsh version is skipped by the
+  launcher, so the scan reports it as fatal; `workspace:^`/`workspace:~`/
+  `workspace:*` are always-compatible, prereleases participate in ranges, and an
+  exact-version exemption read from the profile's `compatibility.json` demotes the
+  finding to info.
+- **Session V4 verified**: the sessions repair command's filename pattern
+  (`session*.jsonl[.zstd]`) and header-id probe are generation-agnostic, so the V4
+  log format needs no code change.
+- 163 tests (core 127 + bundle 14 + cli 22).
+
 ## 0.10.1 — 2026-09-22
 
 ### Version-aware severity for the 0.1.7 optional tolerance

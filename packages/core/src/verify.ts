@@ -80,6 +80,19 @@ function isCjsEntry(manifest: PackageManifest, entry: string): boolean {
   return entry.endsWith('.js') || !entry.includes('.')
 }
 
+/**
+ * Patch files declared by `dsh.bundle.patch`, aligned with the official
+ * `bundlePatchFiles` (dsh 0.1.7+): a string is one file, an array is an
+ * ordered list; anything else (or an empty list, or a non-string/empty entry)
+ * is not a valid declaration and yields null.
+ */
+function bundlePatchRels(patch: unknown): string[] | null {
+  const declared = typeof patch === 'string' ? [patch] : patch
+  if (!Array.isArray(declared) || declared.length === 0) return null
+  if (!declared.every((file) => typeof file === 'string' && file.length > 0)) return null
+  return declared
+}
+
 /** Read a text file with a byte cap; null when unreadable. */
 function readTextSafe(file: string, maxBytes = 512 * 1024): string | null {
   try {
@@ -134,12 +147,12 @@ export function verifyPluginPackage(packageDir: string): VerifyReport {
   const packageName = typeof manifest.name === 'string' ? manifest.name : null
   const version = typeof manifest.version === 'string' ? manifest.version : null
 
-  // ---- V1: bundle patch declaration ----
+  // ---- V1: bundle patch declaration (one file or an ordered list) ----
   const bundle = manifest.dsh?.bundle
-  const patchRel = typeof bundle?.patch === 'string' && bundle.patch !== '' ? bundle.patch : null
+  const patchRels = bundlePatchRels(bundle?.patch)
   const hasClient = manifest.dsh?.client !== undefined
   let rows: unknown = null
-  if (patchRel === null) {
+  if (patchRels === null) {
     if (hasClient) {
       findings.push({
         ruleId: 'bundle-patch',
@@ -156,14 +169,17 @@ export function verifyPluginPackage(packageDir: string): VerifyReport {
       })
     }
   } else {
-    const patchFile = join(packageDir, patchRel)
-    if (!existsSync(patchFile)) {
-      findings.push({
-        ruleId: 'bundle-patch',
-        severity: 'error',
-        message: `dsh.bundle.patch points at a missing file: ${patchRel}`,
-      })
-    } else {
+    const parsed: unknown[] = []
+    for (const patchRel of patchRels) {
+      const patchFile = join(packageDir, patchRel)
+      if (!existsSync(patchFile)) {
+        findings.push({
+          ruleId: 'bundle-patch',
+          severity: 'error',
+          message: `dsh.bundle.patch points at a missing file: ${patchRel}`,
+        })
+        continue
+      }
       try {
         const value = parseDocument(readFileSync(patchFile, 'utf8')).toJS()
         if (!Array.isArray(value)) {
@@ -173,7 +189,7 @@ export function verifyPluginPackage(packageDir: string): VerifyReport {
             message: `patch file ${patchRel} is not a YAML list`,
           })
         } else {
-          rows = value
+          parsed.push(...value)
         }
       } catch (error) {
         findings.push({
@@ -183,6 +199,7 @@ export function verifyPluginPackage(packageDir: string): VerifyReport {
         })
       }
     }
+    if (parsed.length > 0) rows = parsed
   }
 
   // ---- V2: patch rows resolve to declared dependencies or existing files ----
@@ -233,7 +250,7 @@ export function verifyPluginPackage(packageDir: string): VerifyReport {
   // packages; it has no entry of its own, so entry checks do not apply.
   const selfReferenced =
     rows !== null && patchRowNames(rows).some((name) => splitBareSpecifier(name).pkg === packageName)
-  const isPureBundle = patchRel !== null && rows !== null && !selfReferenced
+  const isPureBundle = patchRels !== null && rows !== null && !selfReferenced
 
   // ---- V8: publishable dependency protocols ----
   const depFields: Array<[string, Record<string, string> | undefined]> = [
@@ -366,7 +383,9 @@ export function verifyPluginPackage(packageDir: string): VerifyReport {
   const files = Array.isArray(manifest.files) ? manifest.files.filter((f): f is string => typeof f === 'string') : []
   if (files.length > 0) {
     const critical: Array<{ label: string; rel: string }> = []
-    if (patchRel !== null) critical.push({ label: 'bundle patch', rel: patchRel })
+    if (patchRels !== null) {
+      for (const patchRel of patchRels) critical.push({ label: 'bundle patch', rel: patchRel })
+    }
     if (defaultEntry !== null) critical.push({ label: 'default entry', rel: defaultEntry })
     if (hasClient && clientEntry !== null) critical.push({ label: 'client entry', rel: clientEntry })
     for (const item of critical) {

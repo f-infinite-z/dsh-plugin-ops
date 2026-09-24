@@ -7,7 +7,7 @@ English | [中文](README.zh.md)
 
 > DeepSeek Harness plugin operations: one-command health check, pre-boot gate, failure attribution and recovery, dependency-tree governance — the doctor for the plugin ecosystem, converging into an integrated plugin-management suite.
 
-**Status: v0.10.1 published on npm. Interception, repair, and memory mechanics: [docs/architecture.md](docs/architecture.md).**
+**Status: v0.11.0 — dsh 0.1.7-rc.2 compatibility (multi-patch bundles, plugin version compatibility). Interception, repair, and memory mechanics: [docs/architecture.md](docs/architecture.md).**
 
 ## Names
 
@@ -36,17 +36,18 @@ dsh-ops selftest               # run built-in fault samples through all rules
 
 `check` prints one summary line per profile plus per-finding fix hints; `--json` is model-friendly.
 
-## Scan rules (7, fully static and deterministic)
+## Scan rules (8, fully static and deterministic)
 
 | # | Rule | Severity | What it catches |
 |---|---|---|---|
-| 1 | Bundle declaration integrity | fatal | layer package unresolvable / no `dsh.bundle.patch` / patch file missing |
+| 1 | Bundle declaration integrity | fatal | layer package unresolvable / no `dsh.bundle.patch` / a declared patch file missing (a bundle may list several patch files in order, 0.1.7+) |
 | 2 | Three-way dependency drift | fatal / auto-fix | package.json declaration vs pnpm-lock.yaml vs disk |
 | 3 | Registry version comparison | warn | updates via `pnpm outdated`; advisory, never blocks |
 | 4 | Peer gaps / double instances | double instance fatal | peers that cannot resolve; two physical copies of framework core |
 | 5 | Patch-row resolution | fatal | packages referenced by patch rows (including subpaths) unresolvable; patch rows apply through the required bootstrap Include, so one bad row aborts the boot (verified against dsh 0.1.6-alpha.2) |
 | 6 | Fault memory | info/warn | packages that changed since the last successful boot (attribution baseline) |
 | 7 | Structure integrity | fatal/warn | missing default entry / CJS entry (the Loader needs ESM named exports) / missing types or client |
+| 8 | Plugin version compatibility | fatal / info (exempted) | `@deepseek-ai/dsh*` peer ranges that reject the running dsh version — dsh 0.1.7-rc.1+ skips such a bundle, silently dropping its features unless an exact-version exemption is granted |
 
 Resolution follows the launcher's runtime generation (0.1.6+): the profile's own tree wins natively, then the package table rebuilt from the installation manifest and the selected bundles — the frozen disk mirror no longer decides.
 
@@ -57,7 +58,7 @@ Real-ecosystem validation: dangling peer declarations (authors referencing offic
 | Surface | Description |
 |---|---|
 | `check` | one-shot health check across all profiles (offline by default) |
-| `scan` | single-profile deep scan: rules 1-7 plus optional update check |
+| `scan` | single-profile deep scan: rules 1-8 plus optional update check |
 | `fix` | auto-fix set: disk↔lockfile realign (`pnpm install --frozen-lockfile --force`); plan → confirm → execute → backup |
 | `gate` | block-first graded disposition: fatal findings block (auto-fix then pass; complex ones get loud guidance; `--bypass` is a logged escape hatch); a boot failure reads the official startup diagnostics (`$DSH_HOME/logs/startup-*.log`), attributes the changed packages and the launcher-reported failed plugins, and offers interactive disable-and-retry; one-shot headless profiles pass exit codes through without attribution |
 | `serve` | local web panel: health cards / findings / fix execution / **plugin-row management** (health badges, severity filter, 10-per-page paging, official-row protection, enable/disable) / fault timeline / **diagnosis chat** with an **enhanced-retrieval (RAG) toggle** — troubleshooting experience deposits as Markdown and matching entries are retrieved into the chat (BM25 + optional embedding re-rank), zh/en switch |
@@ -114,7 +115,7 @@ dsh-xray rates this project C3 (a capability-surface rating, not intent); the ta
 
 ```sh
 pnpm install && pnpm run build
-pnpm run typecheck && pnpm run test      # 129 tests (core 98 + bundle 14 + cli 17)
+pnpm run typecheck && pnpm run test      # 163 tests (core 127 + bundle 14 + cli 22)
 node packages/cli/lib/index.js selftest  # engine self-check
 node scripts/e2e/scan-fix.e2e.mjs        # offline E2E (real pnpm repair)
 node scripts/e2e/gate.e2e.mjs            # gate scenarios (pass/block/bypass/attribution/headless)

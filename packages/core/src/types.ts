@@ -8,6 +8,7 @@ export type RuleId =
   | 'peer-gap'
   | 'patch-resolution'
   | 'structure'
+  | 'plugin-compatibility'
 
 export type Fix =
   | { kind: 'none' }

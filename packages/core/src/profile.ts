@@ -111,8 +111,10 @@ export interface ResolvedBundle {
   name: string
   dir: string
   manifest: PackageManifest
-  patch: string
-  patchFileExists: boolean
+  /** Package-relative patch file paths in application order (dsh 0.1.7+ accepts an ordered list). */
+  patches: string[]
+  /** Patch files the declaration names but that are missing from the package. */
+  missingPatches: string[]
   /** 'profile' = resolved from the profile's own dependency tree; 'closure' = from the shared installation closure. */
   from: 'profile' | 'closure'
 }
@@ -120,6 +122,19 @@ export interface ResolvedBundle {
 export interface BundleResolution {
   resolved: ResolvedBundle[]
   problems: { name: string; message: string }[]
+}
+
+/**
+ * The patch files a bundle declares, aligned with the official
+ * `bundlePatchFiles` (dsh 0.1.7+): a string is one file, an array is an
+ * ordered list of files; any other value (or an empty list, or a list with a
+ * non-string or empty entry) is not a valid declaration.
+ */
+function bundlePatchList(patch: unknown): string[] | null {
+  const declared = typeof patch === 'string' ? [patch] : patch
+  if (!Array.isArray(declared) || declared.length === 0) return null
+  if (!declared.every((file) => typeof file === 'string' && file.length > 0)) return null
+  return declared
 }
 
 export function resolveBundles(
@@ -145,8 +160,8 @@ export function resolveBundles(
       problems.push({ name, message: 'package directory exists but its package.json is unreadable' })
       continue
     }
-    const patch = bundleManifest.dsh?.bundle?.patch
-    if (typeof patch !== 'string' || patch.length === 0) {
+    const patches = bundlePatchList(bundleManifest.dsh?.bundle?.patch)
+    if (patches === null) {
       problems.push({ name, message: 'package declares no dsh.bundle.patch (bundle-less package listed as a layer)' })
       continue
     }
@@ -154,8 +169,8 @@ export function resolveBundles(
       name,
       dir,
       manifest: bundleManifest,
-      patch,
-      patchFileExists: existsSync(join(dir, patch)),
+      patches,
+      missingPatches: patches.filter((patch) => !existsSync(join(dir, patch))),
       // The shared installation closure sits on the profile's own resolution
       // chain, so the first anchor can already hit a box bundle. Judge by
       // physical location instead: only packages physically inside the

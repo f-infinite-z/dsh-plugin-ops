@@ -4,6 +4,7 @@ import { ruleBundleDeclaration, ruleDependencyDrift, ruleSessionMemory, ruleRegi
 import { rulePeerGap, rulePeerDrift } from './peers.js'
 import { rulePatchResolution } from './patchres.js'
 import { ruleStructure } from './structure.js'
+import { rulePluginCompatibility } from './compatibility.js'
 import { readPackageManifest } from './package-tree.js'
 import { buildResolutionGeneration, dshVersionOf, locateInstallAnchor } from './generation.js'
 import { checkOutdated } from './outdated.js'
@@ -53,6 +54,7 @@ export async function scanProfile(input: ScanInput): Promise<ScanReport> {
     ...rulePeerGap(ctx, resolved),
     ...rulePeerDrift(ctx, resolved),
     ...rulePatchResolution(ctx, resolved),
+    ...rulePluginCompatibility(ctx, resolved),
     ...ruleStructure(resolved),
     ...ruleSessionMemory(ctx, snapshot),
   ]

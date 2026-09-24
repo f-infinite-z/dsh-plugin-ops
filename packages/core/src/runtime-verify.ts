@@ -35,7 +35,9 @@ export function readRuntimeVerifyPlan(pluginDir: string): RuntimeVerifyPlan | nu
   const manifest: PackageManifest | null = readPackageManifest(pluginDir)
   if (manifest === null || typeof manifest.name !== 'string' || manifest.name.length === 0) return null
   const bundlePatch = manifest.dsh?.bundle?.patch
-  const isBundle = typeof bundlePatch === 'string' && bundlePatch.length > 0
+  const isBundle =
+    (typeof bundlePatch === 'string' && bundlePatch.length > 0)
+    || (Array.isArray(bundlePatch) && bundlePatch.length > 0)
   return {
     packageName: manifest.name,
     isBundle,

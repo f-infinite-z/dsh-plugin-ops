@@ -46,6 +46,12 @@ export { ruleBundleDeclaration, ruleDependencyDrift, ruleSessionMemory, ruleRegi
 export { rulePeerGap, rulePeerDrift } from './peers.js'
 export { rulePatchResolution } from './patchres.js'
 export { ruleStructure } from './structure.js'
+export {
+  rulePluginCompatibility,
+  readProfileVersionExemptions,
+  PROFILE_COMPATIBILITY_FILENAME,
+  COMPATIBILITY_MIN_VERSION,
+} from './compatibility.js'
 export { verifyPluginPackage, verifyOk, type VerifyReport, type VerifyFinding, type VerifyRuleId } from './verify.js'
 export { fetchNpmPackage, packLocalPackage, type FetchedPackage, type PackedPackage } from './npm-fetch.js'
 export { runSelfTest, type SelfTestResult } from './selftest.js'

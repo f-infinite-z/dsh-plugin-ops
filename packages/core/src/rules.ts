@@ -111,12 +111,12 @@ export function ruleBundleDeclaration(ctx: RuleContext): Finding[] {
     })
   }
   for (const bundle of resolved) {
-    if (!bundle.patchFileExists) {
+    for (const missing of bundle.missingPatches) {
       findings.push({
         ruleId: 'bundle-declaration',
         severity: 'fatal',
         packageName: bundle.name,
-        message: `bundle patch file ${bundle.patch} is missing from the package`,
+        message: `bundle patch file ${missing} is missing from the package`,
         detail: 'the package is broken or partially installed; reinstall it (dsh plugin --profile <name> add <pkg>@<version>) before booting',
         fix: { kind: 'none' },
       })
