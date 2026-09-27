@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import semver from 'semver'
 import { parseDocument } from 'yaml'
 import { readPackageManifest, type PackageManifest } from './package-tree.js'
 import { splitBareSpecifier } from './patchres.js'
@@ -19,6 +20,7 @@ export type VerifyRuleId =
   | 'client-export'
   | 'client-bundle'
   | 'files-completeness'
+  | 'peer-contract'
 
 export interface VerifyFinding {
   ruleId: VerifyRuleId
@@ -125,6 +127,22 @@ function filesCover(files: readonly string[], rel: string): boolean {
     }
   }
   return false
+}
+
+/**
+ * Why a `peerDependencies` key cannot be a resolvable npm package name, or
+ * null when it can. Protocol prefixes and filesystem/URL forms are the only
+ * certain defects; real package names (including scoped ones) always pass.
+ */
+function invalidPeerName(name: string): string | null {
+  if (name.length === 0) return 'empty name'
+  for (const protocol of ['file:', 'link:', 'workspace:', 'npm:', 'git:', 'http:', 'https:']) {
+    if (name.startsWith(protocol)) return `the ${protocol.slice(0, -1)} protocol prefix`
+  }
+  if (name.includes('://')) return 'a URL'
+  if (name.startsWith('.') || name.startsWith('/') || name.startsWith('\\') || /^[a-zA-Z]:/.test(name)) return 'a filesystem path'
+  if (/\s/.test(name)) return 'whitespace'
+  return null
 }
 
 /**
@@ -275,6 +293,33 @@ export function verifyPluginPackage(packageDir: string): VerifyReport {
           severity: 'warn',
           message: `${field}.${name} uses the workspace: protocol (${spec})`,
           detail: 'pnpm publish rewrites it, npm publish does not; make sure your release tooling is pnpm',
+        })
+      }
+    }
+  }
+
+  // ---- V9: peer contract (declared peers must be resolvable package names
+  // with satisfiable ranges) ----
+  const peers = manifest.peerDependencies
+  if (peers !== undefined) {
+    for (const [name, spec] of Object.entries(peers)) {
+      if (typeof spec !== 'string') continue
+      const nameProblem = invalidPeerName(name)
+      if (nameProblem !== null) {
+        findings.push({
+          ruleId: 'peer-contract',
+          severity: 'error',
+          message: `peerDependencies key ${JSON.stringify(name)} is ${nameProblem}, not a package name`,
+          detail: 'a peer key must be a bare package name so it resolves after install',
+        })
+      }
+      if (spec.startsWith('file:') || spec.startsWith('link:') || spec.startsWith('workspace:') || spec.startsWith('npm:') || spec.startsWith('git:')) continue
+      if (semver.validRange(spec) === null) {
+        findings.push({
+          ruleId: 'peer-contract',
+          severity: 'warn',
+          message: `peerDependencies.${name} is not a semver range: ${JSON.stringify(spec)}`,
+          detail: 'use a semver range so consumers and the harness compatibility check can satisfy the peer',
         })
       }
     }

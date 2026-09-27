@@ -17,7 +17,7 @@ import * as core from 'dsh-plugin-ops-core'
 import { runFixCommand } from '../src/fix-cmd.js'
 import { runGateCommand } from '../src/gate-cmd.js'
 import { runVerifyCommand } from '../src/verify-cmd.js'
-import { runDevCommand, renderDevStatic } from '../src/dev-cmd.js'
+import { runDevCommand, renderDevStatic, packageIdentity } from '../src/dev-cmd.js'
 import { helpRequested } from '../src/args.js'
 import type { ScanReport, Finding, VerifyReport } from 'dsh-plugin-ops-core'
 
@@ -385,5 +385,24 @@ describe('dev command', () => {
     const lines = renderDevStatic(failing)
     expect(lines[0]).toContain('1 error')
     expect(lines[1]).toContain('no exports')
+  })
+
+  it('renders packageIdentity as name@version', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-ops-dev-identity-'))
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'my-plugin', version: '2.3.0' }), 'utf8')
+    try {
+      expect(packageIdentity(dir)).toBe('my-plugin@2.3.0')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('falls back to the directory path when the package is unnamed', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dsh-ops-dev-unnamed-'))
+    try {
+      expect(packageIdentity(dir)).toBe(dir)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })

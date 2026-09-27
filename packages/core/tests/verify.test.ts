@@ -339,4 +339,40 @@ describe('verifyPluginPackage', () => {
       expect(report.findings.some((f) => f.ruleId === 'dependency-protocol' && f.severity === 'warn')).toBe(true)
     })
   })
+
+  it('passes a declared semver peer without peer-contract findings (V9)', () => {
+    const manifest = JSON.parse(GOOD_FILES['package.json']!) as Record<string, unknown>
+    manifest.peerDependencies = { 'react': '^18.0.0', '@deepseek-ai/dsh': '^0.1.0' }
+    withPkg({ ...GOOD_FILES, 'package.json': JSON.stringify(manifest) }, (dir) => {
+      const report = verifyPluginPackage(dir)
+      expect(report.findings.filter((f) => f.ruleId === 'peer-contract')).toEqual([])
+    })
+  })
+
+  it('errors when a peer key is a protocol or path, not a package name (V9)', () => {
+    const manifest = JSON.parse(GOOD_FILES['package.json']!) as Record<string, unknown>
+    manifest.peerDependencies = { 'file:../local-dep': '*' }
+    withPkg({ ...GOOD_FILES, 'package.json': JSON.stringify(manifest) }, (dir) => {
+      const report = verifyPluginPackage(dir)
+      expect(report.findings.some((f) => f.ruleId === 'peer-contract' && f.severity === 'error')).toBe(true)
+    })
+  })
+
+  it('warns when a peer range is not a semver range (V9)', () => {
+    const manifest = JSON.parse(GOOD_FILES['package.json']!) as Record<string, unknown>
+    manifest.peerDependencies = { 'react': 'not-a-range' }
+    withPkg({ ...GOOD_FILES, 'package.json': JSON.stringify(manifest) }, (dir) => {
+      const report = verifyPluginPackage(dir)
+      expect(report.findings.some((f) => f.ruleId === 'peer-contract' && f.severity === 'warn')).toBe(true)
+    })
+  })
+
+  it('does not double-report workspace: peer ranges under peer-contract (V9)', () => {
+    const manifest = JSON.parse(GOOD_FILES['package.json']!) as Record<string, unknown>
+    manifest.peerDependencies = { 'ws-dep': 'workspace:*' }
+    withPkg({ ...GOOD_FILES, 'package.json': JSON.stringify(manifest) }, (dir) => {
+      const report = verifyPluginPackage(dir)
+      expect(report.findings.filter((f) => f.ruleId === 'peer-contract')).toEqual([])
+    })
+  })
 })

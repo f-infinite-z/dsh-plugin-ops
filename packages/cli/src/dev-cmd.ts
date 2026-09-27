@@ -1,6 +1,6 @@
 import { existsSync, statSync, watch, type FSWatcher } from 'node:fs'
 import { resolve } from 'node:path'
-import { verifyPluginPackage, type VerifyReport } from 'dsh-plugin-ops-core'
+import { readPackageManifest, verifyPluginPackage, type VerifyReport } from 'dsh-plugin-ops-core'
 import { runRuntimeVerify } from './verify-cmd.js'
 
 export interface DevCommandOptions {
@@ -17,6 +17,15 @@ function now(): string {
   return new Date().toTimeString().slice(0, 8)
 }
 
+/** `name@version` for the package at `dir`, or the directory path when unnamed. */
+export function packageIdentity(dir: string): string {
+  const manifest = readPackageManifest(dir)
+  const name = manifest !== null && typeof manifest.name === 'string' ? manifest.name : null
+  const version = manifest !== null && typeof manifest.version === 'string' ? manifest.version : null
+  if (name === null) return dir
+  return version === null ? name : `${name}@${version}`
+}
+
 /** Render one static-check result as indented lines (exported for tests). */
 export function renderDevStatic(report: VerifyReport): string[] {
   if (report.findings.length === 0) return ['  static: OK (all checks passed)']
@@ -30,24 +39,44 @@ export function renderDevStatic(report: VerifyReport): string[] {
   return lines
 }
 
-async function checkOnce(dir: string, options: DevCommandOptions, reason: string): Promise<void> {
-  process.stdout.write(`\n[${now()}] ${reason}\n`)
+interface DevStats {
+  seq: number
+  checks: number
+  failed: number
+}
+
+async function checkOnce(
+  dir: string,
+  identity: string,
+  options: DevCommandOptions,
+  reason: string,
+  stats: DevStats,
+): Promise<void> {
+  stats.seq += 1
+  stats.checks += 1
+  process.stdout.write(`\n[${now()}] #${stats.seq} ${reason} — ${identity}\n`)
   let report: VerifyReport
   try {
     report = verifyPluginPackage(dir)
   } catch (error) {
-    process.stdout.write(`  static: cannot read the package: ${String(error)}\n`)
+    process.stdout.write(`  static: cannot read the package at ${dir}: ${String(error)}\n`)
+    stats.failed += 1
     return
   }
   for (const line of renderDevStatic(report)) process.stdout.write(`${line}\n`)
   const clean = report.findings.every((finding) => finding.severity !== 'error')
-  if (options.runtime && clean) {
-    process.stdout.write(`  runtime: booting in an isolated DSH home (up to ${options.runtimeTimeoutSec}s)...\n`)
-    const result = await runRuntimeVerify(dir, { kind: 'dir', value: dir }, options.runtimeTimeoutSec)
-    process.stdout.write(`  runtime: ${result.ok ? 'BOOTED' : 'FAILED'} — ${result.detail}\n`)
-    for (const entry of result.failedEntries) process.stdout.write(`    failed entry: ${entry}\n`)
-    if (!result.ok && result.outputTail !== '') {
-      for (const line of result.outputTail.split('\n').slice(-8)) process.stdout.write(`    ${line}\n`)
+  if (!clean) stats.failed += 1
+  if (options.runtime) {
+    if (clean) {
+      process.stdout.write(`  runtime: booting in an isolated DSH home (up to ${options.runtimeTimeoutSec}s)...\n`)
+      const result = await runRuntimeVerify(dir, { kind: 'dir', value: dir }, options.runtimeTimeoutSec)
+      process.stdout.write(`  runtime: ${result.ok ? 'BOOTED' : 'FAILED'} — ${result.detail}\n`)
+      for (const entry of result.failedEntries) process.stdout.write(`    failed entry: ${entry}\n`)
+      if (!result.ok && result.outputTail !== '') {
+        for (const line of result.outputTail.split('\n').slice(-8)) process.stdout.write(`    ${line}\n`)
+      }
+    } else {
+      process.stdout.write('  runtime: skipped (static checks still report errors)\n')
     }
   }
 }
@@ -66,11 +95,16 @@ export async function runDevCommand(options: DevCommandOptions): Promise<number>
     process.stderr.write(`dev: not a directory: ${dir}\n`)
     return 2
   }
-  process.stdout.write(`dsh-ops dev: watching ${dir}\n`)
+  const identity = packageIdentity(dir)
+  const startedAt = Date.now()
+  process.stdout.write(`dsh-ops dev: watching ${identity}\n`)
+  process.stdout.write(`  directory: ${dir}\n`)
   process.stdout.write(options.runtime
     ? `  static checks + isolated boot (${options.runtimeTimeoutSec}s window) after each change\n`
     : '  static checks after each change (pass --runtime for the isolated boot)\n')
-  await checkOnce(dir, options, 'initial check')
+
+  const stats: DevStats = { seq: 0, checks: 0, failed: 0 }
+  await checkOnce(dir, identity, options, 'initial check', stats)
 
   return await new Promise<number>((resolvePromise) => {
     let timer: NodeJS.Timeout | null = null
@@ -83,7 +117,7 @@ export async function runDevCommand(options: DevCommandOptions): Promise<number>
       }
       busy = true
       try {
-        await checkOnce(dir, options, reason)
+        await checkOnce(dir, identity, options, reason, stats)
       } finally {
         busy = false
         if (pending) {
@@ -105,7 +139,8 @@ export async function runDevCommand(options: DevCommandOptions): Promise<number>
     })
     const shutdown = (): void => {
       watcher.close()
-      process.stdout.write('\ndsh-ops dev: stopped\n')
+      const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1)
+      process.stdout.write(`\ndsh-ops dev: stopped — ${stats.checks} check(s), ${stats.failed} failed, ${elapsed}s\n`)
       resolvePromise(0)
     }
     process.once('SIGINT', shutdown)

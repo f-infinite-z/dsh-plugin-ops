@@ -2,6 +2,23 @@
 
 All notable changes are tracked here.
 
+## 0.11.1 — 2026-09-27
+
+### Plugin-author peer contract (verify V9) + dev watcher polish
+
+- **V9 `peer-contract` check**: `dsh-ops verify` now validates the
+  `peerDependencies` table before publishing. A peer key that is not a bare
+  package name (a `file:`/`link:`/`workspace:`/`npm:`/`git:` protocol, a URL,
+  a filesystem path, or whitespace) reports an error; a peer range that is not
+  a semver range reports a warning. Protocol-prefixed specs stay with the
+  existing V8 dependency-protocol check, so they are not double-reported.
+- **`dev` watcher polish**: the header now shows the package identity
+  (`name@version`) and the watched directory; each check is numbered and
+  tagged with the identity; a skipped isolated boot (static errors still
+  present) is called out explicitly; and shutdown prints a summary of checks
+  run, failures, and elapsed time.
+- 169 tests (core 131 + bundle 14 + cli 24).
+
 ## 0.11.0 — 2026-09-24
 
 ### dsh 0.1.7-rc.2 compatibility: multi-patch bundles and plugin version compatibility
