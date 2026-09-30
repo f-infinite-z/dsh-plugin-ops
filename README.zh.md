@@ -7,7 +7,7 @@
 
 > DeepSeek Harness 插件运维（Plugin Operations）：一条命令全量体检、启动前预检拦截、失败归因与恢复、依赖树治理——插件生态的"医生"，长期收敛为插件管理增强一体化。
 
-**状态：v0.14.0 — 安装适配进入面板（经官方 pluginManager 的豁免安装）与 CLI（canary 验证、desktop 感知），卸载时清理豁免。拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
+**状态：v0.14.1 — 安装适配进入面板（经官方 pluginManager 的豁免安装，失败在卡片内显示并带出包管理器输出）与 CLI（canary 验证、desktop 感知），卸载时清理豁免。拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
 
 ## 命名
 
@@ -118,7 +118,7 @@ dsh-xray 给本项目的评级为 C3（衡量能力面而非意图）；上表�
 
 ```sh
 pnpm install && pnpm run build
-pnpm run typecheck && pnpm run test      # 203 单测（core 156 + bundle 23 + cli 24）
+pnpm run typecheck && pnpm run test      # 205 单测（core 156 + bundle 25 + cli 24）
 node packages/cli/lib/index.js selftest  # 引擎自检
 node scripts/e2e/scan-fix.e2e.mjs        # 离线 E2E（真实 pnpm 修复）
 node scripts/e2e/gate.e2e.mjs            # gate 场景（放行/阻断/旁路/归因/headless）

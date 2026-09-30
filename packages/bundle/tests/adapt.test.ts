@@ -83,6 +83,28 @@ describe('installWithDiagnosis', () => {
     const outcome = await installWithDiagnosis(manager, 'pkg-a')
     expect(outcome).toEqual({ ok: false, code: 'not-a-bundle', message: 'not a bundle' })
   })
+
+  it('carries the package-manager output tail on a plain failure', async () => {
+    const manager = new FakeManager([change({
+      error: { code: 'operation-error', message: 'install failed' },
+      packageResult: { exitCode: 1, output: 'ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION 2 lockfile entries failed verification' },
+    })])
+    const outcome = await installWithDiagnosis(manager, 'pkg-a')
+    expect(outcome.ok).toBe(false)
+    expect(outcome.code).toBe('operation-error')
+    expect(outcome.message).toBe('install failed')
+    expect(outcome.detail).toContain('ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION')
+  })
+
+  it('bounds the carried output tail', async () => {
+    const manager = new FakeManager([change({
+      error: { code: 'operation-error' },
+      packageResult: { output: `${'x'.repeat(5000)}THE-END` },
+    })])
+    const outcome = await installWithDiagnosis(manager, 'pkg-a')
+    expect(outcome.detail?.length).toBe(1500)
+    expect(outcome.detail?.endsWith('THE-END')).toBe(true)
+  })
 })
 
 describe('applyAdaptedInstall', () => {

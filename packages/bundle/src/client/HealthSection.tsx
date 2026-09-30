@@ -72,6 +72,7 @@ interface AdaptOutcome {
   ok: boolean
   code?: string
   message?: string
+  detail?: string
   incompatible?: AdaptIncompatible[]
   application?: string
   target?: string
@@ -187,6 +188,8 @@ export function HealthSection(): ReactNode {
   const [adaptBusy, setAdaptBusy] = useState(false)
   const [adaptRefused, setAdaptRefused] = useState<{ spec: string; items: AdaptIncompatible[]; message?: string } | null>(null)
   const [adaptNotice, setAdaptNotice] = useState('')
+  const [adaptError, setAdaptError] = useState('')
+  const [adaptDetail, setAdaptDetail] = useState('')
   const [exemptions, setExemptions] = useState<Record<string, string[]>>({})
 
   const load = useCallback(async (name: string, scanOnly = false): Promise<void> => {
@@ -393,9 +396,10 @@ export function HealthSection(): ReactNode {
     const spec = adaptSpec.trim()
     if (spec === '' || adaptBusy) return
     setAdaptBusy(true)
-    setError('')
     setAdaptNotice('')
     setAdaptRefused(null)
+    setAdaptError('')
+    setAdaptDetail('')
     try {
       const res = await api<AdaptOutcome>('/api/adapt/install', { method: 'POST', body: JSON.stringify({ spec }) })
       if (res.ok) {
@@ -406,10 +410,11 @@ export function HealthSection(): ReactNode {
       } else if (res.code === 'incompatible-version' && res.incompatible !== undefined) {
         setAdaptRefused({ spec, items: res.incompatible, ...(res.message === undefined ? {} : { message: res.message }) })
       } else {
-        setError(`${res.code ?? 'error'}: ${res.message ?? ''}`)
+        setAdaptError(`${res.code ?? 'error'}: ${res.message ?? ''}`)
+        setAdaptDetail(res.detail ?? '')
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setAdaptError(e instanceof Error ? e.message : String(e))
     } finally {
       setAdaptBusy(false)
     }
@@ -419,7 +424,8 @@ export function HealthSection(): ReactNode {
     if (adaptRefused === null || adaptBusy) return
     const refused = adaptRefused
     setAdaptBusy(true)
-    setError('')
+    setAdaptError('')
+    setAdaptDetail('')
     try {
       for (const item of refused.items) {
         const res = await api<AdaptOutcome>('/api/adapt/apply', {
@@ -427,7 +433,8 @@ export function HealthSection(): ReactNode {
           body: JSON.stringify({ spec: refused.spec, name: item.name, version: item.version, runtimeVersion: item.runtimeVersion }),
         })
         if (!res.ok) {
-          setError(`${res.code ?? 'error'}: ${res.message ?? ''}${res.rolledBack === true ? ' — exemption rolled back' : ''}`)
+          setAdaptError(`${res.code ?? 'error'}: ${res.message ?? ''}${res.rolledBack === true ? ' — exemption rolled back' : ''}`)
+          setAdaptDetail(res.detail ?? '')
           await loadExemptions()
           return
         }
@@ -438,34 +445,37 @@ export function HealthSection(): ReactNode {
       await load(profile)
       await loadExemptions()
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setAdaptError(e instanceof Error ? e.message : String(e))
     } finally {
       setAdaptBusy(false)
     }
   }
 
   const revokeExemption = async (name: string): Promise<void> => {
-    setError('')
+    setAdaptError('')
+    setAdaptDetail('')
     try {
       await api('/api/adapt/revoke', { method: 'POST', body: JSON.stringify({ name }) })
       await loadExemptions()
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setAdaptError(e instanceof Error ? e.message : String(e))
     }
   }
 
   const removePlugin = async (name: string): Promise<void> => {
-    setError('')
+    setAdaptError('')
+    setAdaptDetail('')
     try {
       const res = await api<AdaptOutcome>('/api/adapt/remove', { method: 'POST', body: JSON.stringify({ name }) })
       if (!res.ok) {
-        setError(`${res.code ?? 'error'}: ${res.message ?? ''}`)
+        setAdaptError(`${res.code ?? 'error'}: ${res.message ?? ''}`)
+        setAdaptDetail(res.detail ?? '')
         return
       }
       await load(profile)
       await loadExemptions()
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setAdaptError(e instanceof Error ? e.message : String(e))
     }
   }
 
@@ -609,6 +619,17 @@ export function HealthSection(): ReactNode {
             {adaptBusy ? t.adaptWorking : t.adaptCheck}
           </button>
         </div>
+        {adaptError !== '' && (
+          <div className="dshops-err" style={{ marginTop: 6 }}>
+            <div style={{ whiteSpace: 'pre-wrap' }}>{adaptError}</div>
+            {adaptDetail !== '' && (
+              <details style={{ marginTop: 4 }}>
+                <summary style={{ cursor: 'pointer' }}>{t.adaptDetail}</summary>
+                <pre style={{ maxHeight: 200, overflow: 'auto', fontSize: 11, margin: '4px 0 0', whiteSpace: 'pre-wrap' }}>{adaptDetail}</pre>
+              </details>
+            )}
+          </div>
+        )}
         {adaptRefused !== null && (
           <div className="dshops-item dshops-item-warn" style={{ marginTop: 8 }}>
             <div>

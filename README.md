@@ -7,7 +7,7 @@ English | [中文](README.zh.md)
 
 > DeepSeek Harness plugin operations: one-command health check, pre-boot gate, failure attribution and recovery, dependency-tree governance — the doctor for the plugin ecosystem, converging into an integrated plugin-management suite.
 
-**Status: v0.14.0 — installation adaptation in the panel (exempt-install through the official plugin manager) and in the CLI (canary-backed, desktop-aware), with exemption cleanup on removal. Interception, repair, and memory mechanics: [docs/architecture.md](docs/architecture.md).**
+**Status: v0.14.1 — installation adaptation in the panel (exempt-install through the official plugin manager; failures report in-card with the package-manager output) and in the CLI (canary-backed, desktop-aware), with exemption cleanup on removal. Interception, repair, and memory mechanics: [docs/architecture.md](docs/architecture.md).**
 
 ## Names
 
@@ -118,7 +118,7 @@ dsh-xray rates this project C3 (a capability-surface rating, not intent); the ta
 
 ```sh
 pnpm install && pnpm run build
-pnpm run typecheck && pnpm run test      # 203 tests (core 156 + bundle 23 + cli 24)
+pnpm run typecheck && pnpm run test      # 205 tests (core 156 + bundle 25 + cli 24)
 node packages/cli/lib/index.js selftest  # engine self-check
 node scripts/e2e/scan-fix.e2e.mjs        # offline E2E (real pnpm repair)
 node scripts/e2e/gate.e2e.mjs            # gate scenarios (pass/block/bypass/attribution/headless)

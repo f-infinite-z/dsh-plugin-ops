@@ -35,6 +35,8 @@ export interface ChangeLike {
     message?: string
     incompatible?: Array<{ name: string; version: string; runtimeVersion: string; peers: Record<string, string> }>
   }
+  /** The last package-manager run, whose output explains operational failures. */
+  packageResult?: { output?: string; exitCode?: number; kind?: string; timedOut?: boolean }
 }
 
 /** The official plugin-manager service surface this panel uses. */
@@ -51,6 +53,8 @@ export interface AdaptOutcome {
   /** Machine-readable failure class; `incompatible-version` carries `incompatible`. */
   code?: string
   message?: string
+  /** Raw package-manager output tail on operational failures, for the panel's detail view. */
+  detail?: string
   /** Present for `incompatible-version`: what the exemption would need to accept. */
   incompatible?: AdaptIncompatible[]
   application?: string
@@ -60,6 +64,23 @@ export interface AdaptOutcome {
   rolledBack?: boolean
   /** Present on remove: exemptions dropped alongside the uninstall. */
   removedExemptions?: number
+}
+
+/** Upper bound of the package-manager output tail carried to the panel. */
+const MAX_DETAIL_CHARS = 1500
+
+/** Failure outcome for one change result, carrying the package-manager output tail. */
+function failureOf(result: ChangeLike): AdaptOutcome {
+  const output = result.packageResult?.output?.trim() ?? ''
+  const detail = output === ''
+    ? undefined
+    : output.length <= MAX_DETAIL_CHARS ? output : output.slice(output.length - MAX_DETAIL_CHARS)
+  return {
+    ok: false,
+    code: result.error?.code ?? 'operation-error',
+    ...(result.error?.message === undefined ? {} : { message: result.error.message }),
+    ...(detail === undefined ? {} : { detail }),
+  }
 }
 
 function messageOf(error: unknown): string {
@@ -86,11 +107,7 @@ export async function installWithDiagnosis(manager: PluginManagerLike, spec: str
           incompatible: incompatibleOf(result.error.incompatible),
         }
       }
-      return {
-        ok: false,
-        code: result.error.code,
-        ...(result.error.message === undefined ? {} : { message: result.error.message }),
-      }
+      return failureOf(result)
     }
     return {
       ok: true,
@@ -158,13 +175,7 @@ export async function revokeExemptionsFor(
 export async function removeAndCleanup(manager: PluginManagerLike, name: string): Promise<AdaptOutcome> {
   try {
     const result = await manager.removeBundle(name)
-    if (result.error !== undefined) {
-      return {
-        ok: false,
-        code: result.error.code,
-        ...(result.error.message === undefined ? {} : { message: result.error.message }),
-      }
-    }
+    if (result.error !== undefined) return failureOf(result)
     const revoked = await revokeExemptionsFor(manager, name)
     if (!revoked.ok) {
       return {

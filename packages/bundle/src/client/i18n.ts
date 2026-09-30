@@ -66,6 +66,7 @@ export interface Dict {
   adaptConfirm: string
   adaptCancel: string
   adaptDone: string
+  adaptDetail: string
   exemptions: string
   exemptionsEmpty: string
   revoke: string
@@ -139,6 +140,7 @@ export const DICTS: Record<Lang, Dict> = {
     adaptConfirm: '豁免并安装',
     adaptCancel: '取消',
     adaptDone: '已豁免安装；重启 dsh 生效',
+    adaptDetail: '安装详情',
     exemptions: '豁免清单',
     exemptionsEmpty: '暂无豁免',
     revoke: '撤销',
@@ -210,6 +212,7 @@ export const DICTS: Record<Lang, Dict> = {
     adaptConfirm: 'Exempt & install',
     adaptCancel: 'Cancel',
     adaptDone: 'Installed with an exemption; restart dsh to activate',
+    adaptDetail: 'Install details',
     exemptions: 'Exemptions',
     exemptionsEmpty: 'No exemptions',
     revoke: 'Revoke',

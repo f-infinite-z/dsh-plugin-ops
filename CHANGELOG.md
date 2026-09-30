@@ -2,6 +2,18 @@
 
 All notable changes are tracked here.
 
+## 0.14.1 — 2026-09-30
+
+### Panel adapt flow: in-card errors with package-manager output
+
+- The adapt card now reports failures **inside the card** (message plus a
+  collapsible raw package-manager output tail) instead of only the section-level
+  error line at the top, which was easy to miss while scrolled to the card.
+- Operational failures carry the last pnpm run's output tail
+  (`AdaptOutcome.detail`, bounded to 1500 characters), so causes like the
+  minimum-release-age lockfile refusal are visible without opening logs.
+- 205 tests (core 156 + bundle 25 + cli 24).
+
 ## 0.14.0 — 2026-09-30
 
 ### In-panel installation adaptation + desktop CLI path
