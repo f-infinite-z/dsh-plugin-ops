@@ -82,6 +82,7 @@ const CSS = `
 .dshops-btn:disabled{opacity:.5;cursor:default}
 .dshops-btn-primary{background:#4d6bfe;border-color:#4d6bfe;color:#fff}
 .dshops-select{border:1px solid rgba(128,128,128,.4);background:transparent;color:inherit;border-radius:6px;padding:3px 6px;font-size:12px}
+.dshops-select option{background:#fff;color:#000}
 .dshops-card{border:1px solid rgba(128,128,128,.25);border-radius:8px;padding:10px 12px}
 .dshops-card h3{margin:0 0 8px;font-size:13px;font-weight:600}
 .dshops-counts{display:flex;gap:8px;align-items:center;flex-wrap:wrap}

@@ -2,6 +2,16 @@
 
 All notable changes are tracked here.
 
+## 0.12.1 — 2026-09-30
+
+### Embedded panel: readable select options on dark themes
+
+- The `Profile` and row-filter `<select>` dropdowns inherited the theme's light
+  text color, so their options rendered blank against the browser's default
+  white popup on dark themes (text only appeared on hover). Options now carry an
+  explicit readable foreground/background, so the dropdown lists are legible on
+  both light and dark themes.
+
 ## 0.12.0 — 2026-09-30
 
 ### Official desktop adaptation (dsh desktop 0.2.0+)
