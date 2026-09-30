@@ -7,6 +7,7 @@ import { ruleStructure } from './structure.js'
 import { rulePluginCompatibility } from './compatibility.js'
 import { readPackageManifest } from './package-tree.js'
 import { buildResolutionGeneration, dshVersionOf, locateInstallAnchor } from './generation.js'
+import { detectDesktop, isDesktopProfile } from './desktop.js'
 import { checkOutdated } from './outdated.js'
 import { applyConfig, type OpsConfig } from './config.js'
 import type { ScanReport, PackageSnapshot, Finding } from './types.js'
@@ -32,10 +33,11 @@ export async function scanProfile(input: ScanInput): Promise<ScanReport> {
       + "start the profile once with dsh to initialize it, or check DSH_HOME",
     )
   }
+  const desktop = isDesktopProfile(input.profileName) ? detectDesktop() : null
   const installAnchor = locateInstallAnchor(input.paths, input.config?.installAnchor ?? null)
-  const { resolved } = resolveBundles(input.paths, manifest, installAnchor)
+  const { resolved } = resolveBundles(input.paths, manifest, installAnchor, desktop !== null)
   const generation = buildResolutionGeneration(installAnchor, resolved, input.paths.profileDir)
-  const dshVersion = dshVersionOf(generation)
+  const dshVersion = desktop?.version ?? dshVersionOf(generation)
   const locked = await readLockedDirectDeps(input.paths.profileDir)
 
   const ctx: RuleContext = {
@@ -45,6 +47,7 @@ export async function scanProfile(input: ScanInput): Promise<ScanReport> {
     generation,
     dshVersion,
     locked,
+    isDesktop: desktop !== null,
   }
 
   const snapshot = collectSnapshot(ctx, resolved)

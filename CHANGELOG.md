@@ -2,6 +2,30 @@
 
 All notable changes are tracked here.
 
+## 0.12.0 — 2026-09-30
+
+### Official desktop adaptation (dsh desktop 0.2.0+)
+
+- **Desktop profile recognition.** The official desktop app ships dsh inside its
+  packaged `resources/app.asar` and runs its own profile (`$DSH_HOME/profiles/desktop`)
+  without a CLI launch point. `scan`/`check` now recognize the desktop profile,
+  read its release version from the primary-runtime manifest (`runtime.json`
+  `desktopVersion`), and stop misreporting official bundles and rows that only
+  live inside the compressed asar.
+- **Official-package trust on desktop.** Rules 1 (bundle declaration), 5
+  (patch resolution), and 8 (plugin compatibility) no longer report official
+  `@deepseek-ai/*` bundles and patch rows on the desktop profile: the shared
+  closure may hold a different (CLI) version of them, and the launcher verifies
+  the packaged runtime before boot. Third-party plugins are still scanned.
+- **Desktop gate.** `dsh-ops gate --profile desktop` pre-checks without exec'ing
+  a boot (the desktop app has no CLI launch point) and attributes the latest
+  desktop crash report (`crash-*.log` in the Electron logs directory; overridable
+  via the `desktopCrashReportDir` config key).
+- **Desktop crash-report reader.** New `readLatestCrashReport` parses the
+  desktop recovery report's header facts and inactive loader entries the way the
+  CLI startup report is parsed, so a desktop boot failure can be attributed.
+- 181 tests (core 143 + bundle 14 + cli 24).
+
 ## 0.11.1 — 2026-09-27
 
 ### Plugin-author peer contract (verify V9) + dev watcher polish

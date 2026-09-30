@@ -107,7 +107,7 @@ dsh-xray rates this project C3 (a capability-surface rating, not intent); the ta
 
 ## Roadmap
 
-- **Desktop adaptation.** The official desktop app runs its own plugin tree without a CLI launch point; dsh-ops will adapt once the desktop plugin-management ecosystem exposes a boot hook. File-level `scan`/`fix` already work against desktop profiles.
+- **Desktop adaptation (0.12.0).** The official desktop app (0.2.0+) ships dsh inside its packaged `app.asar` and has no CLI launch point. `scan`/`fix`/`check` recognize the desktop profile, read its release version, and trust the official bundles and rows the packaged runtime carries; `gate --profile desktop` pre-checks without booting and attributes the desktop crash report (`crash-*.log`).
 - **Consistency verification for plugin authors.** `dsh-ops verify` accepts a local directory or an npm package spec and ships nine checks (bundle patch declaration/parse, patch-row resolution, dependency protocols, peer contracts, ESM entry and exports, client export contract and bundle shape, files completeness); false positives were triaged against 30 real ecosystem plugins (28 report zero findings). `verify --runtime` boots the package in an isolated DSH home through the official install and launch commands and reports whether the boot survives.
 - **Integrated plugin management (v2).** Absorb the ecosystem's change-time protections (canary runs, enable/disable, update checks, market) into the startup-lifecycle guard, with the pre-boot gate as the single entry point.
 

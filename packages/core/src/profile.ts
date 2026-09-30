@@ -141,6 +141,7 @@ export function resolveBundles(
   paths: DshPaths,
   manifest: ProfileManifest,
   installAnchor: string | null = null,
+  excludeOfficial = false,
 ): BundleResolution {
   const anchors = [
     ...(installAnchor === null ? [] : [installAnchor]),
@@ -150,6 +151,11 @@ export function resolveBundles(
   const resolved: ResolvedBundle[] = []
   const problems: { name: string; message: string }[] = []
   for (const name of profileBundles(manifest)) {
+    // The desktop app ships official bundles inside its packaged asar; the
+    // shared closure may hold a different (CLI) version of them, so resolving
+    // them there would judge the wrong release. Exclude them and let the
+    // launcher's own integrity verification stand for them.
+    if (excludeOfficial && name.startsWith('@deepseek-ai/')) continue
     const dir = packageDirFromAnchors(anchors, name)
     if (dir === null) {
       problems.push({ name, message: 'cannot resolve bundle package from the profile dependency tree' })

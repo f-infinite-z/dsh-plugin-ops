@@ -24,6 +24,12 @@ export interface OpsConfig {
    * points at a custom executable (path or name).
    */
   sessionAudit?: { enabled?: boolean; command?: string }
+  /**
+   * Directory where the desktop app writes its crash reports, overriding the
+   * platform default (Electron userData logs on Windows, `~/Library/Logs` on
+   * macOS). Used by `gate` to attribute a desktop boot failure.
+   */
+  desktopCrashReportDir?: string
 }
 
 export interface ConfigRead {

@@ -22,6 +22,12 @@ export interface RuleContext {
   /** Installed dsh version from the installation manifest; null when unknown. */
   dshVersion: string | null
   locked: LockedDirectDeps
+  /**
+   * Whether this is the official desktop profile. The desktop app ships dsh
+   * inside its packaged asar, so official packages are unresolvable from a
+   * plain Node process and must be trusted rather than reported as missing.
+   */
+  isDesktop: boolean
 }
 
 /**
@@ -95,8 +101,12 @@ function installedVersion(ctx: RuleContext, resolved: ResolvedBundle[], name: st
 
 export function ruleBundleDeclaration(ctx: RuleContext): Finding[] {
   const findings: Finding[] = []
-  const { problems, resolved } = resolveBundles(ctx.paths, ctx.manifest, ctx.generation.installAnchor)
+  const { problems, resolved } = resolveBundles(ctx.paths, ctx.manifest, ctx.generation.installAnchor, ctx.isDesktop)
   for (const problem of problems) {
+    // Desktop ships its official bundles inside the packaged asar; a plain
+    // Node process cannot resolve them, but the launcher verifies the packaged
+    // runtime before boot, so they are trusted rather than reported.
+    if (ctx.isDesktop && problem.name.startsWith('@deepseek-ai/')) continue
     // 0.1.7+ skips an unreadable optional bundle and keeps loading the profile
     // (verified against 0.1.7-alpha.1); older releases abort the boot.
     const tolerant = toleratesOptionalBundles(ctx.dshVersion) && problem.message.includes('unreadable')
@@ -131,13 +141,19 @@ export function ruleDependencyDrift(ctx: RuleContext, resolved: ResolvedBundle[]
   const sources = bundleSources(resolved)
 
   if (lockMissing) {
-    findings.push({
-      ruleId: 'dependency-drift',
-      severity: 'warn',
-      message: 'profile has no pnpm-lock.yaml; versions are not locked against drift',
-      detail: 'run pnpm install in the profile directory (or dsh plugin --profile <name> install) to establish a lockfile',
-      fix: { kind: 'none' },
-    })
+    // A desktop profile with no third-party dependencies has no lockfile by
+    // design: the desktop app manages plugin installs and only writes a
+    // lockfile once a plugin is added. An empty dependency table is not drift.
+    const noRegistryDeps = Object.keys(registryDependencies(ctx.manifest)).length === 0
+    if (!(ctx.isDesktop && noRegistryDeps)) {
+      findings.push({
+        ruleId: 'dependency-drift',
+        severity: 'warn',
+        message: 'profile has no pnpm-lock.yaml; versions are not locked against drift',
+        detail: 'run pnpm install in the profile directory (or dsh plugin --profile <name> install) to establish a lockfile',
+        fix: { kind: 'none' },
+      })
+    }
   } else if (lockIncompatible) {
     findings.push({
       ruleId: 'dependency-drift',

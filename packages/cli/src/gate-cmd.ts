@@ -6,6 +6,7 @@ import {
   scanProfile, renderHuman, reportOk, alignToLockfile, appendMemory, recordFixKnowledge, ScanError,
   readProfileManifest, resolveBundles, allVisibleRows, rowIdsForPackage,
   lastSuccessSnapshot, diffSnapshots, disableRow, locateInstallAnchor, readLatestStartupReport,
+  isDesktopProfile, desktopLogsDir, readLatestCrashReport,
   type Finding, type ScanReport, type DshPaths, type OpsConfig,
 } from 'dsh-plugin-ops-core'
 import { spawnCli, spawnDsh } from './spawn-dsh.js'
@@ -162,7 +163,13 @@ export async function runGateCommand(options: GateCommandOptions): Promise<numbe
       return 3
     }
   } else if (sessionAuditCode !== null && sessionAuditCode !== 0) {
-    process.stderr.write(`\ngate: session-audit exited ${sessionAuditCode}; container coverage skipped for this run\n`)
+    process.stderr.write(`\ngate: session-audit exited ${sessionAuditCode}; coverage skipped for this run\n`)
+  }
+
+  // The desktop app boots its own host with no CLI launch point; the gate
+  // pre-checks only and cannot exec a desktop boot.
+  if (isDesktopProfile(options.profileName)) {
+    return desktopGatePass(options)
   }
 
   // --- launch dsh ----------------------------------------------------------
@@ -181,6 +188,42 @@ export async function runGateCommand(options: GateCommandOptions): Promise<numbe
     return dshCode
   }
   return attributeAndRecover(options, report, dshCode, start)
+}
+
+/**
+ * Desktop gate pass: the pre-check (scan + auto-fix + block) already ran; the
+ * desktop app has no CLI launch point, so this pass reports the outcome and
+ * attributes the latest desktop crash report instead of exec'ing a boot.
+ */
+function desktopGatePass(options: GateCommandOptions): number {
+  process.stdout.write('\n' + '='.repeat(60) + '\n')
+  process.stdout.write('DESKTOP PROFILE: no CLI launch point\n')
+  process.stdout.write('the desktop app boots its own host; the gate pre-checks without launching it\n')
+  process.stdout.write('='.repeat(60) + '\n')
+
+  const logsDir = options.config.desktopCrashReportDir ?? desktopLogsDir()
+  if (logsDir !== null) {
+    const crash = readLatestCrashReport(logsDir)
+    if (crash !== null) {
+      process.stdout.write('\nlatest desktop crash report:\n')
+      process.stdout.write(`  file: ${crash.file}\n`)
+      if (crash.source !== null || crash.phase !== null) {
+        process.stdout.write(`  source: ${crash.source ?? 'unknown'} (${crash.phase ?? 'unknown'})\n`)
+      }
+      if (crash.appVersion !== null) process.stdout.write(`  desktop ${crash.appVersion}\n`)
+      if (crash.entries.length > 0) {
+        process.stdout.write('  inactive entries:\n')
+        for (const entry of crash.entries) {
+          process.stdout.write(`    [${entry.required ? 'required' : 'optional'}] ${entry.id} — ${entry.module}\n`)
+        }
+      } else {
+        process.stdout.write('  (no inactive-entry list parsed; open the file for raw diagnostics)\n')
+      }
+      process.stdout.write('  recover: fix the reported entries, or use the desktop recovery dialog to disable third-party plugins, then start the desktop app again\n')
+    }
+  }
+
+  return 0
 }
 
 function runDsh(command: string[]): Promise<number> {

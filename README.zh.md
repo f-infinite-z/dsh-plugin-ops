@@ -107,7 +107,7 @@ dsh-xray 给本项目的评级为 C3（衡量能力面而非意图）；上表�
 
 ## 后续方向
 
-- **官方桌面端适配**：官方桌面端运行独立插件树且无 CLI 启动点；待官方桌面端插件管理生态开放启动钩子后适配。文件级 `scan`/`fix` 已可直接用于 desktop profile。
+- **官方桌面端适配（0.12.0）**：官方桌面端（0.2.0+）将 dsh 打包进自身 `app.asar`、无 CLI 启动点。`scan`/`fix`/`check` 已识别 desktop profile、读取其发布版本，并信任打包运行时自带的官方 bundle/行；`gate --profile desktop` 只预检不启动，并读取桌面端 crash report（`crash-*.log`）做归因。
 - **面向插件作者的一致性验证**：`dsh-ops verify` 已支持本地目录与 npm 包名两种输入，覆盖 bundle patch 声明与解析、patch 行可解析性、依赖协议、peer 契约、ESM 入口与导出、client 导出契约与产物形状、files 完整性九项检查；并已用 30 个真实生态插件（热门/普通两档）校准误报（28 个零 findings）。`verify --runtime` 在独立 DSH home 中经官方安装与启动命令做隔离启动验证，报告能否存活。
 - **一体化插件管理（v2）**：把生态"变更时防护"（canary 试运行、启停、更新检查、市场）按自有架构吸收进启动生命周期防护，以启动门为统一入口。
 

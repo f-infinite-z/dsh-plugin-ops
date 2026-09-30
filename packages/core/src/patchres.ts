@@ -128,6 +128,10 @@ export function rulePatchResolution(ctx: RuleContext, resolved: ResolvedBundle[]
         })
         continue
       }
+      // Desktop ships its official packages inside the packaged asar, so they
+      // never resolve from a plain Node process; the launcher verifies the
+      // packaged runtime before boot, so official rows are trusted.
+      if (ctx.isDesktop && pkg.startsWith('@deepseek-ai/')) continue
       const isOfficial = pkg.startsWith('@deepseek-ai/')
       const required = typeof row.id === 'string' && REQUIRED_ENTRY_IDS.has(row.id)
       const tolerant = !required && toleratesOptionalBundles(ctx.dshVersion)

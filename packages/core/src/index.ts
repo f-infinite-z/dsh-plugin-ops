@@ -1,4 +1,6 @@
 export { resolveDshPaths, MEMORY_DIR_NAME, MEMORY_FILENAME, KNOWLEDGE_DIR_NAME, type DshPaths } from './paths.js'
+export { isDesktopProfile, detectDesktop, detectDesktopInstall, readDesktopVersion, desktopLogsDir, DESKTOP_PROFILE_NAME, type DesktopInfo } from './desktop.js'
+export { readLatestCrashReport, type CrashReport } from './crash-report.js'
 export { readLatestStartupReport, type StartupReport, type StartupReportEntry } from './startup-log.js'
 export {
   scanSessions,
