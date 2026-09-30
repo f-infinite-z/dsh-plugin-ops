@@ -52,6 +52,24 @@ export interface Dict {
   loadFail: string
   profile: string
   home: string
+  adapt: string
+  adaptHint: string
+  adaptPlaceholder: string
+  adaptCheck: string
+  adaptWorking: string
+  adaptInstalled: string
+  adaptRefused: string
+  adaptPeers: string
+  adaptRiskNarrow: string
+  adaptRiskCross: string
+  adaptWarning: string
+  adaptConfirm: string
+  adaptCancel: string
+  adaptDone: string
+  exemptions: string
+  exemptionsEmpty: string
+  revoke: string
+  uninstallCleanup: string
 }
 
 export const DICTS: Record<Lang, Dict> = {
@@ -107,6 +125,24 @@ export const DICTS: Record<Lang, Dict> = {
     loadFail: '加载失败：',
     profile: 'Profile',
     home: 'DSH_HOME',
+    adapt: '安装适配',
+    adaptHint: '对官方门禁拒绝的插件做豁免安装；隔离 canary 验证在 CLI 版（dsh-ops adapt）',
+    adaptPlaceholder: 'npm 包名（如 dsh-aimail@0.1.30）',
+    adaptCheck: '检查并安装',
+    adaptWorking: '处理中…',
+    adaptInstalled: '安装完成',
+    adaptRefused: '官方门禁拒绝：与当前 dsh 不兼容',
+    adaptPeers: '不兼容的 peer',
+    adaptRiskNarrow: '风险：窄范围',
+    adaptRiskCross: '风险：跨 breaking 边界',
+    adaptWarning: '豁免 = 明确接受崩溃/数据丢失风险（官方原文）；面板版不做隔离 canary，安装失败会自动撤销豁免',
+    adaptConfirm: '豁免并安装',
+    adaptCancel: '取消',
+    adaptDone: '已豁免安装；重启 dsh 生效',
+    exemptions: '豁免清单',
+    exemptionsEmpty: '暂无豁免',
+    revoke: '撤销',
+    uninstallCleanup: '卸载并清理',
   },
   en: {
     title: 'Health Check',
@@ -160,6 +196,24 @@ export const DICTS: Record<Lang, Dict> = {
     loadFail: 'Load failed: ',
     profile: 'Profile',
     home: 'DSH_HOME',
+    adapt: 'Installation adaptation',
+    adaptHint: 'exempt-install a plugin the official gate rejects; the isolated canary lives in the CLI (dsh-ops adapt)',
+    adaptPlaceholder: 'npm package (e.g. dsh-aimail@0.1.30)',
+    adaptCheck: 'Check & install',
+    adaptWorking: 'Working…',
+    adaptInstalled: 'Installed',
+    adaptRefused: 'Refused by the official gate: incompatible with this dsh',
+    adaptPeers: 'Incompatible peers',
+    adaptRiskNarrow: 'Risk: narrow',
+    adaptRiskCross: 'Risk: cross-breaking',
+    adaptWarning: 'An exemption explicitly accepts crash/data-loss risk (official wording); the panel skips the isolated canary and revokes the exemption automatically when the install fails',
+    adaptConfirm: 'Exempt & install',
+    adaptCancel: 'Cancel',
+    adaptDone: 'Installed with an exemption; restart dsh to activate',
+    exemptions: 'Exemptions',
+    exemptionsEmpty: 'No exemptions',
+    revoke: 'Revoke',
+    uninstallCleanup: 'Uninstall & clean',
   },
 }
 

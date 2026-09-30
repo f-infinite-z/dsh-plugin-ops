@@ -7,7 +7,7 @@ English | [中文](README.zh.md)
 
 > DeepSeek Harness plugin operations: one-command health check, pre-boot gate, failure attribution and recovery, dependency-tree governance — the doctor for the plugin ecosystem, converging into an integrated plugin-management suite.
 
-**Status: v0.13.0 — installation adaptation (`dsh-ops adapt`): diagnose a plugin the official gate rejects, grant the exact-version exemption behind a canary boot, and clean it up on removal. Interception, repair, and memory mechanics: [docs/architecture.md](docs/architecture.md).**
+**Status: v0.14.0 — installation adaptation in the panel (exempt-install through the official plugin manager) and in the CLI (canary-backed, desktop-aware), with exemption cleanup on removal. Interception, repair, and memory mechanics: [docs/architecture.md](docs/architecture.md).**
 
 ## Names
 
@@ -65,10 +65,10 @@ Real-ecosystem validation: dangling peer declarations (authors referencing offic
 | `serve` | local web panel: health cards / findings / fix execution / **plugin-row management** (health badges, severity filter, 10-per-page paging, official-row protection, enable/disable) / fault timeline / **diagnosis chat** with an **enhanced-retrieval (RAG) toggle** — troubleshooting experience deposits as Markdown and matching entries are retrieved into the chat (BM25 + optional embedding re-rank), zh/en switch |
 | `selftest` | engine self-check over six built-in fault samples |
 | `verify` | publish-time check for plugin authors: accepts a local directory or an **npm package spec** (`dsh-ops verify <name\|@scope/name\|name@version>`, downloaded from the registry); covers bundle patch declaration/parse, patch-row resolution, dependency protocols (`file:`/`workspace:`), peer contracts (peer keys must be package names, peer ranges must be semver), ESM entry and exports, client export contract and bundle shape, files completeness (`--json`, `--strict` for CI); **`--runtime`** additionally boots the package in an isolated DSH home (official install + launch) and reports whether the boot survives, naming the failed loader entries |
-| `adapt` | installation adaptation for a plugin the official gate rejects over incompatible `@deepseek-ai/dsh*` peer ranges: diagnoses the offending peers and classifies the risk (narrow bound versus cross-major / 0.x-minor), grants the official exact-version exemption in an **isolated canary boot first**, and writes the real profile only once that boot survives — a failed canary or install rolls the exemption back; `--remove` uninstalls the package and drops its exemptions in one step |
+| `adapt` | installation adaptation for a plugin the official gate rejects over incompatible `@deepseek-ai/dsh*` peer ranges: diagnoses the offending peers and classifies the risk (narrow bound versus cross-major / 0.x-minor), grants the official exact-version exemption in an **isolated canary boot first**, and writes the real profile only once that boot survives — a failed canary or install rolls the exemption back; for the **desktop profile** (which the official CLI refuses) it writes the exemption and points at the desktop Plugins page; `--remove` uninstalls the package and drops its exemptions in one step |
 | `sessions` | session-container repair: scans `$DSH_HOME/sessions` for the two boot-blocking corruption classes (an artifact whose first frame cannot be decoded; a session directory that does not match its header id); `--repair-paths` moves a renamed directory back to its header id, `--quarantine` moves unreadable session directories into `$DSH_HOME/cache/dsh-ops/quarantine` (never deleted); read-only plan by default, deep event-level diagnostics stay with `@argszero/cordis-plugin-session-audit` |
 | `dev` | development watcher for one plugin directory: static checks after every change (debounced, numbered, tagged with the package identity), `--runtime` also boots the package in an isolated DSH home after each clean pass and reports when it skips a dirty pass; a summary of checks/failures/elapsed prints on shutdown; never touches a running dsh |
-| Embedded bundle (`dsh-plugin-ops-bundle`) | adds a "dsh-ops" health section to the dsh Web settings page (scan / rows / timeline / chat with the RAG knowledge base); the host half shares the same engine and route whitelist as `serve`; chat prefers the official `ctx.llm` seam and falls back to a direct channel |
+| Embedded bundle (`dsh-plugin-ops-bundle`) | adds a "dsh-ops" health section to the dsh Web settings page (scan / rows / **installation adaptation** — exempt-install through the official `pluginManager` service, with the exemption list and revoke / uninstall-and-clean actions / timeline / chat with the RAG knowledge base); the host half shares the same engine and route whitelist as `serve`; chat prefers the official `ctx.llm` seam and falls back to a direct channel |
 
 Exit codes: `0` ok (or dsh's own code) / `1` fatal findings remain / `2` usage or profile missing / `3` gate blocked by fatal findings / `4-5` gate attribution outcomes.
 
@@ -110,7 +110,7 @@ dsh-xray rates this project C3 (a capability-surface rating, not intent); the ta
 ## Roadmap
 
 - **Desktop adaptation (0.12.0).** The official desktop app (0.2.0+) ships dsh inside its packaged `app.asar` and has no CLI launch point. `scan`/`fix`/`check` recognize the desktop profile, read its release version, and trust the official bundles and rows the packaged runtime carries; `gate --profile desktop` pre-checks without booting and attributes the desktop crash report (`crash-*.log`).
-- **Installation adaptation (0.13.0).** `dsh-ops adapt` complements the official gate's change-time refusal: it diagnoses why a plugin is rejected, classifies the risk, grants the official exact-version exemption behind an isolated canary boot, and rolls back on failure; `--remove` cleans the exemption up with the uninstall. This is the first step from diagnostics toward a repair loop; real source-level fixes for small incompatibilities remain a later direction.
+- **Installation adaptation (0.13.0/0.14.0).** `dsh-ops adapt` and the in-panel adapt card complement the official gate's change-time refusal: diagnose why a plugin is rejected, classify the risk, grant the official exact-version exemption (the CLI behind an isolated canary boot; the panel in-app through the official plugin manager, which is also the only UI path on desktop), and clean the exemption up with removal. This is the first step from diagnostics toward a repair loop; real source-level fixes for small incompatibilities remain a later direction.
 - **Consistency verification for plugin authors.** `dsh-ops verify` accepts a local directory or an npm package spec and ships nine checks (bundle patch declaration/parse, patch-row resolution, dependency protocols, peer contracts, ESM entry and exports, client export contract and bundle shape, files completeness); false positives were triaged against 30 real ecosystem plugins (28 report zero findings). `verify --runtime` boots the package in an isolated DSH home through the official install and launch commands and reports whether the boot survives.
 - **Integrated plugin management (v2).** Absorb the ecosystem's change-time protections (canary runs, enable/disable, update checks, market) into the startup-lifecycle guard, with the pre-boot gate as the single entry point.
 
@@ -118,7 +118,7 @@ dsh-xray rates this project C3 (a capability-surface rating, not intent); the ta
 
 ```sh
 pnpm install && pnpm run build
-pnpm run typecheck && pnpm run test      # 194 tests (core 156 + bundle 14 + cli 24)
+pnpm run typecheck && pnpm run test      # 203 tests (core 156 + bundle 23 + cli 24)
 node packages/cli/lib/index.js selftest  # engine self-check
 node scripts/e2e/scan-fix.e2e.mjs        # offline E2E (real pnpm repair)
 node scripts/e2e/gate.e2e.mjs            # gate scenarios (pass/block/bypass/attribution/headless)

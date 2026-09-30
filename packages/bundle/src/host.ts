@@ -18,6 +18,14 @@ import {
   type OpsConfig,
   type PanelApiOptions,
 } from 'dsh-plugin-ops-core'
+import {
+  applyAdaptedInstall,
+  installWithDiagnosis,
+  listExemptions,
+  removeAndCleanup,
+  revokeExemptionsFor,
+  type PluginManagerLike,
+} from './adapt.js'
 
 /** HTTP prefix the bundle owns on the harness Web server. */
 export const ROUTE_PREFIX = '/dsh-ops'
@@ -28,6 +36,8 @@ export interface HostHandlerOptions {
   config: OpsConfig
   /** Chat channel for this host; null when no provider is available. */
   channel: () => ModelChannel | null
+  /** The official plugin-manager service, when this profile provides it. */
+  manager?: () => PluginManagerLike | null
 }
 
 /**
@@ -104,6 +114,10 @@ export function createHostHandler(options: HostHandlerOptions): (req: IncomingMe
         await handleDeposit(res, options, paths, body)
         return
       }
+      if (apiPath.startsWith('/api/adapt/')) {
+        await handleAdapt(res, options, apiPath, req.method ?? 'GET', body)
+        return
+      }
       const apiUrl = new URL(url)
       apiUrl.pathname = apiPath
       const result = await handlePanelApi(req.method ?? 'GET', apiUrl, apiOptions, body)
@@ -113,6 +127,89 @@ export function createHostHandler(options: HostHandlerOptions): (req: IncomingMe
       else if (error instanceof ScanError) json(res, 400, { error: error.message })
       else json(res, 500, { error: error instanceof Error ? error.message : String(error) })
     }
+  }
+}
+
+/**
+ * Adapt routes: installation adaptation driven by the official plugin-manager
+ * service, so the panel can grant and clean exact-version exemptions where the
+ * official UI only reports the incompatibility. Every outcome is a JSON
+ * `AdaptOutcome`; a missing manager answers 501.
+ */
+async function handleAdapt(
+  res: ServerResponse,
+  options: HostHandlerOptions,
+  apiPath: string,
+  method: string,
+  body: string | undefined,
+): Promise<void> {
+  const manager = options.manager?.() ?? null
+  if (manager === null) {
+    json(res, 501, { ok: false, code: 'no-plugin-manager', message: 'this profile provides no plugin-manager service' })
+    return
+  }
+  let parsed: Record<string, unknown> = {}
+  if (body !== undefined && body !== '') {
+    try {
+      const value: unknown = JSON.parse(body)
+      if (typeof value === 'object' && value !== null && !Array.isArray(value)) parsed = value as Record<string, unknown>
+    } catch {
+      json(res, 400, { ok: false, code: 'invalid-json', message: 'request body is not JSON' })
+      return
+    }
+  }
+  const str = (value: unknown): string => (typeof value === 'string' ? value.trim() : '')
+  switch (apiPath) {
+    case '/api/adapt/install': {
+      const spec = str(parsed.spec)
+      if (method !== 'POST' || spec === '') {
+        json(res, 400, { ok: false, code: 'invalid-spec', message: 'POST with a package spec is required' })
+        return
+      }
+      json(res, 200, await installWithDiagnosis(manager, spec))
+      return
+    }
+    case '/api/adapt/apply': {
+      const spec = str(parsed.spec)
+      const name = str(parsed.name)
+      const version = str(parsed.version)
+      const runtimeVersion = str(parsed.runtimeVersion)
+      if (method !== 'POST' || spec === '' || name === '' || version === '' || runtimeVersion === '') {
+        json(res, 400, { ok: false, code: 'invalid-request', message: 'POST with spec, name, version and runtimeVersion is required' })
+        return
+      }
+      json(res, 200, await applyAdaptedInstall(manager, { spec, name, version, runtimeVersion }))
+      return
+    }
+    case '/api/adapt/exemptions': {
+      if (method !== 'GET') {
+        json(res, 405, { ok: false, code: 'method-not-allowed', message: 'GET required' })
+        return
+      }
+      json(res, 200, { ok: true, exemptions: listExemptions(manager) })
+      return
+    }
+    case '/api/adapt/revoke': {
+      const name = str(parsed.name)
+      if (method !== 'POST' || name === '') {
+        json(res, 400, { ok: false, code: 'invalid-request', message: 'POST with a package name is required' })
+        return
+      }
+      const result = await revokeExemptionsFor(manager, name)
+      json(res, result.ok ? 200 : 500, result)
+      return
+    }
+    case '/api/adapt/remove': {
+      const name = str(parsed.name)
+      if (method !== 'POST' || name === '') {
+        json(res, 400, { ok: false, code: 'invalid-request', message: 'POST with a package name is required' })
+        return
+      }
+      json(res, 200, await removeAndCleanup(manager, name))
+      return
+    }
+    default:
+      json(res, 404, { ok: false, code: 'not-found', message: `no adapt route for ${apiPath}` })
   }
 }
 

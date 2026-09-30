@@ -14,6 +14,29 @@ import { incompatibleDshPeers } from './compatibility.js'
 /** Risk class for an incompatible peer set. */
 export type AdaptRisk = 'narrow' | 'cross-major'
 
+/**
+ * Classify a set of incompatible `@deepseek-ai/dsh*` peer ranges against one
+ * runtime version. A range whose minimum satisfying version shares the
+ * runtime's breaking boundary (major, or minor on the 0.x line) is `narrow`;
+ * anything crossing that boundary — or that does not parse at all — is
+ * `cross-major`. An unparsable runtime version is conservatively cross-major.
+ * @param peers - incompatible peers (name → declared range), as the official
+ *   `evaluatePluginCompatibility` reports them.
+ * @param runtimeVersion - the running dsh version the ranges were checked against.
+ */
+export function classifyPeerRisk(peers: Record<string, string>, runtimeVersion: string): AdaptRisk {
+  const runtime = semver.parse(runtimeVersion)
+  if (runtime === null) return 'cross-major'
+  for (const range of Object.values(peers)) {
+    const min = semver.minVersion(range)
+    if (min === null) return 'cross-major'
+    if (min.major !== runtime.major) return 'cross-major'
+    // On a 0.x release line the minor is the breaking boundary.
+    if (runtime.major === 0 && min.minor !== runtime.minor) return 'cross-major'
+  }
+  return 'narrow'
+}
+
 /** One plugin's incompatibility against the running dsh. */
 export interface AdaptDiagnosis {
   /** Bare package name from its manifest; null when the manifest is unreadable/unnamed. */
@@ -45,20 +68,12 @@ export function diagnoseIncompatibility(
     return { packageName: manifest.name, version, dshVersion, incompatiblePeers: {}, risk: 'cross-major' }
   }
   const peers = incompatibleDshPeers(manifest, dshVersion) ?? {}
-  const runtime = semver.parse(dshVersion)!
-  const crossMajor = Object.entries(peers).some(([, range]) => {
-    const min = semver.minVersion(range)
-    if (min === null) return true
-    if (min.major !== runtime.major) return true
-    // On a 0.x release line the minor is the breaking boundary.
-    return runtime.major === 0 && min.minor !== runtime.minor
-  })
   return {
     packageName: manifest.name,
     version,
     dshVersion,
     incompatiblePeers: peers,
-    risk: crossMajor ? 'cross-major' : 'narrow',
+    risk: classifyPeerRisk(peers, dshVersion),
   }
 }
 

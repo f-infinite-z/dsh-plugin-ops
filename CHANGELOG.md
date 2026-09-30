@@ -2,6 +2,29 @@
 
 All notable changes are tracked here.
 
+## 0.14.0 — 2026-09-30
+
+### In-panel installation adaptation + desktop CLI path
+
+- **Panel adapt card** (`dsh-plugin-ops-bundle`): the settings-page panel now
+  installs adapted plugins directly. "Check & install" calls the official
+  `pluginManager` service through the same host process; a refusal for
+  incompatible peers is shown with the offending peers and a risk class
+  (narrow versus cross-breaking), and "Exempt & install" grants the official
+  exact-version exemption, retries the install, and revokes the exemption
+  automatically when the retry fails. Works in the desktop app, where the
+  official CLI cannot install at all.
+- **Exemptions card**: lists active exact-version exemptions with revoke and
+  uninstall-and-clean actions, closing the install → adapt → remove loop.
+- **CLI desktop branch** (`dsh-ops adapt`): the official CLI refuses profile
+  `desktop`, so the command now writes the exemption and canary result and
+  directs the user to finish the install in the desktop Plugins page; `--remove`
+  drops the exemption only after the plugin is gone from profile dependencies.
+- **Select popup hardening**: `<select>` dropdowns force `color-scheme: light`
+  on top of the explicit option colors, so option text stays readable whatever
+  the page or OS color scheme.
+- 203 tests (core 156 + bundle 23 + cli 24).
+
 ## 0.13.0 — 2026-09-30
 
 ### Installation adaptation (`dsh-ops adapt`) + authoritative dsh version

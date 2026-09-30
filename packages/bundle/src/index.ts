@@ -17,6 +17,7 @@ import {
   type ModelChannel,
 } from 'dsh-plugin-ops-core'
 import { ROUTE_PREFIX, createHostHandler, profileFromBaseUrl } from './host.js'
+import type { PluginManagerLike } from './adapt.js'
 import { LlmChannel, type LlmRuntimeLike, type ModelSelectionLike } from './llm-channel.js'
 
 export const name = 'dsh-ops-bundle'
@@ -62,11 +63,24 @@ function registerPanel(ctx: HostContext): void {
     profile,
     config: read.ok ? read.config : {},
     channel: () => resolveChannel(ctx, paths.home),
+    manager: () => resolveManager(ctx),
   })
   ctx.effect(
     () => ctx.webServer.register({ kind: 'prefix', path: ROUTE_PREFIX, handler }),
     'dsh-ops-bundle: /dsh-ops prefix',
   )
+}
+
+/** The official plugin-manager service, when this profile provides one. */
+function resolveManager(ctx: HostContext): PluginManagerLike | null {
+  try {
+    const manager = ctx.get('pluginManager')
+    return manager === null || manager === undefined || typeof manager !== 'object'
+      ? null
+      : manager as PluginManagerLike
+  } catch {
+    return null
+  }
 }
 
 /**

@@ -60,6 +60,33 @@ interface KnowledgeItem {
 
 type Filter = 'all' | 'fatal' | 'warn' | 'ok'
 
+interface AdaptIncompatible {
+  name: string
+  version: string
+  runtimeVersion: string
+  peers: Record<string, string>
+  risk: 'narrow' | 'cross-major'
+}
+
+interface AdaptOutcome {
+  ok: boolean
+  code?: string
+  message?: string
+  incompatible?: AdaptIncompatible[]
+  application?: string
+  target?: string
+  bundle?: string
+  rolledBack?: boolean
+  removedExemptions?: number
+}
+
+/** Bare package name from an `name@version` exemption key. */
+function packageNameOf(key: string): string {
+  const at = key.lastIndexOf('@')
+  if (at <= 0) return key
+  return key.slice(at + 1).includes('/') ? key : key.slice(0, at)
+}
+
 async function api<T>(path: string, init?: { method?: string; body?: string }): Promise<T> {
   const res = await fetch(`${API}${path}`, {
     method: init?.method ?? 'GET',
@@ -81,7 +108,7 @@ const CSS = `
 .dshops-btn{border:1px solid rgba(128,128,128,.4);background:transparent;color:inherit;border-radius:6px;padding:3px 10px;cursor:pointer;font-size:12px}
 .dshops-btn:disabled{opacity:.5;cursor:default}
 .dshops-btn-primary{background:#4d6bfe;border-color:#4d6bfe;color:#fff}
-.dshops-select{border:1px solid rgba(128,128,128,.4);background:transparent;color:inherit;border-radius:6px;padding:3px 6px;font-size:12px}
+.dshops-select{border:1px solid rgba(128,128,128,.4);background:transparent;color:inherit;border-radius:6px;padding:3px 6px;font-size:12px;color-scheme:light}
 .dshops-select option{background:#fff;color:#000}
 .dshops-card{border:1px solid rgba(128,128,128,.25);border-radius:8px;padding:10px 12px}
 .dshops-card h3{margin:0 0 8px;font-size:13px;font-weight:600}
@@ -156,6 +183,11 @@ export function HealthSection(): ReactNode {
   const [knowledgeQuery, setKnowledgeQuery] = useState('')
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
+  const [adaptSpec, setAdaptSpec] = useState('')
+  const [adaptBusy, setAdaptBusy] = useState(false)
+  const [adaptRefused, setAdaptRefused] = useState<{ spec: string; items: AdaptIncompatible[]; message?: string } | null>(null)
+  const [adaptNotice, setAdaptNotice] = useState('')
+  const [exemptions, setExemptions] = useState<Record<string, string[]>>({})
 
   const load = useCallback(async (name: string, scanOnly = false): Promise<void> => {
     setError('')
@@ -188,6 +220,15 @@ export function HealthSection(): ReactNode {
     }
   }, [])
 
+  const loadExemptions = useCallback(async (): Promise<void> => {
+    try {
+      const res = await api<{ exemptions: Record<string, string[]> }>('/api/adapt/exemptions')
+      setExemptions(res.exemptions)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }, [])
+
   useEffect(() => {
     if (typeof localStorage !== 'undefined' && localStorage.getItem('dshops-rag') === '1') setRag(true)
   }, [])
@@ -203,6 +244,7 @@ export function HealthSection(): ReactNode {
         setProfile(initial)
         await load(initial)
         await loadKnowledge()
+        await loadExemptions()
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e))
       }
@@ -210,7 +252,7 @@ export function HealthSection(): ReactNode {
     return () => {
       cancelled = true
     }
-  }, [load, loadKnowledge])
+  }, [load, loadKnowledge, loadExemptions])
 
   const changeProfile = (name: string): void => {
     setProfile(name)
@@ -347,6 +389,86 @@ export function HealthSection(): ReactNode {
     }
   }
 
+  const runAdapt = async (): Promise<void> => {
+    const spec = adaptSpec.trim()
+    if (spec === '' || adaptBusy) return
+    setAdaptBusy(true)
+    setError('')
+    setAdaptNotice('')
+    setAdaptRefused(null)
+    try {
+      const res = await api<AdaptOutcome>('/api/adapt/install', { method: 'POST', body: JSON.stringify({ spec }) })
+      if (res.ok) {
+        setAdaptNotice(`${t.adaptInstalled}: ${res.bundle ?? res.target ?? spec}${res.application === 'restart-required' ? ' — restart required' : ''}`)
+        setAdaptSpec('')
+        await load(profile)
+        await loadExemptions()
+      } else if (res.code === 'incompatible-version' && res.incompatible !== undefined) {
+        setAdaptRefused({ spec, items: res.incompatible, ...(res.message === undefined ? {} : { message: res.message }) })
+      } else {
+        setError(`${res.code ?? 'error'}: ${res.message ?? ''}`)
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setAdaptBusy(false)
+    }
+  }
+
+  const confirmAdapt = async (): Promise<void> => {
+    if (adaptRefused === null || adaptBusy) return
+    const refused = adaptRefused
+    setAdaptBusy(true)
+    setError('')
+    try {
+      for (const item of refused.items) {
+        const res = await api<AdaptOutcome>('/api/adapt/apply', {
+          method: 'POST',
+          body: JSON.stringify({ spec: refused.spec, name: item.name, version: item.version, runtimeVersion: item.runtimeVersion }),
+        })
+        if (!res.ok) {
+          setError(`${res.code ?? 'error'}: ${res.message ?? ''}${res.rolledBack === true ? ' — exemption rolled back' : ''}`)
+          await loadExemptions()
+          return
+        }
+      }
+      setAdaptNotice(`${t.adaptDone}: ${refused.spec}`)
+      setAdaptRefused(null)
+      setAdaptSpec('')
+      await load(profile)
+      await loadExemptions()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setAdaptBusy(false)
+    }
+  }
+
+  const revokeExemption = async (name: string): Promise<void> => {
+    setError('')
+    try {
+      await api('/api/adapt/revoke', { method: 'POST', body: JSON.stringify({ name }) })
+      await loadExemptions()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  const removePlugin = async (name: string): Promise<void> => {
+    setError('')
+    try {
+      const res = await api<AdaptOutcome>('/api/adapt/remove', { method: 'POST', body: JSON.stringify({ name }) })
+      if (!res.ok) {
+        setError(`${res.code ?? 'error'}: ${res.message ?? ''}`)
+        return
+      }
+      await load(profile)
+      await loadExemptions()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
   const visibleRows = rows.filter((row) => filter === 'all' || severityOf(row, scan) === filter)
   const totalPages = Math.max(1, Math.ceil(visibleRows.length / PAGE_SIZE))
   const pageRows = visibleRows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
@@ -462,6 +584,84 @@ export function HealthSection(): ReactNode {
           <button className="dshops-btn" disabled={page + 1 >= totalPages} onClick={() => setPage((p) => p + 1)}>
             {t.next}
           </button>
+        </div>
+      </div>
+
+      <div className="dshops-card">
+        <h3>
+          {t.adapt} <span className="dshops-dim">{t.adaptHint}</span>
+        </h3>
+        <div className="dshops-chatbar" style={{ marginTop: 0 }}>
+          <input
+            className="dshops-input"
+            value={adaptSpec}
+            placeholder={t.adaptPlaceholder}
+            onChange={(e) => setAdaptSpec(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void runAdapt()
+            }}
+          />
+          <button
+            className="dshops-btn dshops-btn-primary"
+            disabled={adaptBusy || adaptSpec.trim() === ''}
+            onClick={() => void runAdapt()}
+          >
+            {adaptBusy ? t.adaptWorking : t.adaptCheck}
+          </button>
+        </div>
+        {adaptRefused !== null && (
+          <div className="dshops-item dshops-item-warn" style={{ marginTop: 8 }}>
+            <div>
+              <strong>{t.adaptRefused}</strong>
+              {adaptRefused.message !== undefined && <span className="dshops-dim"> — {adaptRefused.message}</span>}
+            </div>
+            <div className="dshops-dim" style={{ fontSize: 11, marginTop: 4 }}>{t.adaptPeers}:</div>
+            {adaptRefused.items.map((item) => (
+              <div key={`${item.name}@${item.version}`} style={{ marginTop: 4 }}>
+                <span className="dshops-mono">{item.name}@{item.version}</span>{' '}
+                <span className={`dshops-pill dshops-pill-${item.risk === 'narrow' ? 'warn' : 'fatal'}`}>
+                  {item.risk === 'narrow' ? t.adaptRiskNarrow : t.adaptRiskCross}
+                </span>
+                <div className="dshops-dim dshops-mono" style={{ fontSize: 11 }}>
+                  {Object.entries(item.peers).map(([peerName, range]) => `${peerName}: ${range}`).join(', ')}
+                </div>
+              </div>
+            ))}
+            <div className="dshops-dim" style={{ fontSize: 11, marginTop: 6 }}>{t.adaptWarning}</div>
+            <div style={{ marginTop: 6, display: 'flex', gap: 6 }}>
+              <button className="dshops-btn dshops-btn-primary" disabled={adaptBusy} onClick={() => void confirmAdapt()}>
+                {adaptBusy ? t.adaptWorking : t.adaptConfirm}
+              </button>
+              <button className="dshops-btn" disabled={adaptBusy} onClick={() => setAdaptRefused(null)}>
+                {t.adaptCancel}
+              </button>
+            </div>
+          </div>
+        )}
+        {adaptNotice !== '' && <div className="dshops-dim" style={{ marginTop: 6 }}>{adaptNotice}</div>}
+      </div>
+
+      <div className="dshops-card">
+        <h3>{t.exemptions}</h3>
+        <div className="dshops-list">
+          {Object.entries(exemptions).map(([key, runtimes]) => {
+            const name = packageNameOf(key)
+            return (
+              <div key={key} className="dshops-row">
+                <span className="dshops-mono">{key}</span>
+                <span className="dshops-dim dshops-mono">{runtimes.join(', ')}</span>
+                <span style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+                  <button className="dshops-btn" onClick={() => void revokeExemption(name)}>
+                    {t.revoke}
+                  </button>
+                  <button className="dshops-btn" onClick={() => void removePlugin(name)}>
+                    {t.uninstallCleanup}
+                  </button>
+                </span>
+              </div>
+            )
+          })}
+          {Object.keys(exemptions).length === 0 && <div className="dshops-dim">{t.exemptionsEmpty}</div>}
         </div>
       </div>
 

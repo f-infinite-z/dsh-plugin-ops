@@ -1,7 +1,7 @@
 import { createInterface } from 'node:readline/promises'
 import { dirname } from 'node:path'
 import {
-  fetchNpmPackage, readPackageManifest, diagnoseIncompatibility, renderAdaptDiagnosis,
+  fetchNpmPackage, readPackageManifest, readProfileManifest, diagnoseIncompatibility, renderAdaptDiagnosis,
   writeVersionExemption, removeVersionExemption, removeExemptionsForPackage, locateInstallAnchor,
   isDesktopProfile, detectDesktop, type DshPaths, type OpsConfig,
 } from 'dsh-plugin-ops-core'
@@ -77,6 +77,19 @@ async function runAdaptRemove(options: AdaptCommandOptions): Promise<number> {
   if (name === null || name === '') {
     process.stderr.write('adapt: cannot derive a package name from the spec\n')
     return 2
+  }
+  if (isDesktopProfile(options.profileName)) {
+    const manifest = readProfileManifest(options.paths.profileManifest)
+    const installed = manifest?.dependencies !== undefined && name in manifest.dependencies
+    if (installed) {
+      // Cleanup must follow the uninstall: dropping the exemption while the
+      // plugin stays installed would make the launcher skip it silently.
+      process.stdout.write(`adapt: desktop profile: ${name} is still installed — uninstall it from the desktop app's Plugins page first, then re-run:\n  dsh-ops adapt ${name} --profile ${options.profileName} --remove\n`)
+      return 0
+    }
+    const cleanup = removeExemptionsForPackage(options.paths.profileDir, name)
+    process.stdout.write(`adapt: desktop profile: ${name} is not installed; ${cleanup.ok ? cleanup.detail : 'exemption cleanup failed'}\n`)
+    return cleanup.ok ? 0 : 1
   }
   process.stdout.write(`adapt: uninstalling ${name} from profile ${options.profileName}...\n`)
   const remove = await runDsh(['plugin', '--profile', options.profileName, 'remove', name])
@@ -176,6 +189,13 @@ export async function runAdaptCommand(options: AdaptCommandOptions): Promise<num
     if (!write.ok) {
       process.stderr.write(`adapt: could not write the exemption: ${write.detail}\n`)
       return 1
+    }
+    if (isDesktopProfile(options.profileName)) {
+      // The official CLI refuses profile "desktop", so the install must run
+      // from the desktop app; the exemption we just wrote makes it pass.
+      process.stdout.write(`\nadapt: exemption granted (${write.detail})\n`)
+      process.stdout.write('desktop profile: the official CLI cannot install into it — open the desktop app\'s Plugins page and install now; the active exemption lets it pass.\n')
+      return 0
     }
     process.stdout.write(`\nadapt: exemption granted (${write.detail}); installing...\n`)
     const add = await runDsh(['plugin', '--profile', options.profileName, 'add', options.spec])
