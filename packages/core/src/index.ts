@@ -1,6 +1,8 @@
 export { resolveDshPaths, MEMORY_DIR_NAME, MEMORY_FILENAME, KNOWLEDGE_DIR_NAME, type DshPaths } from './paths.js'
 export { isDesktopProfile, detectDesktop, detectDesktopInstall, readDesktopVersion, desktopLogsDir, DESKTOP_PROFILE_NAME, type DesktopInfo } from './desktop.js'
 export { readLatestCrashReport, type CrashReport } from './crash-report.js'
+export { diagnoseIncompatibility, renderAdaptDiagnosis, type AdaptDiagnosis, type AdaptRisk } from './adapt.js'
+export { readGlobalDshVersion } from './dsh-version.js'
 export { readLatestStartupReport, type StartupReport, type StartupReportEntry } from './startup-log.js'
 export {
   scanSessions,
@@ -51,8 +53,13 @@ export { ruleStructure } from './structure.js'
 export {
   rulePluginCompatibility,
   readProfileVersionExemptions,
+  writeVersionExemption,
+  removeVersionExemption,
+  removeExemptionsForPackage,
+  incompatibleDshPeers,
   PROFILE_COMPATIBILITY_FILENAME,
   COMPATIBILITY_MIN_VERSION,
+  type ExemptionWriteResult,
 } from './compatibility.js'
 export { verifyPluginPackage, verifyOk, type VerifyReport, type VerifyFinding, type VerifyRuleId } from './verify.js'
 export { fetchNpmPackage, packLocalPackage, type FetchedPackage, type PackedPackage } from './npm-fetch.js'

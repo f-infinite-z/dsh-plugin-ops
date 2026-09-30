@@ -9,6 +9,7 @@ import { runCheckCommand } from './check-cmd.js'
 import { runVerifyCommand } from './verify-cmd.js'
 import { runSessionsCommand } from './sessions-cmd.js'
 import { runDevCommand } from './dev-cmd.js'
+import { runAdaptCommand } from './adapt-cmd.js'
 import { helpRequested } from './args.js'
 
 const USAGE = `dsh-ops — DeepSeek Harness plugin operations
@@ -21,6 +22,7 @@ usage:
                 [--boot-threshold-ms <n>] [--config <file>] [--] <dsh command...>
   dsh-ops serve [--home <dir>] [--port <n>] [--host <addr>] [--config <file>]
   dsh-ops verify [<dir>|<npm-package>] [--json] [--strict] [--runtime] [--runtime-timeout <s>]
+  dsh-ops adapt  <npm-package> [--profile <name>] [--home <dir>] [--yes] [--remove] [--runtime-timeout <s>] [--config <file>]
   dsh-ops sessions [--home <dir>] [--json] [--repair-paths] [--quarantine]
   dsh-ops dev   <plugin-dir> [--runtime] [--runtime-timeout <s>]
   dsh-ops selftest
@@ -50,6 +52,7 @@ const OPTIONS = {
   yes: { type: 'boolean', default: false },
   bypass: { type: 'boolean', default: false },
   'no-attribution': { type: 'boolean', default: false },
+  remove: { type: 'boolean', default: false },
   config: { type: 'string' },
   'skip-update-check': { type: 'boolean', default: false },
   updates: { type: 'boolean', default: false },
@@ -63,7 +66,7 @@ const OPTIONS = {
   'boot-threshold-ms': { type: 'string' },
 } as const
 
-type Flags = { profile: string; home?: string; json?: boolean; 'dry-run'?: boolean; yes?: boolean; bypass?: boolean; 'no-attribution'?: boolean; config?: string; 'skip-update-check'?: boolean; updates?: boolean; strict?: boolean; runtime?: boolean; 'runtime-timeout'?: string; 'repair-paths'?: boolean; quarantine?: boolean; port?: string; host?: string; 'boot-threshold-ms'?: string }
+type Flags = { profile: string; home?: string; json?: boolean; 'dry-run'?: boolean; yes?: boolean; bypass?: boolean; 'no-attribution'?: boolean; remove?: boolean; config?: string; 'skip-update-check'?: boolean; updates?: boolean; strict?: boolean; runtime?: boolean; 'runtime-timeout'?: string; 'repair-paths'?: boolean; quarantine?: boolean; port?: string; host?: string; 'boot-threshold-ms'?: string }
 
 function parse(rawArgs: string[]): { values: Flags; positionals: string[] } {
   const { values, positionals } = parseArgs({
@@ -155,6 +158,31 @@ async function main(): Promise<number> {
         strict: values.strict ?? false,
         runtime: values.runtime ?? false,
         runtimeTimeoutSec,
+      })
+    }
+    case 'adapt': {
+      const { values, positionals } = parse(rest)
+      const spec = positionals[0]
+      if (spec === undefined || spec === '') {
+        process.stderr.write('adapt: missing package spec\n')
+        return 2
+      }
+      if (!/^[\w.-]+$/.test(values.profile)) {
+        process.stderr.write(`invalid --profile ${JSON.stringify(values.profile)}\n`)
+        return 2
+      }
+      const paths = resolveDshPaths(values.profile, values.home)
+      const config = loadConfig(values.config, paths.configFile)
+      if (config === null) return 2
+      const runtimeTimeoutSec = values['runtime-timeout'] === undefined ? 45 : Number(values['runtime-timeout'])
+      if (!Number.isFinite(runtimeTimeoutSec) || runtimeTimeoutSec <= 0) {
+        process.stderr.write('invalid --runtime-timeout\n')
+        return 2
+      }
+      return await runAdaptCommand({
+        paths, profileName: values.profile, config, spec,
+        timeoutSec: runtimeTimeoutSec, yes: values.yes ?? false,
+        remove: values.remove ?? false,
       })
     }
     case 'sessions': {

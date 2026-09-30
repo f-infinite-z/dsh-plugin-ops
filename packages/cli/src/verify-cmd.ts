@@ -125,6 +125,14 @@ export interface RuntimeInstallSource {
   value: string
 }
 
+/** Context handed to a runtime-verify prepare hook, before the install. */
+export interface RuntimeVerifyPrepareContext {
+  home: string
+  paths: ReturnType<typeof resolveDshPaths>
+  /** Run one dsh command with the isolated home environment. */
+  dsh: (args: readonly string[]) => Promise<CommandResult>
+}
+
 /**
  * Boot the package inside an isolated DSH home: install through the official
  * `dsh plugin` command, activate plain plugins with a loader row, launch a
@@ -134,7 +142,13 @@ export interface RuntimeInstallSource {
  * the tarball install matches what a registry user gets. A failed boot reads
  * the official startup diagnostics from the isolated home.
  */
-export async function runRuntimeVerify(pluginDir: string, installSource: RuntimeInstallSource, timeoutSec: number): Promise<RuntimeVerifyResult> {  const plan = readRuntimeVerifyPlan(pluginDir)
+export async function runRuntimeVerify(
+  pluginDir: string,
+  installSource: RuntimeInstallSource,
+  timeoutSec: number,
+  prepare?: (context: RuntimeVerifyPrepareContext) => Promise<void> | void,
+): Promise<RuntimeVerifyResult> {
+  const plan = readRuntimeVerifyPlan(pluginDir)
   if (plan === null) {
     return { ok: false, detail: 'package manifest is unreadable or unnamed', exitCode: null, elapsedMs: 0, startupReport: null, outputTail: '', failedEntries: [] }
   }
@@ -162,6 +176,9 @@ export async function runRuntimeVerify(pluginDir: string, installSource: Runtime
       }
       installTarget = packed.tarball
       packCleanup = packed.cleanup
+    }
+    if (prepare !== undefined) {
+      await prepare({ home, paths, dsh: (args) => runDshWithEnv(args, env, 300_000) })
     }
     const install = await runDshWithEnv(['plugin', '--profile', 'web', 'add', installTarget], env, 300_000)
     if (install.code !== 0) {

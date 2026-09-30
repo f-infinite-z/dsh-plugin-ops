@@ -8,6 +8,7 @@ import { rulePluginCompatibility } from './compatibility.js'
 import { readPackageManifest } from './package-tree.js'
 import { buildResolutionGeneration, dshVersionOf, locateInstallAnchor } from './generation.js'
 import { detectDesktop, isDesktopProfile } from './desktop.js'
+import { readGlobalDshVersion } from './dsh-version.js'
 import { checkOutdated } from './outdated.js'
 import { applyConfig, type OpsConfig } from './config.js'
 import type { ScanReport, PackageSnapshot, Finding } from './types.js'
@@ -37,7 +38,7 @@ export async function scanProfile(input: ScanInput): Promise<ScanReport> {
   const installAnchor = locateInstallAnchor(input.paths, input.config?.installAnchor ?? null)
   const { resolved } = resolveBundles(input.paths, manifest, installAnchor, desktop !== null)
   const generation = buildResolutionGeneration(installAnchor, resolved, input.paths.profileDir)
-  const dshVersion = desktop?.version ?? dshVersionOf(generation)
+  const dshVersion = desktop?.version ?? (await readGlobalDshVersion()) ?? dshVersionOf(generation)
   const locked = await readLockedDirectDeps(input.paths.profileDir)
 
   const ctx: RuleContext = {

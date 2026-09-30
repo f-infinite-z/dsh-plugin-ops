@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import semver from 'semver'
+import { backupFile, writeTextAtomic } from './fsutil.js'
 import type { Finding } from './types.js'
 import type { RuleContext } from './rules.js'
 import type { ResolvedBundle } from './profile.js'
@@ -50,7 +51,7 @@ export function readProfileVersionExemptions(profileDir: string): Record<string,
  * other range must satisfy the runtime with prereleases included.
  * @returns the incompatible peers, or null when none are incompatible.
  */
-function incompatibleDshPeers(manifest: PackageManifest, runtimeVersion: string): Record<string, string> | null {
+export function incompatibleDshPeers(manifest: PackageManifest, runtimeVersion: string): Record<string, string> | null {
   const deps = manifest.peerDependencies
   if (deps === undefined) return null
   const peers: Record<string, string> = {}
@@ -97,4 +98,77 @@ export function rulePluginCompatibility(ctx: RuleContext, resolved: ResolvedBund
     })
   }
   return findings
+}
+
+/** Result of one exemption-file write. */
+export interface ExemptionWriteResult {
+  ok: boolean
+  detail: string
+  backup: string | null
+}
+
+/**
+ * Grant an exact-version exemption: authorize `<name>@<version>` to run on
+ * `dshVersion` despite its incompatible `@deepseek-ai/dsh*` peers. Mirrors the
+ * official `setVersionExemption` by writing the profile's `compatibility.json`
+ * (`{ "<name>@<version>": ["<dsh-version>"] }`), preserving existing entries.
+ * The write is backed up and atomic; the exemption is the launcher's own
+ * escape hatch, so it never reaches outside the whitelisted profile file.
+ */
+export function writeVersionExemption(
+  profileDir: string,
+  name: string,
+  version: string,
+  dshVersion: string,
+): ExemptionWriteResult {
+  const file = join(profileDir, PROFILE_COMPATIBILITY_FILENAME)
+  const existing = readProfileVersionExemptions(profileDir)
+  const key = `${name}@${version}`
+  const list = [...(existing[key] ?? [])]
+  if (!list.includes(dshVersion)) list.push(dshVersion)
+  const backup = backupFile(file)
+  writeTextAtomic(file, `${JSON.stringify({ ...existing, [key]: list }, null, 2)}\n`)
+  return { ok: true, detail: `granted ${key} -> ${dshVersion}`, backup }
+}
+
+/**
+ * Revoke one exact-version exemption, removing the runtime from
+ * `<name>@<version>`'s list and dropping the key when it becomes empty.
+ * Idempotent; a missing file or key is a successful no-op.
+ */
+export function removeVersionExemption(
+  profileDir: string,
+  name: string,
+  version: string,
+  dshVersion: string,
+): ExemptionWriteResult {
+  const file = join(profileDir, PROFILE_COMPATIBILITY_FILENAME)
+  const existing = readProfileVersionExemptions(profileDir)
+  const key = `${name}@${version}`
+  if (existing[key] === undefined) return { ok: true, detail: `no exemption for ${key}`, backup: null }
+  const list = existing[key]!.filter((v) => v !== dshVersion)
+  const next = { ...existing }
+  if (list.length === 0) delete next[key]
+  else next[key] = list
+  const backup = backupFile(file)
+  writeTextAtomic(file, `${JSON.stringify(next, null, 2)}\n`)
+  return { ok: true, detail: `revoked ${key} -> ${dshVersion}`, backup }
+}
+
+/**
+ * Remove every exact-version exemption for one package name (any version).
+ * Used by the uninstall path so a plugin removed after an adapted install
+ * does not leave a stale exemption behind. Idempotent; a missing file or an
+ * absent name is a successful no-op.
+ */
+export function removeExemptionsForPackage(profileDir: string, name: string): ExemptionWriteResult {
+  const file = join(profileDir, PROFILE_COMPATIBILITY_FILENAME)
+  const existing = readProfileVersionExemptions(profileDir)
+  const keys = Object.keys(existing).filter((key) => key === name || key.startsWith(`${name}@`))
+  if (keys.length === 0) return { ok: true, detail: `no exemptions for ${name}`, backup: null }
+  const next = { ...existing }
+  for (const key of keys) delete next[key]
+  const backup = backupFile(file)
+  writeTextAtomic(file, `${JSON.stringify(next, null, 2)}\n`)
+  return { ok: true, detail: `removed ${keys.length} exemption(s) for ${name}`, backup }
 }

@@ -2,6 +2,31 @@
 
 All notable changes are tracked here.
 
+## 0.13.0 — 2026-09-30
+
+### Installation adaptation (`dsh-ops adapt`) + authoritative dsh version
+
+- **`dsh-ops adapt <pkg>`**: when the official gate rejects a plugin over
+  incompatible `@deepseek-ai/dsh*` peer ranges, the new command diagnoses the
+  offending peers, classifies the risk (narrow bound versus a cross-major /
+  0.x-minor jump), grants the official exact-version exemption in an isolated
+  boot first (canary), and only writes the real profile and installs once that
+  boot survives. A failed canary or install rolls the exemption back, so the
+  profile is left unchanged.
+- **`dsh-ops adapt <pkg> --remove`**: uninstall an adapted package and drop its
+  exact-version exemptions in one step, so a removal never leaves a stale
+  compatibility grant behind.
+- **Exemption writes**: `writeVersionExemption`, `removeVersionExemption`, and
+  `removeExemptionsForPackage` mirror the official `compatibility.json`
+  contract with a backup and an atomic write; the exemption remains the
+  launcher's own escape hatch, confined to the whitelisted profile file.
+- **Authoritative dsh version**: `scan`/`check` now read the running dsh
+  version from the global CLI (`dsh --version`), with the shared-closure mirror
+  as fallback. Under runtime resolution (0.1.6+) that mirror goes stale (it no
+  longer heals), which previously made rule 8 (plugin compatibility) skip
+  silently against an outdated mirror version.
+- 194 tests (core 156 + bundle 14 + cli 24).
+
 ## 0.12.1 — 2026-09-30
 
 ### Embedded panel: readable select options on dark themes

@@ -7,7 +7,7 @@
 
 > DeepSeek Harness 插件运维（Plugin Operations）：一条命令全量体检、启动前预检拦截、失败归因与恢复、依赖树治理——插件生态的"医生"，长期收敛为插件管理增强一体化。
 
-**状态：v0.12.0 — 官方桌面端适配（desktop profile 识别、官方包信任、desktop 预检 + crash report 归因）。拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
+**状态：v0.13.0 — 安装适配（`dsh-ops adapt`）：对官方门禁拒绝的插件做诊断、在 canary 启动验证后写入 exact-version 豁免，并在卸载时一并清理。拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
 
 ## 命名
 
@@ -30,6 +30,7 @@ dsh-ops check                  # 一条命令扫全部 profile（无网络，秒
 dsh-ops scan --profile web     # 单 profile 深扫（--json 机器可读；--skip-update-check 免网络）
 dsh-ops fix --profile web      # 修复：lockfile 对齐（--dry-run 预览 / --yes 免确认）
 dsh-ops gate -- dsh web        # 启动门：预检通过才放行 dsh；失败自动归因
+dsh-ops adapt <pkg>            # 安装适配：官方门禁拒绝的插件（canary 验证 + 豁免）
 dsh-ops serve                  # 本地 Web 面板 http://127.0.0.1:8912（中英可切）
 dsh-ops selftest               # 自检：内置故障样本跑全规则
 ```
@@ -64,6 +65,7 @@ dsh-ops selftest               # 自检：内置故障样本跑全规则
 | `serve` | 本地 Web 面板：健康卡/结果列表/修复执行/**插件行管理**（健康徽标、致命/警告/正常筛选、每页 10 行分页、官方行保护、启停开关）/故障时间线/**诊断对话（带增强检索 RAG 开关）**——排障经验沉淀为 Markdown，开启后自动检索命中条目注入对话（BM25 + 可选向量重排），zh/en 切换 |
 | `selftest` | 引擎自检（6 内置故障样本），验证安装健康 |
 | `verify` | 面向插件作者的发布前校验：支持本地目录或 **npm 包名**（`dsh-ops verify <name\|@scope/name\|name@version>`，从 registry 下载发布物校验）；检查 bundle patch 声明与解析、patch 行可解析性、依赖协议（`file:`/`workspace:`）、peer 契约（peer 名必须是包名、range 必须是 semver）、ESM 入口与导出、client 导出契约与产物形状、files 完整性（`--json`、CI 用 `--strict`）；**`--runtime`** 追加隔离启动验证——在独立 DSH home 中经官方命令安装并启动，报告能否存活并指出失败的 loader entry |
+| `adapt` | 安装适配：对官方门禁因 `@deepseek-ai/dsh*` peer 范围拒绝的插件，诊断冲突的 peer、分级风险（窄范围 vs 跨 major / 0.x 跨 minor），**先在隔离 canary 启动中授予官方 exact-version 豁免**，只有该启动存活才写入真实 profile；canary 或安装失败即回滚豁免；`--remove` 一步完成卸载 + 清理豁免 |
 | `sessions` | 会话容器修复：扫描 `$DSH_HOME/sessions` 中两类会阻断启动的损坏（首帧无法解码的产物；目录名与 header id 不匹配的会话目录）；`--repair-paths` 把被改名的目录移回其 header id，`--quarantine` 把不可读会话目录移入 `$DSH_HOME/cache/dsh-ops/quarantine`（永不删除）；默认只读计划，深层事件级诊断仍由 `@argszero/cordis-plugin-session-audit` 覆盖 |
 | `dev` | 单插件目录的开发监视器：每次变更后（防抖）跑静态检查（带序号、标注包名@版本），`--runtime` 在每次通过后追加隔离 DSH home 启动冒烟、静态仍有 error 时明确提示跳过；停止时打印检查/失败/耗时汇总；全程不触碰正在运行的 dsh |
 | 内嵌 bundle（`dsh-plugin-ops-bundle`） | 装进 profile 后在 dsh Web 设置页出现"dsh-ops"健康页（扫描/行管理/时间线/带 RAG 知识库的诊断对话）；host 半边与 `serve` 复用同一引擎与路由白名单，诊断对话优先走官方 `ctx.llm`、无 llm 时降级直连 |
@@ -108,6 +110,7 @@ dsh-xray 给本项目的评级为 C3（衡量能力面而非意图）；上表�
 ## 后续方向
 
 - **官方桌面端适配（0.12.0）**：官方桌面端（0.2.0+）将 dsh 打包进自身 `app.asar`、无 CLI 启动点。`scan`/`fix`/`check` 已识别 desktop profile、读取其发布版本，并信任打包运行时自带的官方 bundle/行；`gate --profile desktop` 只预检不启动，并读取桌面端 crash report（`crash-*.log`）做归因。
+- **安装适配（0.13.0）**：`dsh-ops adapt` 补上官方门禁"变更时拒绝"之后的一环——诊断插件被拒原因、分级风险，在隔离 canary 启动通过后才授予官方 exact-version 豁免，失败即回滚；`--remove` 卸载时一并清理豁免。这是从"诊断"迈向"修复闭环"的第一步；真正对小兼容问题做源码级修改仍是后续方向。
 - **面向插件作者的一致性验证**：`dsh-ops verify` 已支持本地目录与 npm 包名两种输入，覆盖 bundle patch 声明与解析、patch 行可解析性、依赖协议、peer 契约、ESM 入口与导出、client 导出契约与产物形状、files 完整性九项检查；并已用 30 个真实生态插件（热门/普通两档）校准误报（28 个零 findings）。`verify --runtime` 在独立 DSH home 中经官方安装与启动命令做隔离启动验证，报告能否存活。
 - **一体化插件管理（v2）**：把生态"变更时防护"（canary 试运行、启停、更新检查、市场）按自有架构吸收进启动生命周期防护，以启动门为统一入口。
 
@@ -115,7 +118,7 @@ dsh-xray 给本项目的评级为 C3（衡量能力面而非意图）；上表�
 
 ```sh
 pnpm install && pnpm run build
-pnpm run typecheck && pnpm run test      # 169 单测（core 131 + bundle 14 + cli 24）
+pnpm run typecheck && pnpm run test      # 194 单测（core 156 + bundle 14 + cli 24）
 node packages/cli/lib/index.js selftest  # 引擎自检
 node scripts/e2e/scan-fix.e2e.mjs        # 离线 E2E（真实 pnpm 修复）
 node scripts/e2e/gate.e2e.mjs            # gate 场景（放行/阻断/旁路/归因/headless）
