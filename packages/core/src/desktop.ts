@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, type Dirent } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import semver from 'semver'
 import { readJsonFile } from './fsutil.js'
 
 /**
@@ -99,6 +100,35 @@ export function detectDesktop(): DesktopInfo {
   const installDir = detectDesktopInstall()
   if (installDir === null) return { installDir: null, version: null }
   return { installDir, version: readDesktopVersion(installDir) }
+}
+
+/**
+ * Desktop releases at or after this version ship a bundled CLI command (the
+ * "Manage dsh Command" menu) whose `dsh plugin --profile desktop` can manage
+ * the reserved desktop profile while the application is quit (verified against
+ * the 0.2.0-rc.2 sources; npm-installed dsh still refuses that profile).
+ */
+export const DESKTOP_CLI_MIN_VERSION = '0.2.0-rc.1'
+
+/**
+ * The bundled CLI launcher inside a desktop installation, when that release
+ * ships one. The launcher runs the private desktop CLI entry through the
+ * installed Electron executable in Node mode, so calling it by absolute path
+ * does not depend on the user's PATH registration.
+ */
+export function resolveDesktopCliLauncher(installDir: string): string | null {
+  const launcher = process.platform === 'darwin'
+    ? join(resourcesDir(installDir), 'runtime', 'cli', 'bin', 'dsh')
+    : join(resourcesDir(installDir), 'runtime', 'cli', 'bin', 'dsh.cmd')
+  return existsSync(launcher) ? launcher : null
+}
+
+/**
+ * Whether a desktop release's bundled CLI may manage the reserved desktop
+ * profile. Older releases (and npm-installed dsh) refuse profile "desktop".
+ */
+export function desktopCliSupportsPluginManagement(version: string | null): boolean {
+  return version !== null && semver.valid(version) !== null && semver.gte(version, DESKTOP_CLI_MIN_VERSION)
 }
 
 /**

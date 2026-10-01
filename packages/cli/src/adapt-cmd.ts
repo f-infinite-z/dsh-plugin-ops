@@ -3,10 +3,11 @@ import { dirname } from 'node:path'
 import {
   fetchNpmPackage, readPackageManifest, readProfileManifest, diagnoseIncompatibility, renderAdaptDiagnosis,
   writeVersionExemption, removeVersionExemption, removeExemptionsForPackage, locateInstallAnchor,
-  isDesktopProfile, detectDesktop, type DshPaths, type OpsConfig,
+  isDesktopProfile, detectDesktop, resolveDesktopCliLauncher, desktopCliSupportsPluginManagement,
+  type DshPaths, type OpsConfig,
 } from 'dsh-plugin-ops-core'
 import { runRuntimeVerify } from './verify-cmd.js'
-import { spawnDsh } from './spawn-dsh.js'
+import { spawnCli } from './spawn-dsh.js'
 
 export interface AdaptCommandOptions {
   paths: DshPaths
@@ -54,16 +55,33 @@ async function resolveProfileDshVersion(paths: DshPaths, profileName: string, co
   return typeof manifest?.version === 'string' ? manifest.version : null
 }
 
-/** Run one dsh command with the ambient environment. */
-function runDsh(args: string[]): Promise<{ code: number | null; output: string }> {
+/**
+ * The bundled desktop CLI (0.2.0-rc.1+), when the installed desktop release
+ * ships one. Its `dsh plugin --profile desktop` may manage the reserved
+ * profile while the app is quit; calling it by absolute path does not depend
+ * on the user's PATH registration.
+ */
+function resolveDesktopCli(): string | null {
+  const info = detectDesktop()
+  if (info.installDir === null || !desktopCliSupportsPluginManagement(info.version)) return null
+  return resolveDesktopCliLauncher(info.installDir)
+}
+
+/** Run one command with piped output. */
+function runCommand(bin: string, args: string[]): Promise<{ code: number | null; output: string }> {
   return new Promise((resolve) => {
-    const child = spawnDsh(args, { stdio: ['ignore', 'pipe', 'pipe'] })
+    const child = spawnCli(bin, args, { stdio: ['ignore', 'pipe', 'pipe'] })
     let output = ''
     child.stdout?.on('data', (chunk: Buffer) => { output += chunk.toString() })
     child.stderr?.on('data', (chunk: Buffer) => { output += chunk.toString() })
     child.on('error', (error) => resolve({ code: 127, output: String(error) }))
     child.on('close', (code) => resolve({ code, output }))
   })
+}
+
+/** Run one dsh command with the ambient environment. */
+function runDsh(args: string[]): Promise<{ code: number | null; output: string }> {
+  return runCommand('dsh', args)
 }
 
 /**
@@ -79,8 +97,20 @@ async function runAdaptRemove(options: AdaptCommandOptions): Promise<number> {
     return 2
   }
   if (isDesktopProfile(options.profileName)) {
+    const desktopCli = resolveDesktopCli()
     const manifest = readProfileManifest(options.paths.profileManifest)
     const installed = manifest?.dependencies !== undefined && name in manifest.dependencies
+    if (installed && desktopCli !== null) {
+      process.stdout.write(`adapt: desktop CLI found; uninstalling ${name} (the desktop app must be fully quit)...\n`)
+      const remove = await runCommand(desktopCli, ['plugin', '--profile', options.profileName, 'remove', name])
+      if (remove.code !== 0) {
+        process.stderr.write(`adapt: desktop CLI uninstall failed (exit ${remove.code ?? 'timeout'}); if the desktop app is running, quit it completely and retry\n  ${remove.output.slice(-1500)}\n`)
+        return 1
+      }
+      const cleanup = removeExemptionsForPackage(options.paths.profileDir, name)
+      process.stdout.write(`adapt: uninstalled ${name}${cleanup.ok ? `; ${cleanup.detail}` : ''}\n`)
+      return 0
+    }
     if (installed) {
       // Cleanup must follow the uninstall: dropping the exemption while the
       // plugin stays installed would make the launcher skip it silently.
@@ -128,6 +158,7 @@ export async function runAdaptCommand(options: AdaptCommandOptions): Promise<num
       return 2
     }
     const dshVersion = await resolveProfileDshVersion(options.paths, options.profileName, options.config)
+    const desktopCli = isDesktopProfile(options.profileName) ? resolveDesktopCli() : null
     const diagnosis = diagnoseIncompatibility(manifest, dshVersion)
     if (diagnosis === null) {
       process.stderr.write('adapt: could not diagnose the package\n')
@@ -168,15 +199,16 @@ export async function runAdaptCommand(options: AdaptCommandOptions): Promise<num
       { kind: 'spec', value: options.spec },
       options.timeoutSec,
       async ({ paths: isoPaths, dsh }) => {
-        // Init the isolated profile first; its dsh runtime is the global CLI's
-        // own runtime, so the exemption names that version. The shared closure
-        // mirror is absent (or stale) under runtime resolution, so read the
-        // resolved version rather than probing the isolated mirror.
+        // Init the isolated profile first so the canary runs the same dsh
+        // release the real install will use; the exemption then names that
+        // exact runtime (the shared closure mirror is absent under runtime
+        // resolution, so the resolved version is authoritative).
         await dsh(['plugin', '--profile', 'web', 'install'])
         if (dshVersion !== null) {
           writeVersionExemption(isoPaths.profileDir, packageName, packageVersion, dshVersion)
         }
       },
+      desktopCli ?? 'dsh',
     )
     if (!canary.ok) {
       process.stderr.write(`\nadapt: FAILED — the package did not survive an isolated boot even with the exemption:\n  ${canary.detail}\n`)
@@ -191,10 +223,21 @@ export async function runAdaptCommand(options: AdaptCommandOptions): Promise<num
       return 1
     }
     if (isDesktopProfile(options.profileName)) {
-      // The official CLI refuses profile "desktop", so the install must run
-      // from the desktop app; the exemption we just wrote makes it pass.
-      process.stdout.write(`\nadapt: exemption granted (${write.detail})\n`)
-      process.stdout.write('desktop profile: the official CLI cannot install into it — open the desktop app\'s Plugins page and install now; the active exemption lets it pass.\n')
+      if (desktopCli === null) {
+        // This desktop release predates the bundled CLI (or ships none); the
+        // install must run from the app. The exemption we just wrote makes it pass.
+        process.stdout.write(`\nadapt: exemption granted (${write.detail})\n`)
+        process.stdout.write('desktop profile: this desktop release has no bundled CLI — open the desktop app\'s Plugins page and install now; the active exemption lets it pass.\n')
+        return 0
+      }
+      process.stdout.write(`\nadapt: exemption granted (${write.detail}); installing with the desktop CLI (the desktop app must be fully quit)...\n`)
+      const desktopAdd = await runCommand(desktopCli, ['plugin', '--profile', options.profileName, 'add', options.spec])
+      if (desktopAdd.code !== 0) {
+        const rollback = removeVersionExemption(options.paths.profileDir, packageName, packageVersion, dshVersion ?? '')
+        process.stderr.write(`\nadapt: desktop CLI install failed (exit ${desktopAdd.code ?? 'timeout'})${rollback.ok ? `; exemption revoked (${rollback.detail})` : ''}; if the desktop app is running, quit it completely and retry\n  ${desktopAdd.output.slice(-1500)}\n`)
+        return 1
+      }
+      process.stdout.write(`\nadapt: installed ${options.spec} with an exact-version exemption; start the desktop app to activate\n`)
       return 0
     }
     process.stdout.write(`\nadapt: exemption granted (${write.detail}); installing...\n`)

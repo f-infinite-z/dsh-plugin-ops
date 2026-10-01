@@ -2,7 +2,7 @@ import { describe, expect, it, afterEach, vi } from 'vitest'
 import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { isDesktopProfile, readDesktopVersion, detectDesktopInstall, detectDesktop } from '../src/index.js'
+import { isDesktopProfile, readDesktopVersion, detectDesktopInstall, detectDesktop, resolveDesktopCliLauncher, desktopCliSupportsPluginManagement } from '../src/index.js'
 import { writeJson } from './helpers.js'
 
 afterEach(() => { vi.unstubAllEnvs() })
@@ -74,5 +74,31 @@ describe('desktop profile detection', () => {
     } finally {
       rmSync(empty, { recursive: true, force: true })
     }
+  })
+})
+
+describe('desktop bundled CLI', () => {
+  it('resolves the launcher only when the installation ships one', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'dsh-desktop-'))
+    try {
+      const dir = join(tmp, 'DeepSeek Harness')
+      expect(resolveDesktopCliLauncher(dir)).toBe(null)
+      const binDir = join(desktopResources(dir), 'runtime', 'cli', 'bin')
+      mkdirSync(binDir, { recursive: true })
+      const name = process.platform === 'win32' ? 'dsh.cmd' : 'dsh'
+      writeFileSync(join(binDir, name), 'launcher', 'utf8')
+      expect(resolveDesktopCliLauncher(dir)).toBe(join(binDir, name))
+    } finally {
+      rmSync(tmp, { recursive: true, force: true })
+    }
+  })
+
+  it('gates plugin management on the desktop release version', () => {
+    expect(desktopCliSupportsPluginManagement('0.2.0-rc.1')).toBe(true)
+    expect(desktopCliSupportsPluginManagement('0.2.0-rc.2')).toBe(true)
+    expect(desktopCliSupportsPluginManagement('0.2.0')).toBe(true)
+    expect(desktopCliSupportsPluginManagement('0.1.7-rc.2')).toBe(false)
+    expect(desktopCliSupportsPluginManagement(null)).toBe(false)
+    expect(desktopCliSupportsPluginManagement('not-a-version')).toBe(false)
   })
 })

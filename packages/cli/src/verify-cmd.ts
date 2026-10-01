@@ -15,7 +15,7 @@ import {
   type StartupReport,
   type VerifyReport,
 } from 'dsh-plugin-ops-core'
-import { spawnDsh } from './spawn-dsh.js'
+import { spawnCli } from './spawn-dsh.js'
 
 export interface VerifyCommandOptions {
   dir: string
@@ -97,9 +97,9 @@ function killTree(pid: number | undefined): void {
   }
 }
 
-function runDshWithEnv(args: readonly string[], env: NodeJS.ProcessEnv, timeoutMs: number): Promise<CommandResult> {
+function runDshWithEnv(args: readonly string[], env: NodeJS.ProcessEnv, timeoutMs: number, command = 'dsh'): Promise<CommandResult> {
   return new Promise((resolvePromise) => {
-    const child = spawnDsh(args, { stdio: ['ignore', 'pipe', 'pipe'], env })
+    const child = spawnCli(command, args, { stdio: ['ignore', 'pipe', 'pipe'], env })
     const timer = setTimeout(() => killTree(child.pid), timeoutMs)
     let output = ''
     child.stdout?.on('data', (chunk: Buffer) => { output += chunk.toString() })
@@ -147,6 +147,7 @@ export async function runRuntimeVerify(
   installSource: RuntimeInstallSource,
   timeoutSec: number,
   prepare?: (context: RuntimeVerifyPrepareContext) => Promise<void> | void,
+  dshCommand = 'dsh',
 ): Promise<RuntimeVerifyResult> {
   const plan = readRuntimeVerifyPlan(pluginDir)
   if (plan === null) {
@@ -178,9 +179,9 @@ export async function runRuntimeVerify(
       packCleanup = packed.cleanup
     }
     if (prepare !== undefined) {
-      await prepare({ home, paths, dsh: (args) => runDshWithEnv(args, env, 300_000) })
+      await prepare({ home, paths, dsh: (args) => runDshWithEnv(args, env, 300_000, dshCommand) })
     }
-    const install = await runDshWithEnv(['plugin', '--profile', 'web', 'add', installTarget], env, 300_000)
+    const install = await runDshWithEnv(['plugin', '--profile', 'web', 'add', installTarget], env, 300_000, dshCommand)
     if (install.code !== 0) {
       return {
         ok: false,
@@ -210,7 +211,7 @@ export async function runRuntimeVerify(
     const port = 39000 + Math.floor(Math.random() * 1000)
     const start = Date.now()
     const thresholdMs = timeoutSec * 1000
-    child = spawnDsh(['--profile', 'web', '--port', String(port), '--no-open'], { stdio: ['ignore', 'pipe', 'pipe'], env })
+    child = spawnCli(dshCommand, ['--profile', 'web', '--port', String(port), '--no-open'], { stdio: ['ignore', 'pipe', 'pipe'], env })
     let output = ''
     child.stdout?.on('data', (chunk: Buffer) => { output += chunk.toString() })
     child.stderr?.on('data', (chunk: Buffer) => { output += chunk.toString() })
