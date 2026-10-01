@@ -46,7 +46,7 @@ export { pnpmBin, runCommand, runPnpm, alignToLockfile, disableRow, type RunResu
 export { checkOutdated, type OutdatedState, type OutdatedEntry } from './outdated.js'
 export { readOpsConfig, applyConfig, DEFAULT_CONFIG_FILENAME, type OpsConfig, type RuleOverride } from './config.js'
 export { CORE_PACKAGES } from './peers.js'
-export { ruleBundleDeclaration, ruleDependencyDrift, ruleSessionMemory, ruleRegistryVersion, type RuleContext } from './rules.js'
+export { ruleBundleDeclaration, ruleDependencyDrift, ruleSessionMemory, ruleRegistryVersion, ruleReleaseAgeExclude, type RuleContext } from './rules.js'
 export { rulePeerGap, rulePeerDrift } from './peers.js'
 export { rulePatchResolution } from './patchres.js'
 export { ruleStructure } from './structure.js'

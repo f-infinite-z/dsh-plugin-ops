@@ -1,4 +1,6 @@
 import semver from 'semver'
+import { join } from 'node:path'
+import { parseDocument } from 'yaml'
 import type { Finding, PackageSnapshot } from './types.js'
 import type { DshPaths } from './paths.js'
 import {
@@ -12,6 +14,7 @@ import { resolvePackageDir, toleratesOptionalBundles, type ResolutionGeneration 
 import type { LockedDirectDeps } from './lockfile.js'
 import { lastSuccessSnapshot, diffSnapshots } from './memory.js'
 import type { OutdatedState } from './outdated.js'
+import { readTextFile } from './fsutil.js'
 
 export interface RuleContext {
   profileName: string
@@ -280,4 +283,75 @@ export function ruleSessionMemory(ctx: RuleContext, snapshot: PackageSnapshot): 
     detail: 'if this boot fails, this package is the prime suspect',
     fix: { kind: 'none' },
   }))
+}
+
+/** Profile-level pnpm configuration written by pnpm 11's release-age policy. */
+const PROFILE_WORKSPACE_FILENAME = 'pnpm-workspace.yaml'
+
+/**
+ * Bare package name from a `minimumReleaseAgeExclude` entry, or null when the
+ * entry is a bare name (or an unrecognized shape). Mirrors the spec parsing in
+ * the CLI (`packageNameFromSpec`): the last `@` separates a pinned version.
+ */
+function excludedName(entry: string): string | null {
+  const at = entry.lastIndexOf('@')
+  if (at <= 0) return null
+  const suffix = entry.slice(at + 1)
+  return suffix.includes('/') ? null : entry.slice(0, at)
+}
+
+/**
+ * Rule 9: pnpm 11 minimum-release-age exclusion hygiene. Installing a package
+ * published less than `minimumReleaseAge` ago makes pnpm append a
+ * `name@version` entry to `minimumReleaseAgeExclude`; once a package has two
+ * versioned entries, pnpm's lockfile exemption breaks and every later install
+ * fails with ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION (reproduced against the
+ * packaged pnpm 11.7). The bare package name is the durable fix: it keeps the
+ * policy and survives future version bumps.
+ *
+ * Conservative edges, so the rule never guesses: the official dist resolves a
+ * name-level (bare) exclusion before per-version checks, so a mixed bare plus
+ * versioned form is presumably safe but unverified empirically - mixed form is
+ * skipped rather than reported; an explicit `minimumReleaseAge: 0` disables the
+ * policy entirely; unreadable or unrecognized YAML degrades silently.
+ */
+export function ruleReleaseAgeExclude(ctx: RuleContext): Finding[] {
+  const raw = readTextFile(join(ctx.paths.profileDir, PROFILE_WORKSPACE_FILENAME))
+  if (raw === null) return []
+  let config: Record<string, unknown>
+  try {
+    const doc = parseDocument(raw)
+    if (doc.errors.length > 0) return []
+    const value: unknown = doc.toJS()
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) return []
+    config = value as Record<string, unknown>
+  } catch {
+    return []
+  }
+  if (config.minimumReleaseAge === 0 || config.minimumReleaseAge === '0') return []
+  const entries = config.minimumReleaseAgeExclude
+  if (!Array.isArray(entries)) return []
+
+  const versioned = new Map<string, number>()
+  for (const entry of entries) {
+    if (typeof entry !== 'string') continue
+    const name = excludedName(entry)
+    if (name === null) continue // bare name exempts every version; safe
+    versioned.set(name, (versioned.get(name) ?? 0) + 1)
+  }
+
+  const findings: Finding[] = []
+  for (const [name, count] of versioned) {
+    if (count < 2) continue
+    findings.push({
+      ruleId: 'release-age-exclude',
+      severity: 'warn',
+      packageName: name,
+      message: `minimumReleaseAgeExclude has ${count} versioned entries for this package; pnpm's lockfile exemption breaks and every install fails with ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION`,
+      detail: `replace them with the bare package name ${JSON.stringify(name)} (recommended: keeps the release-age policy and survives future version bumps); `
+        + 'alternatives: set minimumReleaseAge: 0 in pnpm-workspace.yaml (disables the policy), or keep only the newest entry (temporary; the next fresh release recreates a second entry)',
+      fix: { kind: 'none' },
+    })
+  }
+  return findings
 }

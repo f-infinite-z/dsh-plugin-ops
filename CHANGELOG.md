@@ -2,6 +2,30 @@
 
 All notable changes are tracked here.
 
+## 0.15.0 — 2026-10-01
+
+### Desktop CLI for adaptation + pnpm release-age exclusion hygiene
+
+- **Desktop-profile adaptation now drives the app's own CLI**: when the
+  installed desktop release ships a launcher (0.2.0-rc.1+) and it is reachable,
+  `dsh-ops adapt` runs `dsh plugin --profile desktop add` (or `remove`)
+  directly — the app must be fully exited; a failed install rolls the exemption
+  back and says so — instead of only writing the exemption and pointing at the
+  Plugins page. The isolated canary boots through the same launcher, so the
+  probed runtime matches the install target. The launcher path and the version
+  gate are unit-tested; an end-to-end run on a machine with the desktop CLI
+  registered is still pending.
+- **New rule 9 (`release-age-exclude`)**: pnpm 11 appends a `name@version`
+  entry to `minimumReleaseAgeExclude` for each fresh release it installs; once
+  a package has two versioned entries there, pnpm's lockfile exemption breaks
+  and every later install in that profile fails with
+  `ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION` (reproduced against the packaged
+  pnpm 11.7). The rule reports the state at warn with three fixes, recommended
+  first: replace the entries with the bare package name, set
+  `minimumReleaseAge: 0`, or keep only the newest entry. Bare names, a single
+  versioned entry, and an explicitly disabled policy stay silent.
+- 214 tests (core 165 + bundle 25 + cli 24).
+
 ## 0.14.1 — 2026-09-30
 
 ### Panel adapt flow: in-card errors with package-manager output

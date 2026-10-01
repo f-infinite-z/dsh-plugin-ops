@@ -9,6 +9,7 @@ export type RuleId =
   | 'patch-resolution'
   | 'structure'
   | 'plugin-compatibility'
+  | 'release-age-exclude'
 
 export type Fix =
   | { kind: 'none' }

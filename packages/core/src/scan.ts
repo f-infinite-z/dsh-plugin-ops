@@ -1,6 +1,6 @@
 import { readProfileManifest, resolveBundles, registryDependencies, type ProfileManifest } from './profile.js'
 import { readLockedDirectDeps } from './lockfile.js'
-import { ruleBundleDeclaration, ruleDependencyDrift, ruleSessionMemory, ruleRegistryVersion, trackedPackageDir, type RuleContext, trackedPackageNames } from './rules.js'
+import { ruleBundleDeclaration, ruleDependencyDrift, ruleSessionMemory, ruleRegistryVersion, ruleReleaseAgeExclude, trackedPackageDir, type RuleContext, trackedPackageNames } from './rules.js'
 import { rulePeerGap, rulePeerDrift } from './peers.js'
 import { rulePatchResolution } from './patchres.js'
 import { ruleStructure } from './structure.js'
@@ -59,6 +59,7 @@ export async function scanProfile(input: ScanInput): Promise<ScanReport> {
     ...rulePeerDrift(ctx, resolved),
     ...rulePatchResolution(ctx, resolved),
     ...rulePluginCompatibility(ctx, resolved),
+    ...ruleReleaseAgeExclude(ctx),
     ...ruleStructure(resolved),
     ...ruleSessionMemory(ctx, snapshot),
   ]
