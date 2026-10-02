@@ -85,7 +85,9 @@ describe('desktop bundled CLI', () => {
       expect(resolveDesktopCliLauncher(dir)).toBe(null)
       const binDir = join(desktopResources(dir), 'runtime', 'cli', 'bin')
       mkdirSync(binDir, { recursive: true })
-      const name = process.platform === 'win32' ? 'dsh.cmd' : 'dsh'
+      // The launcher is macOS-shaped only on darwin; every other platform
+      // follows the Windows layout (the desktop app ships for win/mac only).
+      const name = process.platform === 'darwin' ? 'dsh' : 'dsh.cmd'
       writeFileSync(join(binDir, name), 'launcher', 'utf8')
       expect(resolveDesktopCliLauncher(dir)).toBe(join(binDir, name))
     } finally {
