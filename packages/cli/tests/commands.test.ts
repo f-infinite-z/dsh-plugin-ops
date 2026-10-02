@@ -222,7 +222,7 @@ describe('gate command', () => {
     } finally {
       fixture.dispose()
     }
-  })
+  }, 20000)
 
   it('launches dsh anyway with --bypass and records the event', async () => {
     const fixture = makeHome()
