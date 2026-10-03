@@ -2,6 +2,30 @@
 
 All notable changes are tracked here.
 
+## 0.15.1 — 2026-10-03
+
+### dsh 0.2.1-alpha.1 compatibility + housekeeping
+
+- **Retired-bundle awareness**: dsh 0.2.1-alpha.1 retires
+  `@deepseek-ai/dsh-experimental-schedule-bundle` and drops a leftover entry
+  from `dsh.profile.bundles` while loading a profile (its upgrade guide asks
+  other profile-writing tools to drop the entry themselves). Rule 1 now
+  recognizes a retired bundle under a launcher that removes it
+  (0.2.1-alpha.1+), reporting it at info with a self-heal note instead of
+  blocking a boot the launcher would fix on its own; unknown or older launcher
+  versions keep the previous judgment (verified against an isolated
+  0.2.1-alpha.1 install).
+- **Selftest machine-independence**: the built-in fault samples now pin the
+  dsh version they judge against (pre-0.1.7 semantics), so a machine with a
+  newer global dsh no longer flips the case outcomes; `runSelfTest` is covered
+  by a unit test and passes 6/6.
+- **Housekeeping**: removed dead code (five unused exports plus several unused
+  imports), dropped the unused `yaml` dependency from the CLI package, and
+  stopped re-exporting two internal-only core helpers. Compiled with
+  `noUnusedLocals`/`noUnusedParameters` clean on all three packages. No
+  behavior change beyond the rules above.
+- 219 tests (core 170 + bundle 25 + cli 24).
+
 ## 0.15.0 — 2026-10-01
 
 ### Desktop CLI for adaptation + pnpm release-age exclusion hygiene
