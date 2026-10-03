@@ -2,7 +2,7 @@ import { readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { parseDocument } from 'yaml'
 import type { ResolvedBundle } from './profile.js'
-import { readPatchFile, PROFILE_PATCH_FILENAME, type PatchRow } from './patch-layer.js'
+import { PROFILE_PATCH_FILENAME, type PatchRow } from './patch-layer.js'
 
 export interface RowRef {
   source: string

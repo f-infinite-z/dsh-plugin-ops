@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, realpathSync } from 'node:fs'
 import { join } from 'node:path'
 import { readJsonFile } from './fsutil.js'
-import { packageDirFromAnchor, packageDirFromAnchors, readPackageManifest, type PackageManifest } from './package-tree.js'
+import { packageDirFromAnchors, readPackageManifest, type PackageManifest } from './package-tree.js'
 import type { DshPaths } from './paths.js'
 
 export interface ProfileManifest {

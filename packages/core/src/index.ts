@@ -30,11 +30,11 @@ export {
   type ResolutionGeneration,
   type ResolvedPackage,
 } from './generation.js'
-export { readLockedDirectDeps, hasLockfile, type LockedDirectDeps } from './lockfile.js'
+export { readLockedDirectDeps, type LockedDirectDeps } from './lockfile.js'
 export { appendMemory, lastSuccessSnapshot, recentEvents, diffSnapshots, type MemoryEvent } from './memory.js'
-export { scanProfile, ScanError, declaredRegistryNames, type ScanInput } from './scan.js'
+export { scanProfile, ScanError, type ScanInput } from './scan.js'
 export { renderHuman, renderJson, reportOk, countSeverities } from './report.js'
-export { readPatchFile, appendDisabledRow, appendActivationRow, removeDisabledRow, patchFileExists, PROFILE_PATCH_FILENAME, type PatchRow, type PatchFileState, type PatchWriteResult } from './patch-layer.js'
+export { readPatchFile, appendDisabledRow, appendActivationRow, removeDisabledRow, PROFILE_PATCH_FILENAME, type PatchRow, type PatchFileState, type PatchWriteResult } from './patch-layer.js'
 export {
   readRuntimeVerifyPlan,
   runtimeRowId,
@@ -43,7 +43,7 @@ export {
   type RuntimeBootOutcome,
 } from './runtime-verify.js'
 export { allVisibleRows, rowIdsForPackage, type RowRef } from './rows.js'
-export { pnpmBin, runCommand, runPnpm, alignToLockfile, disableRow, type RunResult, type AlignResult, type DisableResult } from './fix.js'
+export { runCommand, runPnpm, alignToLockfile, disableRow, type RunResult, type AlignResult, type DisableResult } from './fix.js'
 export { checkOutdated, type OutdatedState, type OutdatedEntry } from './outdated.js'
 export { readOpsConfig, applyConfig, DEFAULT_CONFIG_FILENAME, type OpsConfig, type RuleOverride } from './config.js'
 export { CORE_PACKAGES } from './peers.js'
@@ -65,7 +65,7 @@ export {
 export { verifyPluginPackage, verifyOk, type VerifyReport, type VerifyFinding, type VerifyRuleId } from './verify.js'
 export { fetchNpmPackage, packLocalPackage, type FetchedPackage, type PackedPackage } from './npm-fetch.js'
 export { runSelfTest, type SelfTestResult } from './selftest.js'
-export { handlePanelApi, PanelApiError, isScanError, type PanelApiOptions, type RowView } from './panel-api.js'
+export { handlePanelApi, PanelApiError, type PanelApiOptions, type RowView } from './panel-api.js'
 export { resolveModelConfig, lookupSecret, OpenAiCompatibleChannel, buildSystemPrompt, buildChatContext, type ChatMessage, type ChatContext, type ChatReply, type ModelChannel, type ResolvedModelConfig } from './chat.js'
 export {
   listKnowledge,

@@ -107,7 +107,7 @@ export function createHostHandler(options: HostHandlerOptions): (req: IncomingMe
       const apiPath = url.pathname.slice(ROUTE_PREFIX.length)
       const body = req.method === 'POST' ? await collectBody(req) : undefined
       if (req.method === 'POST' && apiPath === '/api/chat') {
-        await handleChat(res, options, paths, url, body)
+        await handleChat(res, options, paths, body)
         return
       }
       if (req.method === 'POST' && apiPath === '/api/knowledge/deposit') {
@@ -217,7 +217,6 @@ async function handleChat(
   res: ServerResponse,
   options: HostHandlerOptions,
   paths: ReturnType<typeof resolveDshPaths>,
-  url: URL,
   body: string | undefined,
 ): Promise<void> {
   const parsed = JSON.parse(body ?? '{}') as { profile?: unknown; lang?: unknown; messages?: unknown; rag?: unknown }

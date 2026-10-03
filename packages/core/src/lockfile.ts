@@ -1,6 +1,5 @@
 import { readWantedLockfile } from '@pnpm/lockfile-file'
 import { readTextFile } from './fsutil.js'
-import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
 export interface LockedDirectDeps {
@@ -65,8 +64,4 @@ export async function readLockedDirectDeps(profileDir: string): Promise<LockedDi
   } catch {
     return { versions: {}, lockfileVersion: null, missing: false, incompatible: true }
   }
-}
-
-export function hasLockfile(profileDir: string): boolean {
-  return existsSync(join(profileDir, 'pnpm-lock.yaml'))
 }

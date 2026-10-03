@@ -10,10 +10,6 @@ export interface SpawnResult {
   signal: string | null
 }
 
-export function pnpmBin(): string {
-  return process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
-}
-
 export interface RunResult extends SpawnResult {
   output: string
 }

@@ -1,4 +1,3 @@
-import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { parseDocument, type YAMLSeq } from 'yaml'
 import { readTextFile, writeTextAtomic, backupFile } from './fsutil.js'
@@ -170,8 +169,4 @@ export function removeDisabledRow(profileDir: string, rowId: string): PatchWrite
   seq.items.splice(target, 1)
   writeTextAtomic(file, doc.toString())
   return { ok: true, backup }
-}
-
-export function patchFileExists(profileDir: string): boolean {
-  return existsSync(join(profileDir, PROFILE_PATCH_FILENAME))
 }

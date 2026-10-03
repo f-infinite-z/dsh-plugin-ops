@@ -2,7 +2,7 @@ import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { resolveDshPaths } from './paths.js'
 import { readProfileManifest, profileBundles, resolveBundles, type ProfileManifest } from './profile.js'
-import { scanProfile, ScanError } from './scan.js'
+import { scanProfile } from './scan.js'
 import { recentEvents } from './memory.js'
 import { alignToLockfile } from './fix.js'
 import { appendMemory } from './memory.js'
@@ -267,8 +267,4 @@ export async function handlePanelApi(
   }
 
   return { status: 404, body: { error: `no route for ${method} ${pathname}` } }
-}
-
-export function isScanError(error: unknown): boolean {
-  return error instanceof ScanError
 }

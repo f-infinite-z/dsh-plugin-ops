@@ -38,8 +38,6 @@ interface SelfTestCase {
   expectFatalRules: RuleId[]
 }
 
-const EMPTY = () => undefined
-
 const CASES: SelfTestCase[] = [
   {
     name: 'clean profile has no fatal findings',

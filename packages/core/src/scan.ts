@@ -1,4 +1,4 @@
-import { readProfileManifest, resolveBundles, registryDependencies, type ProfileManifest } from './profile.js'
+import { readProfileManifest, resolveBundles } from './profile.js'
 import { readLockedDirectDeps } from './lockfile.js'
 import { ruleBundleDeclaration, ruleDependencyDrift, ruleSessionMemory, ruleRegistryVersion, ruleReleaseAgeExclude, trackedPackageDir, type RuleContext, trackedPackageNames } from './rules.js'
 import { rulePeerGap, rulePeerDrift } from './peers.js'
@@ -91,8 +91,4 @@ function collectSnapshot(ctx: RuleContext, resolved: ResolvedBundle[]): PackageS
     packages[name] = manifest?.version === undefined ? null : String(manifest.version)
   }
   return { packages }
-}
-
-export function declaredRegistryNames(manifest: ProfileManifest): string[] {
-  return Object.keys(registryDependencies(manifest))
 }

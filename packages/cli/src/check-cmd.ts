@@ -1,7 +1,6 @@
 import { existsSync, readdirSync } from 'node:fs'
-import { join } from 'node:path'
 import {
-  scanProfile, renderHuman, ScanError, reportOk, countSeverities, resolveDshPaths,
+  scanProfile, ScanError, reportOk, countSeverities, resolveDshPaths,
   type OpsConfig, type ScanReport, type DshPaths, type Finding,
 } from 'dsh-plugin-ops-core'
 

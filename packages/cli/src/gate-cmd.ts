@@ -105,7 +105,6 @@ export async function runGateCommand(options: GateCommandOptions): Promise<numbe
   // --- block-first, graded disposition ------------------------------------
   const autoFixable = report.findings.filter((f): f is Finding & { fix: { kind: 'align-lockfile' } } =>
     f.severity === 'fatal' && f.fix.kind === 'align-lockfile')
-  const manual = report.findings.filter((f) => f.severity === 'fatal' && f.fix.kind !== 'align-lockfile')
 
   if (autoFixable.length > 0) {
     process.stdout.write(`\ngate: auto-fixing ${autoFixable.length} drift finding(s) with pnpm install --frozen-lockfile\n`)

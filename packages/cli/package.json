@@ -50,8 +50,7 @@
     "clean": "node -e \"require('fs').rmSync('lib',{recursive:true,force:true});require('fs').rmSync('dist',{recursive:true,force:true})\""
   },
   "dependencies": {
-    "dsh-plugin-ops-core": "workspace:*",
-    "yaml": "^2.9.0"
+    "dsh-plugin-ops-core": "workspace:*"
   },
   "devDependencies": {
     "tsup": "^8.5.1",
