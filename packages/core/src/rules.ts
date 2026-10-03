@@ -15,6 +15,7 @@ import type { LockedDirectDeps } from './lockfile.js'
 import { lastSuccessSnapshot, diffSnapshots } from './memory.js'
 import type { OutdatedState } from './outdated.js'
 import { readTextFile } from './fsutil.js'
+import { isRetiredBundle } from './retired.js'
 
 export interface RuleContext {
   profileName: string
@@ -110,6 +111,20 @@ export function ruleBundleDeclaration(ctx: RuleContext): Finding[] {
     // Node process cannot resolve them, but the launcher verifies the packaged
     // runtime before boot, so they are trusted rather than reported.
     if (ctx.isDesktop && problem.name.startsWith('@deepseek-ai/')) continue
+    // 0.2.1-alpha.1+ retires this bundle and drops a leftover entry from the
+    // profile while loading it (verified against dsh-v0.2.1-alpha.1); a
+    // pre-boot fatal would block a start the launcher heals on its own.
+    if (isRetiredBundle(problem.name, ctx.dshVersion)) {
+      findings.push({
+        ruleId: 'bundle-declaration',
+        severity: 'info',
+        packageName: problem.name,
+        message: `${problem.message}; retired upstream - dsh ${ctx.dshVersion} removes it from the profile on the next start`,
+        detail: 'no action needed: start the profile once with dsh and the launcher rewrites dsh.profile.bundles',
+        fix: { kind: 'none' },
+      })
+      continue
+    }
     // 0.1.7+ skips an unreadable optional bundle and keeps loading the profile
     // (verified against 0.1.7-alpha.1); older releases abort the boot.
     const tolerant = toleratesOptionalBundles(ctx.dshVersion) && problem.message.includes('unreadable')

@@ -3,6 +3,7 @@ export { isDesktopProfile, detectDesktop, detectDesktopInstall, readDesktopVersi
 export { readLatestCrashReport, type CrashReport } from './crash-report.js'
 export { diagnoseIncompatibility, classifyPeerRisk, renderAdaptDiagnosis, type AdaptDiagnosis, type AdaptRisk } from './adapt.js'
 export { readGlobalDshVersion } from './dsh-version.js'
+export { RETIRED_BUNDLES, RETIRED_BUNDLES_MIN_VERSION, isRetiredBundle } from './retired.js'
 export { readLatestStartupReport, type StartupReport, type StartupReportEntry } from './startup-log.js'
 export {
   scanSessions,
