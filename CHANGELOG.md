@@ -2,6 +2,26 @@
 
 All notable changes are tracked here.
 
+## 0.15.2 — 2026-10-03
+
+### Bundle packaging fix: publish lib/adapt.js
+
+- The published `dsh-plugin-ops-bundle` tarball was missing `lib/adapt.js`
+  since 0.14.0: the module entered the source tree with the in-panel
+  adaptation feature, but the `files` list never gained it (`lib/*.d.ts` only
+  covered its declaration). The host half then failed to import in the desktop
+  app — "1 entry did not activate: dsh-ops-bundle (failed to import)" — and
+  the settings panel never appeared. Every workspace-style test ran against
+  the linked source tree, so the gap stayed invisible until a published
+  install (found on 0.15.1 after the upgrade; confirmed by restoring the file
+  in an isolated sandbox and by `npm pack --dry-run`).
+- Fixed by adding `lib/adapt.js` to `files`, plus a packaging test that
+  requires the built file of every host-half source module to be covered by
+  the `files` list.
+- Affected published versions: 0.14.0, 0.14.1, 0.15.0, 0.15.1. Upgrade to
+  0.15.2 to get the desktop panel back.
+- 220 tests (core 170 + bundle 26 + cli 24).
+
 ## 0.15.1 — 2026-10-03
 
 ### dsh 0.2.1-alpha.1 compatibility + housekeeping

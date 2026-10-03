@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-ops-bundle",
-  "version": "0.15.1",
+  "version": "0.15.2",
   "type": "module",
   "description": "Embedded dsh bundle for dsh-plugin-ops: a settings-page health panel (scan, plugin rows, diagnosis chat) over the shared engine",
   "license": "MIT",
@@ -39,6 +39,7 @@
   "files": [
     "lib/index.js",
     "lib/host.js",
+    "lib/adapt.js",
     "lib/llm-channel.js",
     "lib/*.d.ts",
     "lib/client.js",
