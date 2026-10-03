@@ -132,7 +132,10 @@ export async function runSelfTest(): Promise<{ results: SelfTestResult[]; ok: bo
     const paths = resolveDshPaths('selftest', home)
     try {
       testCase.setup(paths)
-      const report = await scanProfile({ paths, profileName: 'selftest', updateCheck: false })
+      // Pin the pre-0.1.7 release semantics: the samples assert fatal outcomes
+      // that later launchers downgrade, and the machine's own dsh version must
+      // not change the engine's self-check result.
+      const report = await scanProfile({ paths, profileName: 'selftest', updateCheck: false, dshVersion: '0.1.6-alpha.2' })
       const fatalRules = [...new Set(report.findings.filter((f) => f.severity === 'fatal').map((f) => f.ruleId))]
       const expected = [...testCase.expectFatalRules].sort()
       const actual = [...fatalRules].sort()

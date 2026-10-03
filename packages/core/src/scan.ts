@@ -22,6 +22,13 @@ export interface ScanInput {
   config?: OpsConfig | null
   /** run the advisory registry version check (pnpm outdated); opt-in so library callers never hit the network. */
   updateCheck?: boolean
+  /**
+   * Override for the dsh version that version-sensitive rules judge against.
+   * undefined reads the running install (desktop release, global CLI, then the
+   * mirror); null forces "unknown". Used by the selftest to pin the release
+   * semantics of its built-in fault samples.
+   */
+  dshVersion?: string | null
 }
 
 export class ScanError extends Error {}
@@ -38,7 +45,9 @@ export async function scanProfile(input: ScanInput): Promise<ScanReport> {
   const installAnchor = locateInstallAnchor(input.paths, input.config?.installAnchor ?? null)
   const { resolved } = resolveBundles(input.paths, manifest, installAnchor, desktop !== null)
   const generation = buildResolutionGeneration(installAnchor, resolved, input.paths.profileDir)
-  const dshVersion = desktop?.version ?? (await readGlobalDshVersion()) ?? dshVersionOf(generation)
+  const dshVersion = input.dshVersion === undefined
+    ? desktop?.version ?? (await readGlobalDshVersion()) ?? dshVersionOf(generation)
+    : input.dshVersion
   const locked = await readLockedDirectDeps(input.paths.profileDir)
 
   const ctx: RuleContext = {
