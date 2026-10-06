@@ -5,7 +5,7 @@ English | [中文](README.zh.md)
 [![dsh-xray](https://img.shields.io/endpoint?url=https%3A%2F%2Funstone.github.io%2Fdsh-xray%2Fbadge%2Ff-infinite-z__dsh-plugin-ops.json)](https://unstone.github.io/dsh-xray/registry.html#f-infinite-z__dsh-plugin-ops)
 [![awesome-dsh-plugin](https://img.shields.io/badge/awesome-dsh--plugin-listed-blue)](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)
 
-> DeepSeek Harness plugin operations: one-command health check, pre-boot gate, failure attribution and recovery, dependency-tree governance — the doctor for the plugin ecosystem, converging into an integrated plugin-management suite.
+> DeepSeek Harness plugin operations: pre-boot checks and a blocking gate, failure attribution and recovery, dependency governance, install adaptation, and publish-time verification for plugin authors — keeping the plugin ecosystem loadable.
 
 **Status: v0.16.0 — three items in one release: (1) patch-row composition semantics corrected (only `insert` creates entries; fixes a latent defect where `verify --runtime` activation rows never took effect), (2) reporting version views (`--version-view all|latest` plus the verify dsh-peer coverage check), (3) `verify --desktop` (isolated desktop-sandbox boot check; verified BOOTED against 0.2.0-rc.2). Interception, repair, and memory mechanics: [docs/architecture.md](docs/architecture.md).**
 

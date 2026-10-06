@@ -1,8 +1,9 @@
 # dsh-plugin-ops
 
-> DeepSeek Harness plugin operations: one-command health check, pre-boot gate,
-> failure attribution and recovery, dependency-tree governance — the "doctor"
-> for the plugin ecosystem.
+> DeepSeek Harness plugin operations: pre-boot checks and a blocking gate,
+> failure attribution and recovery, dependency governance, install adaptation,
+> and publish-time verification for plugin authors — keeping the plugin
+> ecosystem loadable.
 
 ## Install
 
@@ -15,12 +16,15 @@ dsh-ops check                  # scan every profile (offline, seconds)
 
 | Command | Purpose |
 |---|---|
-| `dsh-ops check` | one-shot health check across all profiles |
-| `dsh-ops scan --profile web` | single-profile deep scan (rules 1-7, `--json`) |
+| `dsh-ops check` | one-shot health check across all profiles (offline) |
+| `dsh-ops scan --profile web` | single-profile deep scan (rules 1-9, `--json`, `--version-view all\|latest`) |
 | `dsh-ops fix --profile web` | auto-fix set: lockfile realign (`--dry-run` / `--yes`) |
 | `dsh-ops gate -- dsh web` | pre-boot gate: scan first, exec dsh, attribute boot failures |
+| `dsh-ops adapt <pkg>` | adapt a plugin the official gate rejects (isolated canary + exact-version exemption) |
+| `dsh-ops verify <dir\|pkg>` | publish-time checks for plugin authors; `--runtime` isolated boot, `--desktop` desktop sandbox, `--strict` for CI |
+| `dsh-ops sessions` | session-container repair (`--repair-paths` / `--quarantine`) |
+| `dsh-ops dev <dir>` | plugin-directory development watcher (`--runtime` boot smoke) |
 | `dsh-ops serve` | local web panel at `http://127.0.0.1:8912` (zh/en) |
-| `dsh-ops verify` | publish-time check for plugin authors (bundle patch, patch-row resolution, ESM entry, client export); `--strict` for CI |
 | Knowledge (RAG) | troubleshooting experience deposits as Markdown under `$DSH_HOME/cache/dsh-ops/knowledge/`; the panel toggle retrieves matching entries into the diagnosis chat (BM25, plus embedding re-rank when a key is configured) |
 | `dsh-ops selftest` | engine self-check over built-in fault samples |
 

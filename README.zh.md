@@ -5,7 +5,7 @@
 [![dsh-xray](https://img.shields.io/endpoint?url=https%3A%2F%2Funstone.github.io%2Fdsh-xray%2Fbadge%2Ff-infinite-z__dsh-plugin-ops.json)](https://unstone.github.io/dsh-xray/registry.html#f-infinite-z__dsh-plugin-ops)
 [![awesome-dsh-plugin](https://img.shields.io/badge/awesome-dsh--plugin-listed-blue)](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)
 
-> DeepSeek Harness 插件运维（Plugin Operations）：一条命令全量体检、启动前预检拦截、失败归因与恢复、依赖树治理——插件生态的"医生"，长期收敛为插件管理增强一体化。
+> DeepSeek Harness 插件运维（Plugin Operations）：启动前体检与拦截、失败归因与恢复、依赖治理、安装适配、作者发布前验证——让插件生态保持可加载。
 
 **状态：v0.16.0 — 三项合并发布：①patch 行合并语义修正（insert 才引入条目；`verify --runtime` 激活行此前从未生效的缺陷一并修复）②报告版本视角（`--version-view all|latest` + verify 的 dsh peer 全版本覆盖检查）③`verify --desktop`（隔离桌面沙箱启动验证，0.2.0-rc.2 实测 BOOTED）。拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
 
