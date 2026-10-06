@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync, readFileSync, readdirSync, existsSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync, readFileSync, readdirSync, existsSync, renameSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
@@ -21,11 +21,12 @@ function writeProfile(web) {
   const deps = {}
   for (const sample of samples) deps[sample.name] = sample.version
   writeFileSync(join(web, 'package.json'), JSON.stringify({ name: 'dsh-profile-sandbox', private: true, version: '0.0.0', dependencies: deps }, null, 2), 'utf8')
-  writeFileSync(join(web, 'pnpm-workspace.yaml'), 'packages:\n  - .\n', 'utf8')
   // Real profiles never auto-install peers: the harness closure supplies the
-  // @deepseek-ai peers. Auto-install would trigger a phantom dependency
-  // (@deepseek-ai/dsh-compact) through the official rc chain.
-  writeFileSync(join(web, '.npmrc'), 'auto-install-peers=false\n', 'utf8')
+  // @deepseek-ai peers, and the official profiles carry `autoInstallPeers:
+  // false` in pnpm-workspace.yaml. pnpm 11 ignores the .npmrc key, and letting
+  // it run pulls the whole peer graph — whose drift once resolved a package
+  // referencing an unpublished @deepseek-ai stub and broke the install.
+  writeFileSync(join(web, 'pnpm-workspace.yaml'), 'packages:\n  - .\n\nautoInstallPeers: false\n', 'utf8')
 }
 
 /** Mirror of the official reconcile: a package that declares dsh.bundle.patch becomes a layer. */

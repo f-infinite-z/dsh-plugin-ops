@@ -117,13 +117,14 @@ export function rulePluginCompatibility(ctx: RuleContext, resolved: ResolvedBund
     const peers = incompatibleDshPeers(bundle.manifest, rejected[rejected.length - 1]!) ?? {}
     const rejectedList = rejected.join(', ')
     // Severity follows the actual install: a launch-blocking skip exists only
-    // when the running release is itself rejected (or the release is unknown,
-    // which stays conservative). A cross-release view therefore reports a
-    // future upgrade blocker as a warning rather than a fatal.
+    // when the running release is itself rejected (or, when the release is
+    // unknown, only when every evaluated release is rejected — a bundle no
+    // supported install can load). A cross-release view therefore reports a
+    // partial gap as a warning rather than a fatal.
     const actual = ctx.dshVersion
     const severityOnActual: 'fatal' | 'warn' = actual !== null && semver.valid(actual) !== null
       ? (semver.gte(actual, COMPATIBILITY_MIN_VERSION) && incompatibleDshPeers(bundle.manifest, actual) !== null ? 'fatal' : 'warn')
-      : 'fatal'
+      : (rejected.length === evaluate.length ? 'fatal' : 'warn')
     const summary = peerSummary(peers)
     findings.push({
       ruleId: 'plugin-compatibility',

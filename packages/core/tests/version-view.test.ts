@@ -90,7 +90,7 @@ describe('version view: rule severities', () => {
 })
 
 describe('version view: rule 8 compatibility', () => {
-  it('flags a peer range that rejects any known boundary under all, with accepted/rejected releases', async () => {
+  it('reports a peer gap under all as a warning when only some releases reject it', async () => {
     const fixture = makeHome()
     try {
       writeProfile(fixture.paths, { dependencies: { 'pkg-a': '^1.0.0' }, bundles: ['pkg-a'] })
@@ -98,9 +98,24 @@ describe('version view: rule 8 compatibility', () => {
       writeLockfile(fixture.paths, { 'pkg-a': '1.0.1' })
       const report = await scanProfile({ paths: fixture.paths, profileName: 'web', updateCheck: false, versionView: 'all', dshVersion: null })
       const finding = report.findings.find((f) => f.ruleId === 'plugin-compatibility')
-      expect(finding?.severity).toBe('fatal')
+      expect(finding?.severity).toBe('warn')
       expect(finding?.versionNote).toContain('rejected by 0.1.7-rc.2, 0.2.0-rc.2')
       expect(finding?.versionNote).toContain('accepted by 0.2.1-alpha.1')
+    } finally {
+      fixture.dispose()
+    }
+  })
+
+  it('escalates to fatal when the unknown install rejects every evaluated release', async () => {
+    const fixture = makeHome()
+    try {
+      writeProfile(fixture.paths, { dependencies: { 'pkg-a': '^1.0.0' }, bundles: ['pkg-a'] })
+      writeBundle(fixture, 'pkg-a', '1.0.1', '0.1.0-rc.8')
+      writeLockfile(fixture.paths, { 'pkg-a': '1.0.1' })
+      const report = await scanProfile({ paths: fixture.paths, profileName: 'web', updateCheck: false, versionView: 'all', dshVersion: null })
+      const finding = report.findings.find((f) => f.ruleId === 'plugin-compatibility')
+      expect(finding?.severity).toBe('fatal')
+      expect(finding?.versionNote).toContain('rejected by every known release')
     } finally {
       fixture.dispose()
     }
@@ -158,7 +173,9 @@ describe('version view: rule 8 compatibility', () => {
       const report = await scanProfile({ paths: fixture.paths, profileName: 'web', updateCheck: false, versionView: 'latest', dshVersion: null })
       expect(report.findings.some((f) => f.ruleId === 'plugin-compatibility')).toBe(false)
       const all = await scanProfile({ paths: fixture.paths, profileName: 'web', updateCheck: false, versionView: 'all', dshVersion: null })
-      expect(all.findings.some((f) => f.ruleId === 'plugin-compatibility' && f.severity === 'fatal')).toBe(true)
+      const finding = all.findings.find((f) => f.ruleId === 'plugin-compatibility')
+      expect(finding?.severity).toBe('warn')
+      expect(finding?.versionNote).toContain('accepted by 0.2.1-alpha.1')
     } finally {
       fixture.dispose()
     }

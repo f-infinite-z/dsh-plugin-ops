@@ -30,11 +30,12 @@ All notable changes are tracked here.
   resolution, plugin compatibility) can judge every known dsh release
   boundary (`all`, the CLI default) or only the newest (`latest`). `all`
   findings carry a `versionNote` naming the releases on each side of the
-  semantic boundary. Severity follows the actual install: only a bundle the
-  running release itself rejects is fatal; a future-upgrade blocker is a
-  warning. Official `@deepseek-ai/` bundles (which ship and evolve with the
-  installation) are not evaluated under a cross-release view. Gate keeps the
-  actual-install judgment and exposes no view.
+  semantic boundary. Severity follows the actual install: a bundle the running
+  release rejects is fatal, and when the release is unknown only a bundle
+  every evaluated release rejects (no supported install can load it) is fatal;
+  a partial gap is a warning. Official `@deepseek-ai/` bundles (which ship and
+  evolve with the installation) are not evaluated under a cross-release view.
+  Gate keeps the actual-install judgment and exposes no view.
 - **Author-side version coverage**: `verify` now checks that a declared
   `@deepseek-ai/dsh*` peer range covers every known release boundary, naming
   the uncovered releases (a compatibility-matrix requirement for marketplace
