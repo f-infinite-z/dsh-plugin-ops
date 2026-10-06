@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { writeFileSync, mkdirSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { parseDocument } from 'yaml'
 import { readPatchFile, appendDisabledRow, removeDisabledRow } from '../src/index.js'
 import { makeHome } from './helpers.js'
 
@@ -10,6 +11,22 @@ describe('patch layer', () => {
       const state = readPatchFile(fixture.paths.profileDir)
       expect(state.ok).toBe(true)
       expect(state.rows).toEqual([])
+    } finally {
+      fixture.dispose()
+    }
+  })
+
+  it('writes a flat configuration row, never an insert: only a flat row disables the target id', () => {
+    const fixture = makeHome()
+    try {
+      const { paths } = fixture
+      mkdirSync(paths.profileDir, { recursive: true })
+      writeFileSync(`${paths.profileDir}/cordis.patch.yml`, '[]\n', 'utf8')
+
+      appendDisabledRow(paths.profileDir, 'plugin-x')
+      const parsed = parseDocument(readFileSync(`${paths.profileDir}/cordis.patch.yml`, 'utf8')).toJS() as unknown[]
+      expect(parsed).toContainEqual({ id: 'plugin-x', disabled: true })
+      expect(parsed.every((entry) => typeof entry === 'object' && entry !== null && !('insert' in entry))).toBe(true)
     } finally {
       fixture.dispose()
     }

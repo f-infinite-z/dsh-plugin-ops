@@ -48,7 +48,7 @@ All notable changes are tracked here.
   exit fails the check; teardown kills only the sandbox's own process tree.
   Verified end-to-end against 0.2.0-rc.2 (BOOTED, no residue, live instance
   and real profile untouched).
-- 243 tests (core 193 + bundle 26 + cli 24).
+- 245 tests (core 195 + bundle 26 + cli 24).
 
 ## 0.15.2 — 2026-10-03
 

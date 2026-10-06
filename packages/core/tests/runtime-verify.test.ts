@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { parseDocument } from 'yaml'
 import {
   appendActivationRow,
   classifyBootOutcome,
@@ -85,6 +86,22 @@ describe('activation row write', () => {
       const state = readPatchFile(fixture.paths.profileDir)
       expect(state.ok).toBe(true)
       expect(state.rows).toContainEqual({ id: 'verify-x', name: 'x-pkg' })
+    } finally {
+      fixture.dispose()
+    }
+  })
+
+  it('writes an insert directive, the only form that introduces an entry', () => {
+    const fixture = makeHome()
+    try {
+      mkdirSync(fixture.paths.profileDir, { recursive: true })
+      writeFileSync(join(fixture.paths.profileDir, 'cordis.patch.yml'), '[]\n', 'utf8')
+      const result = appendActivationRow(fixture.paths.profileDir, 'verify-x', 'x-pkg')
+      expect(result.ok).toBe(true)
+      const parsed = parseDocument(readFileSync(join(fixture.paths.profileDir, 'cordis.patch.yml'), 'utf8')).toJS() as unknown[]
+      // A flat row would pass readPatchFile's expanded view but be skipped by
+      // the include ("patch: entry not found"), leaving the plugin unmounted.
+      expect(parsed).toEqual([{ insert: [{ id: 'verify-x', name: 'x-pkg' }] }])
     } finally {
       fixture.dispose()
     }
