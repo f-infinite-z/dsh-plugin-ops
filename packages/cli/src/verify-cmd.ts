@@ -16,6 +16,7 @@ import {
   type VerifyReport,
 } from 'dsh-plugin-ops-core'
 import { spawnCli } from './spawn-dsh.js'
+import { runDesktopVerify } from './desktop-verify.js'
 
 export interface VerifyCommandOptions {
   dir: string
@@ -23,6 +24,8 @@ export interface VerifyCommandOptions {
   strict: boolean
   /** boot the package in an isolated DSH home and observe the launcher */
   runtime: boolean
+  /** boot the package in an isolated desktop sandbox and observe the app */
+  desktop: boolean
   /** seconds a healthy boot must survive before the package passes */
   runtimeTimeoutSec: number
 }
@@ -302,9 +305,12 @@ export async function runVerifyCommand(options: VerifyCommandOptions): Promise<n
     const report = verifyPluginPackage(dir)
     const staticOk = verifyOk(report, options.strict)
     let runtime: RuntimeVerifyResult | null = null
-    if (options.runtime) {
+    const installSource: RuntimeInstallSource = kind === 'npm' ? { kind: 'spec', value: input } : { kind: 'dir', value: dir }
+    if (options.desktop) {
+      if (!options.json) process.stdout.write('\nrunning the isolated desktop boot check...\n')
+      runtime = await runDesktopVerify({ installSource, timeoutSec: options.runtimeTimeoutSec })
+    } else if (options.runtime) {
       if (!options.json) process.stdout.write('\nrunning the isolated boot check...\n')
-      const installSource: RuntimeInstallSource = kind === 'npm' ? { kind: 'spec', value: input } : { kind: 'dir', value: dir }
       runtime = await runRuntimeVerify(dir, installSource, options.runtimeTimeoutSec)
     }
     const ok = staticOk && (runtime === null || runtime.ok)

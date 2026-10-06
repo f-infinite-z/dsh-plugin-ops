@@ -15,13 +15,13 @@ import { helpRequested } from './args.js'
 const USAGE = `dsh-ops — DeepSeek Harness plugin operations
 
 usage:
-  dsh-ops check [--home <dir>] [--json] [--config <file>] [--updates]
-  dsh-ops scan  [--profile <name>] [--home <dir>] [--json] [--config <file>] [--skip-update-check]
+  dsh-ops check [--home <dir>] [--json] [--config <file>] [--updates] [--version-view all|latest]
+  dsh-ops scan  [--profile <name>] [--home <dir>] [--json] [--config <file>] [--skip-update-check] [--version-view all|latest]
   dsh-ops fix   [--profile <name>] [--home <dir>] [--dry-run] [--yes] [--config <file>]
   dsh-ops gate  [--profile <name>] [--home <dir>] [--bypass] [--no-attribution]
                 [--boot-threshold-ms <n>] [--config <file>] [--] <dsh command...>
   dsh-ops serve [--home <dir>] [--port <n>] [--host <addr>] [--config <file>]
-  dsh-ops verify [<dir>|<npm-package>] [--json] [--strict] [--runtime] [--runtime-timeout <s>]
+  dsh-ops verify [<dir>|<npm-package>] [--json] [--strict] [--runtime] [--desktop] [--runtime-timeout <s>]
   dsh-ops adapt  <npm-package> [--profile <name>] [--home <dir>] [--yes] [--remove] [--runtime-timeout <s>] [--config <file>]
   dsh-ops sessions [--home <dir>] [--json] [--repair-paths] [--quarantine]
   dsh-ops dev   <plugin-dir> [--runtime] [--runtime-timeout <s>]
@@ -29,11 +29,17 @@ usage:
   dsh-ops help
 
 config: read from <DSH_HOME>/dsh-ops.yml by default (rules on/off, severity
-  demotion, ignorePackages); corrupt config fails loud.
+  demotion, ignorePackages); corrupt config fails loud. versionView selects the
+  version-sensitive reporting view: all (default; judges every known dsh release
+  and annotates version ranges) or latest (newest known release only).
 
 verify --runtime boots the package in an isolated DSH home (official install +
   launch) and reports whether the boot survives; needs the dsh command on PATH
   and network access for the isolated install.
+verify --desktop boots it in an isolated desktop sandbox instead (temporary
+  DSH home + user-data-dir, installed through the desktop app's bundled CLI,
+  observed on an isolated host port); needs the desktop app 0.2.0-rc.1+ and
+  network access for the isolated install.
 
 exit codes:
   0  ok (or dsh's own exit code after a gate pass)
@@ -55,9 +61,11 @@ const OPTIONS = {
   remove: { type: 'boolean', default: false },
   config: { type: 'string' },
   'skip-update-check': { type: 'boolean', default: false },
+  'version-view': { type: 'string' },
   updates: { type: 'boolean', default: false },
   strict: { type: 'boolean', default: false },
   runtime: { type: 'boolean', default: false },
+  desktop: { type: 'boolean', default: false },
   'runtime-timeout': { type: 'string' },
   'repair-paths': { type: 'boolean', default: false },
   quarantine: { type: 'boolean', default: false },
@@ -66,7 +74,7 @@ const OPTIONS = {
   'boot-threshold-ms': { type: 'string' },
 } as const
 
-type Flags = { profile: string; home?: string; json?: boolean; 'dry-run'?: boolean; yes?: boolean; bypass?: boolean; 'no-attribution'?: boolean; remove?: boolean; config?: string; 'skip-update-check'?: boolean; updates?: boolean; strict?: boolean; runtime?: boolean; 'runtime-timeout'?: string; 'repair-paths'?: boolean; quarantine?: boolean; port?: string; host?: string; 'boot-threshold-ms'?: string }
+type Flags = { profile: string; home?: string; json?: boolean; 'dry-run'?: boolean; yes?: boolean; bypass?: boolean; 'no-attribution'?: boolean; remove?: boolean; config?: string; 'skip-update-check'?: boolean; updates?: boolean; strict?: boolean; runtime?: boolean; desktop?: boolean; 'runtime-timeout'?: string; 'repair-paths'?: boolean; quarantine?: boolean; port?: string; host?: string; 'boot-threshold-ms'?: string; 'version-view'?: string }
 
 function parse(rawArgs: string[]): { values: Flags; positionals: string[] } {
   const { values, positionals } = parseArgs({
@@ -113,9 +121,15 @@ async function main(): Promise<number> {
       const config = loadConfig(values.config, paths.configFile)
       if (config === null) return 2
       if (command === 'scan') {
+        const versionView = values['version-view'] ?? config.versionView ?? 'all'
+        if (versionView !== 'all' && versionView !== 'latest') {
+          process.stderr.write(`invalid --version-view ${JSON.stringify(versionView)}; use all or latest\n`)
+          return 2
+        }
         return runScanCommand({
           paths, profileName: values.profile, json: values.json ?? false,
           config, updateCheck: !(values['skip-update-check'] ?? false),
+          versionView,
         })
       }
       if (command === 'fix') {
@@ -143,7 +157,12 @@ async function main(): Promise<number> {
       const paths = resolveDshPaths('web', values.home)
       const config = loadConfig(values.config, paths.configFile)
       if (config === null) return 2
-      return runCheckCommand({ paths, json: values.json ?? false, config, updates: values.updates ?? false })
+      const versionView = values['version-view'] ?? config.versionView ?? 'all'
+      if (versionView !== 'all' && versionView !== 'latest') {
+        process.stderr.write(`invalid --version-view ${JSON.stringify(versionView)}; use all or latest\n`)
+        return 2
+      }
+      return runCheckCommand({ paths, json: values.json ?? false, config, updates: values.updates ?? false, versionView })
     }
     case 'verify': {
       const { values, positionals } = parse(rest)
@@ -152,11 +171,16 @@ async function main(): Promise<number> {
         process.stderr.write('invalid --runtime-timeout\n')
         return 2
       }
+      if ((values.runtime ?? false) && (values.desktop ?? false)) {
+        process.stderr.write('verify: choose one of --runtime and --desktop\n')
+        return 2
+      }
       return await runVerifyCommand({
         dir: positionals[0] ?? '.',
         json: values.json ?? false,
         strict: values.strict ?? false,
         runtime: values.runtime ?? false,
+        desktop: values.desktop ?? false,
         runtimeTimeoutSec,
       })
     }

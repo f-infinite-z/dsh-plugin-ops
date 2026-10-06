@@ -22,6 +22,12 @@ export interface Finding {
   packageName?: string
   message: string
   detail?: string
+  /**
+   * Version-range annotation for a version-sensitive finding under the `all`
+   * reporting view: names the releases on each side of the semantic boundary
+   * that changes this finding's behavior (see `versions.ts`).
+   */
+  versionNote?: string
   fix: Fix
 }
 

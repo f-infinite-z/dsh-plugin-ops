@@ -4,6 +4,7 @@ import semver from 'semver'
 import { parseDocument } from 'yaml'
 import { readPackageManifest, type PackageManifest } from './package-tree.js'
 import { splitBareSpecifier } from './patchres.js'
+import { KNOWN_VERSION_BOUNDARIES } from './versions.js'
 
 /**
  * Publish-time verification for plugin authors: static checks over a package
@@ -321,6 +322,21 @@ export function verifyPluginPackage(packageDir: string): VerifyReport {
           message: `peerDependencies.${name} is not a semver range: ${JSON.stringify(spec)}`,
           detail: 'use a semver range so consumers and the harness compatibility check can satisfy the peer',
         })
+        continue
+      }
+      // A dsh peer range must cover every known harness release era: the
+      // launcher skips a bundle whose range rejects the running release, so a
+      // gap silently disables the plugin on those releases.
+      if (name === '@deepseek-ai/dsh' || name.startsWith('@deepseek-ai/dsh-')) {
+        const uncovered = KNOWN_VERSION_BOUNDARIES.filter((release) => !semver.satisfies(release, spec, { includePrerelease: true }))
+        if (uncovered.length > 0) {
+          findings.push({
+            ruleId: 'peer-contract',
+            severity: 'warn',
+            message: `peerDependencies.${name} ${spec} does not cover dsh ${uncovered.join(', ')}; the launcher skips this bundle on those releases`,
+            detail: 'cover every supported dsh release so the bundle stays loadable across versions (a compatibility matrix requirement for marketplace listings)',
+          })
+        }
       }
     }
   }

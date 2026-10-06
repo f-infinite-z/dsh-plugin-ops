@@ -7,7 +7,7 @@
 
 > DeepSeek Harness 插件运维（Plugin Operations）：一条命令全量体检、启动前预检拦截、失败归因与恢复、依赖树治理——插件生态的"医生"，长期收敛为插件管理增强一体化。
 
-**状态：v0.15.2 — 发布打包修复：bundle 补齐 `lib/adapt.js`（桌面端 host 半边自 0.14.0 起加载失败的问题）；含 0.15.1 的 dsh 0.2.1-alpha.1 退役 bundle 兼容。拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
+**状态：v0.16.0 — 三项合并发布：①patch 行合并语义修正（insert 才引入条目；`verify --runtime` 激活行此前从未生效的缺陷一并修复）②报告版本视角（`--version-view all|latest` + verify 的 dsh peer 全版本覆盖检查）③`verify --desktop`（隔离桌面沙箱启动验证，0.2.0-rc.2 实测 BOOTED）。拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
 
 ## 命名
 
@@ -27,7 +27,7 @@ DeepSeek Harness（dsh）插件生态自 2026-08 起爆发式增长，但 dsh �
 ```sh
 npm i -g dsh-plugin-ops
 dsh-ops check                  # 一条命令扫全部 profile（无网络，秒级）
-dsh-ops scan --profile web     # 单 profile 深扫（--json 机器可读；--skip-update-check 免网络）
+dsh-ops scan --profile web     # 单 profile 深扫（--json 机器可读；--version-view latest 只看最新语义）
 dsh-ops fix --profile web      # 修复：lockfile 对齐（--dry-run 预览 / --yes 免确认）
 dsh-ops gate -- dsh web        # 启动门：预检通过才放行 dsh；失败自动归因
 dsh-ops adapt <pkg>            # 安装适配：官方门禁拒绝的插件（canary 验证 + 豁免）
@@ -45,7 +45,7 @@ dsh-ops selftest               # 自检：内置故障样本跑全规则
 | 2 | 依赖三方漂移 | fatal/自动修 | package.json 声明 vs pnpm-lock.yaml 锁定 vs 磁盘实际 |
 | 3 | registry 版本对比 | warn | 经 `pnpm outdated`，有更新提示；advisory 不阻断 |
 | 4 | peer 缺口/双实例 | 双实例 fatal | 声明了不存在的 peer；框架核心出现两份物理副本 |
-| 5 | patch 行解析悬空 | fatal | 补丁引用的包（含子路径）不可解析；补丁行经必需的 bootstrap Include 应用，一行坏行即中止启动（已对照 dsh 0.1.6-alpha.2 验证） |
+| 5 | patch 行解析（合并语义） | fatal/info | insert 行引用的包不可解析即中止启动（必需 entry / 版本语义）；扁平行是配置补丁（其 `name` 仅为匹配断言），无可见层引入其 id 时报 info"不生效"；同 id 以最后一条 insert 为生效行（对照 0.1.7-rc.2 与 0.2.1-alpha.1 源码 + `--dump-config` 实测） |
 | 6 | 故障记忆 | info/warn | 自上次成功启动后变化的包清单（归因基础） |
 | 7 | 结构完整性 | fatal/warn | 缺默认入口 / CJS 入口（Loader 需 ESM 命名导出）/ 缺 types/client |
 | 8 | 插件版本兼容性 | fatal / info（已豁免） | `@deepseek-ai/dsh*` peer 范围拒绝当前 dsh 版本——dsh 0.1.7-rc.1+ 会跳过该 bundle，功能静默缺失，除非授予 exact-version 豁免 |
@@ -60,12 +60,12 @@ dsh-ops selftest               # 自检：内置故障样本跑全规则
 | 面 | 说明 |
 |---|---|
 | `check` | 全 profile 一键体检（默认无网络），人类与模型双友好 |
-| `scan` | 单 profile 深扫：规则 1-9 + 可选更新检查 |
+| `scan` | 单 profile 深扫：规则 1-9 + 可选更新检查；`--version-view all\|latest` 选择版本口径（all 默认：全版本并集并标注版本区间；latest 仅最新语义；严重度始终锚定实际安装版本） |
 | `fix` | 自动可修集：磁盘↔lockfile 对齐（`pnpm install --frozen-lockfile --force`）；plan→确认→执行→备份 |
 | `gate` | 先阻断分级处置：fatal 先拦（自动修→放行；复杂→醒目指引；`--bypass` 逃生舱记录不静默）；dsh 启动秒退 → 读取官方启动诊断（`$DSH_HOME/logs/startup-*.log`）→ 归因差异包与启动器报告的失败插件 → 交互禁用重试；headless 一次性 profile 退出码透传不归因 |
 | `serve` | 本地 Web 面板：健康卡/结果列表/修复执行/**插件行管理**（健康徽标、致命/警告/正常筛选、每页 10 行分页、官方行保护、启停开关）/故障时间线/**诊断对话（带增强检索 RAG 开关）**——排障经验沉淀为 Markdown，开启后自动检索命中条目注入对话（BM25 + 可选向量重排），zh/en 切换 |
 | `selftest` | 引擎自检（6 内置故障样本），验证安装健康 |
-| `verify` | 面向插件作者的发布前校验：支持本地目录或 **npm 包名**（`dsh-ops verify <name\|@scope/name\|name@version>`，从 registry 下载发布物校验）；检查 bundle patch 声明与解析、patch 行可解析性、依赖协议（`file:`/`workspace:`）、peer 契约（peer 名必须是包名、range 必须是 semver）、ESM 入口与导出、client 导出契约与产物形状、files 完整性（`--json`、CI 用 `--strict`）；**`--runtime`** 追加隔离启动验证——在独立 DSH home 中经官方命令安装并启动，报告能否存活并指出失败的 loader entry |
+| `verify` | 面向插件作者的发布前校验：支持本地目录或 **npm 包名**（`dsh-ops verify <name\|@scope/name\|name@version>`，从 registry 下载发布物校验）；检查 bundle patch 声明与解析、patch 行可解析性、依赖协议（`file:`/`workspace:`）、peer 契约（peer 名必须是包名、range 必须是 semver）、**dsh peer 全版本覆盖**（声明了 `@deepseek-ai/dsh*` peer 时须覆盖全部已知版本边界，标注缺口版本——市场上架兼容性矩阵要求）、ESM 入口与导出、client 导出契约与产物形状、files 完整性（`--json`、CI 用 `--strict`）；**`--runtime`** 追加隔离启动验证——在独立 DSH home 中经官方命令安装并启动；**`--desktop`** 在隔离桌面沙箱中启动官方桌面端验证——临时 `DSH_HOME`（自带 desktop profile）+ 独立 Electron user-data-dir + 沙箱专属 webserver 端口，经桌面自带 CLI（0.2.0-rc.1+）安装，观察崩溃报告/进程/端口判定，只回收沙箱自己的进程树，不触碰真实实例与数据 |
 | `adapt` | 安装适配：对官方门禁因 `@deepseek-ai/dsh*` peer 范围拒绝的插件，诊断冲突的 peer、分级风险（窄范围 vs 跨 breaking 边界），**先在隔离 canary 启动中授予官方 exact-version 豁免**，只有该启动存活才写入真实 profile；canary 或安装失败即回滚豁免；**desktop profile** 在应用自带 CLI（0.2.0-rc.1+，单测覆盖、待实机验证）可用时，完全退出应用后直接经它安装/卸载，无 CLI 时回退为只写豁免并指引到桌面端 Plugins 页；`--remove` 一步完成卸载 + 清理豁免 |
 | `sessions` | 会话容器修复：扫描 `$DSH_HOME/sessions` 中两类会阻断启动的损坏（首帧无法解码的产物；目录名与 header id 不匹配的会话目录）；`--repair-paths` 把被改名的目录移回其 header id，`--quarantine` 把不可读会话目录移入 `$DSH_HOME/cache/dsh-ops/quarantine`（永不删除）；默认只读计划，深层事件级诊断仍由 `@argszero/cordis-plugin-session-audit` 覆盖 |
 | `dev` | 单插件目录的开发监视器：每次变更后（防抖）跑静态检查（带序号、标注包名@版本），`--runtime` 在每次通过后追加隔离 DSH home 启动冒烟、静态仍有 error 时明确提示跳过；停止时打印检查/失败/耗时汇总；全程不触碰正在运行的 dsh |
@@ -81,6 +81,7 @@ rules:
     enabled: false          # 关闭某规则
   peer-gap:
     severity: info          # 严重度只能降不能升
+versionView: all            # 版本口径：all（默认，全版本并集+版本区间标注）/ latest（仅最新语义）
 ignorePackages:
   - some-noisy-plugin
 ```
@@ -112,7 +113,7 @@ dsh-xray 给本项目的评级为 C3（衡量能力面而非意图）；上表�
 
 - **官方桌面端适配（0.12.0）**：官方桌面端（0.2.0+）将 dsh 打包进自身 `app.asar`、无 CLI 启动点。`scan`/`fix`/`check` 已识别 desktop profile、读取其发布版本，并信任打包运行时自带的官方 bundle/行；`gate --profile desktop` 只预检不启动，并读取桌面端 crash report（`crash-*.log`）做归因。
 - **安装适配（0.13.0–0.15.0）**：`dsh-ops adapt` 与面板内的安装适配卡补上官方门禁"变更时拒绝"之后的一环——诊断插件被拒原因、分级风险、授予官方 exact-version 豁免（CLI 版在隔离 canary 启动通过后生效；面板版经官方插件管理器原地完成），卸载时一并清理豁免；desktop profile 在应用自带 CLI（0.2.0-rc.1+）可用时，完全退出应用后直接经它安装/卸载。这是从"诊断"迈向"修复闭环"的第一步；真正对小兼容问题做源码级修改（并展示改动说明）仍是后续方向。
-- **多端测试沙箱（面向插件开发者，规划中）**：以隔离 `DSH_HOME` + 独立 Electron `user-data-dir` + 沙箱专属 webserver 端口，让官方桌面端能与已在运行的实例并存，插件可在 web、CLI、desktop 各端被验证而不触碰真实数据。将 `verify --runtime` 扩展出 desktop runtime 目标、并给出逐端适配结果，是面向插件作者的后续计划。
+- **多端测试沙箱（面向插件开发者）**：`verify --desktop`（0.16.0）已实现第一目标——临时 `DSH_HOME`（自带 desktop profile）+ 独立 Electron `user-data-dir` + 沙箱专属 webserver 端口，经桌面自带 CLI 安装官方桌面端并在隔离端口上观察就绪；与已在运行的真实实例并存、不触碰真实数据（0.2.0-rc.2 实测 BOOTED、无残留）。逐端适配矩阵（static + web runtime + desktop runtime 结果汇总）与常驻沙箱是后续方向（按需收敛）。
 - **面向插件作者的一致性验证**：`dsh-ops verify` 已支持本地目录与 npm 包名两种输入，覆盖 bundle patch 声明与解析、patch 行可解析性、依赖协议、peer 契约、ESM 入口与导出、client 导出契约与产物形状、files 完整性九项检查；并已用 30 个真实生态插件（热门/普通两档）校准误报（28 个零 findings）。`verify --runtime` 在独立 DSH home 中经官方安装与启动命令做隔离启动验证，报告能否存活。
 - **一体化插件管理（v2）**：把生态"变更时防护"（canary 试运行、启停、更新检查、市场）按自有架构吸收进启动生命周期防护，以启动门为统一入口。
 
@@ -120,7 +121,7 @@ dsh-xray 给本项目的评级为 C3（衡量能力面而非意图）；上表�
 
 ```sh
 pnpm install && pnpm run build
-pnpm run typecheck && pnpm run test      # 220 单测（core 170 + bundle 26 + cli 24）
+pnpm run typecheck && pnpm run test      # 243 单测（core 193 + bundle 26 + cli 24）
 node packages/cli/lib/index.js selftest  # 引擎自检
 node scripts/e2e/scan-fix.e2e.mjs        # 离线 E2E（真实 pnpm 修复）
 node scripts/e2e/gate.e2e.mjs            # gate 场景（放行/阻断/旁路/归因/headless）

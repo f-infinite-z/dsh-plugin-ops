@@ -2,6 +2,54 @@
 
 All notable changes are tracked here.
 
+## 0.16.0 — 2026-10-06
+
+### Patch-row composition correctness + reporting version views + desktop verification
+
+- **Patch-row semantics (rule 5)**: the composition now mirrors the include's
+  own patch algorithm exactly. An `insert` directive is the only form that
+  creates an entry; a flat id-targeted row is a configuration patch that
+  merges into an entry an earlier insert created and is skipped (with the
+  launcher's warning) when no earlier layer introduces its id — its `name`
+  is only a match assertion, never the row's identity. The rule judges each
+  id's effective row (the last insert with later configuration patches
+  merged) and reports an unresolvable inserted row; relative module paths
+  resolve against the patch file's own directory (bundle directory or profile
+  directory); a flat row whose id no visible layer introduces is reported at
+  info ("does not apply") instead of being misjudged as a row. Verified
+  against the vendored include sources (0.1.7-rc.2 and 0.2.1-alpha.1) and by
+  `--dump-config` runs on an isolated home.
+- **Activation rows are inserts now**: `verify --runtime` mounted plain
+  plugins with a flat `id + name` row, which the include silently skips
+  ("patch: entry not found") — the row never activated, so the runtime check
+  reported a boot that had never loaded the plugin. `appendActivationRow`
+  now writes an `insert` directive; an end-to-end probe (a plugin that writes
+  a marker file from `apply`) confirms the row activates.
+- **Reporting version views (`--version-view all|latest`, config
+  `versionView`)**: version-sensitive rules (bundle declaration, patch
+  resolution, plugin compatibility) can judge every known dsh release
+  boundary (`all`, the CLI default) or only the newest (`latest`). `all`
+  findings carry a `versionNote` naming the releases on each side of the
+  semantic boundary. Severity follows the actual install: only a bundle the
+  running release itself rejects is fatal; a future-upgrade blocker is a
+  warning. Official `@deepseek-ai/` bundles (which ship and evolve with the
+  installation) are not evaluated under a cross-release view. Gate keeps the
+  actual-install judgment and exposes no view.
+- **Author-side version coverage**: `verify` now checks that a declared
+  `@deepseek-ai/dsh*` peer range covers every known release boundary, naming
+  the uncovered releases (a compatibility-matrix requirement for marketplace
+  listings).
+- **`verify --desktop`**: boots a package in an isolated desktop sandbox — a
+  temporary `DSH_HOME` with its own desktop profile plus an isolated Electron
+  `--user-data-dir`, installed through the desktop app's own bundled CLI
+  (absolute launcher path, `DSH_HOME` pointed at the sandbox) and observed on
+  an isolated host port (the 0.2.0-rc fixed-port line gets a webserver port
+  patch; 0.2.1+ binds a system-assigned port). A crash report or an early
+  exit fails the check; teardown kills only the sandbox's own process tree.
+  Verified end-to-end against 0.2.0-rc.2 (BOOTED, no residue, live instance
+  and real profile untouched).
+- 243 tests (core 193 + bundle 26 + cli 24).
+
 ## 0.15.2 — 2026-10-03
 
 ### Bundle packaging fix: publish lib/adapt.js

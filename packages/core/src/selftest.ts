@@ -82,7 +82,7 @@ const CASES: SelfTestCase[] = [
         type: 'module', main: 'lib/index.js',
         peerDependencies: { '@deepseek-ai/cordis': '^4.0.0' },
         dsh: { bundle: { patch: 'cordis.patch.yml' } },
-      }, { 'cordis.patch.yml': '- id: probe\n', 'lib/index.js': 'export const name = "pkg-c"\n' })
+      }, { 'cordis.patch.yml': '- insert:\n    - id: probe\n      name: pkg-c\n', 'lib/index.js': 'export const name = "pkg-c"\n' })
       // host copy in the shared closure, embedded copy inside the plugin
       const host = join(paths.sharedProfilesDir, '@deepseek-ai', 'cordis')
       writeJson(join(host, 'package.json'), { name: '@deepseek-ai/cordis', version: '4.0.0' })
@@ -97,7 +97,7 @@ const CASES: SelfTestCase[] = [
     setup(paths) {
       writeJson(paths.profileManifest, { name: 'dsh-profile-selftest', private: true, dependencies: {}, dsh: { profile: { bundles: [] } } })
       mkdirSync(paths.profileDir, { recursive: true })
-      writeFileSync(join(paths.profileDir, 'cordis.patch.yml'), '- id: ghost-row\n  name: ghost-package\n', 'utf8')
+      writeFileSync(join(paths.profileDir, 'cordis.patch.yml'), '- insert:\n    - id: ghost-row\n      name: ghost-package\n', 'utf8')
       writeLockfile(paths, {})
     },
     expectFatalRules: ['patch-resolution'],
@@ -112,7 +112,7 @@ const CASES: SelfTestCase[] = [
       installPackage(paths, 'pkg-d', 'pkg-d', {
         main: 'lib/index.js',
         dsh: { bundle: { patch: 'cordis.patch.yml' } },
-      }, { 'cordis.patch.yml': '- id: probe\n', 'lib/index.js': 'module.exports = {}\n' })
+      }, { 'cordis.patch.yml': '- insert:\n    - id: probe\n      name: pkg-d\n', 'lib/index.js': 'module.exports = {}\n' })
       writeLockfile(paths, { 'pkg-d': '1.0.0' })
     },
     expectFatalRules: ['structure'],

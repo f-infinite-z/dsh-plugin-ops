@@ -239,8 +239,9 @@ describe('rule 2: dependency drift', () => {
         dependencies: { '@deepseek-ai/dsh-client-ui-sidebar-documentpreview': '0.1.6-alpha.2' },
       })
       writeFileSync(join(webAppDir, 'cordis.patch.yml'), [
-        '- id: ui-sidebar-documentpreview',
-        "  name: '@deepseek-ai/dsh-client-ui-sidebar-documentpreview'",
+        '- insert:',
+        '    - id: ui-sidebar-documentpreview',
+        "      name: '@deepseek-ai/dsh-client-ui-sidebar-documentpreview'",
         '',
       ].join('\n'), 'utf8')
       writeJson(join(nested, 'dsh-client-ui-sidebar-documentpreview', 'package.json'), {

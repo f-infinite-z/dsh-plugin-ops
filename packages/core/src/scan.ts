@@ -11,6 +11,7 @@ import { detectDesktop, isDesktopProfile } from './desktop.js'
 import { readGlobalDshVersion } from './dsh-version.js'
 import { checkOutdated } from './outdated.js'
 import { applyConfig, type OpsConfig } from './config.js'
+import type { VersionView } from './versions.js'
 import type { ScanReport, PackageSnapshot, Finding } from './types.js'
 import type { DshPaths } from './paths.js'
 import type { ResolvedBundle } from './profile.js'
@@ -29,6 +30,13 @@ export interface ScanInput {
    * semantics of its built-in fault samples.
    */
   dshVersion?: string | null
+  /**
+   * Reporting view for version-sensitive rules: `all` judges the oldest known
+   * boundary (strictest) and annotates findings with version ranges; `latest`
+   * judges the newest known boundary; undefined follows the actual install
+   * (or the config's `versionView` when set).
+   */
+  versionView?: VersionView | undefined
 }
 
 export class ScanError extends Error {}
@@ -56,6 +64,7 @@ export async function scanProfile(input: ScanInput): Promise<ScanReport> {
     manifest,
     generation,
     dshVersion,
+    versionView: input.versionView ?? input.config?.versionView,
     locked,
     isDesktop: desktop !== null,
   }

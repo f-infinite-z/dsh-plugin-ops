@@ -342,7 +342,7 @@ describe('verifyPluginPackage', () => {
 
   it('passes a declared semver peer without peer-contract findings (V9)', () => {
     const manifest = JSON.parse(GOOD_FILES['package.json']!) as Record<string, unknown>
-    manifest.peerDependencies = { 'react': '^18.0.0', '@deepseek-ai/dsh': '^0.1.0' }
+    manifest.peerDependencies = { 'react': '^18.0.0', '@deepseek-ai/dsh': '>=0.1.5-rc.2' }
     withPkg({ ...GOOD_FILES, 'package.json': JSON.stringify(manifest) }, (dir) => {
       const report = verifyPluginPackage(dir)
       expect(report.findings.filter((f) => f.ruleId === 'peer-contract')).toEqual([])

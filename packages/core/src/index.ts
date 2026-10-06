@@ -1,9 +1,20 @@
 export { resolveDshPaths, MEMORY_DIR_NAME, MEMORY_FILENAME, KNOWLEDGE_DIR_NAME, type DshPaths } from './paths.js'
-export { isDesktopProfile, detectDesktop, detectDesktopInstall, readDesktopVersion, desktopLogsDir, resolveDesktopCliLauncher, desktopCliSupportsPluginManagement, DESKTOP_PROFILE_NAME, DESKTOP_CLI_MIN_VERSION, type DesktopInfo } from './desktop.js'
+export { isDesktopProfile, detectDesktop, detectDesktopInstall, readDesktopVersion, desktopLogsDir, resolveDesktopCliLauncher, resolveDesktopAppExecutable, desktopCliSupportsPluginManagement, DESKTOP_PROFILE_NAME, DESKTOP_CLI_MIN_VERSION, type DesktopInfo } from './desktop.js'
+export {
+  DESKTOP_VERIFY_PROFILE_NAME,
+  DESKTOP_PORT_ZERO_MIN_VERSION,
+  desktopVerifyProfileFiles,
+  desktopNeedsPortPatch,
+  desktopPortPatchYaml,
+  classifyDesktopReadiness,
+  type DesktopReadinessProbe,
+  type DesktopReadinessOutcome,
+} from './desktop-verify.js'
 export { readLatestCrashReport, type CrashReport } from './crash-report.js'
 export { diagnoseIncompatibility, classifyPeerRisk, renderAdaptDiagnosis, type AdaptDiagnosis, type AdaptRisk } from './adapt.js'
 export { readGlobalDshVersion } from './dsh-version.js'
 export { RETIRED_BUNDLES, RETIRED_BUNDLES_MIN_VERSION, isRetiredBundle } from './retired.js'
+export { KNOWN_VERSION_BOUNDARIES, LATEST_KNOWN_VERSION, decisionVersion, boundariesFrom, boundaryNote, type VersionView } from './versions.js'
 export { readLatestStartupReport, type StartupReport, type StartupReportEntry } from './startup-log.js'
 export {
   scanSessions,

@@ -1,4 +1,4 @@
-import { scanProfile, renderHuman, renderJson, ScanError, reportOk, countSeverities, type OpsConfig } from 'dsh-plugin-ops-core'
+import { scanProfile, renderHuman, renderJson, ScanError, reportOk, countSeverities, type OpsConfig, type VersionView } from 'dsh-plugin-ops-core'
 import type { DshPaths } from 'dsh-plugin-ops-core'
 
 export interface ScanCommandOptions {
@@ -7,6 +7,7 @@ export interface ScanCommandOptions {
   json: boolean
   config: OpsConfig
   updateCheck: boolean
+  versionView?: VersionView
 }
 
 export async function runScanCommand(options: ScanCommandOptions): Promise<number> {
@@ -17,6 +18,7 @@ export async function runScanCommand(options: ScanCommandOptions): Promise<numbe
       profileName: options.profileName,
       config: options.config,
       updateCheck: options.updateCheck,
+      versionView: options.versionView,
     })
   } catch (error) {
     if (error instanceof ScanError) {

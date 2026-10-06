@@ -41,7 +41,7 @@ describe('multi-patch-file bundles (dsh 0.1.7+)', () => {
         name: 'pkg-a', version: '1.0.1',
         dsh: { bundle: { patch: ['a.yml', 'missing.yml'] } },
       })
-      writeFileSync(join(dir, 'a.yml'), '- id: probe\n', 'utf8')
+      writeFileSync(join(dir, 'a.yml'), '- insert:\n    - id: probe\n      name: pkg-a\n', 'utf8')
       writeLockfile(fixture.paths, { 'pkg-a': '1.0.1' })
       const report = await scanProfile({ paths: fixture.paths, profileName: 'web' })
       const finding = report.findings.find((f) => f.ruleId === 'bundle-declaration')
@@ -62,8 +62,8 @@ describe('multi-patch-file bundles (dsh 0.1.7+)', () => {
         name: 'pkg-a', version: '1.0.1',
         dsh: { bundle: { patch: ['a.yml', 'b.yml'] } },
       })
-      writeFileSync(join(dir, 'a.yml'), '- id: probe\n', 'utf8')
-      writeFileSync(join(dir, 'b.yml'), '- id: ghost\n  name: ghost-pkg\n', 'utf8')
+      writeFileSync(join(dir, 'a.yml'), '- insert:\n    - id: probe\n      name: pkg-a\n', 'utf8')
+      writeFileSync(join(dir, 'b.yml'), '- insert:\n    - id: ghost\n      name: ghost-pkg\n', 'utf8')
       writeLockfile(fixture.paths, { 'pkg-a': '1.0.1' })
       const report = await scanProfile({ paths: fixture.paths, profileName: 'web' })
       expect(report.findings.some((f) => f.ruleId === 'patch-resolution' && f.message.includes('ghost-pkg'))).toBe(true)

@@ -1,7 +1,7 @@
 import { existsSync, readdirSync } from 'node:fs'
 import {
   scanProfile, ScanError, reportOk, countSeverities, resolveDshPaths,
-  type OpsConfig, type ScanReport, type DshPaths, type Finding,
+  type OpsConfig, type ScanReport, type DshPaths, type Finding, type VersionView,
 } from 'dsh-plugin-ops-core'
 
 export interface CheckCommandOptions {
@@ -9,6 +9,7 @@ export interface CheckCommandOptions {
   json: boolean
   config: OpsConfig
   updates: boolean
+  versionView?: VersionView
 }
 
 interface CheckProfile {
@@ -47,7 +48,7 @@ export async function runCheckCommand(options: CheckCommandOptions): Promise<num
   for (const name of names) {
     const paths = resolveDshPaths(name, options.paths.home)
     try {
-      const report: ScanReport = await scanProfile({ paths, profileName: name, config: options.config, updateCheck: options.updates })
+      const report: ScanReport = await scanProfile({ paths, profileName: name, config: options.config, updateCheck: options.updates, versionView: options.versionView })
       profiles.push({
         name,
         ok: reportOk(report),

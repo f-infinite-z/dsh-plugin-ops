@@ -132,6 +132,18 @@ export function desktopCliSupportsPluginManagement(version: string | null): bool
 }
 
 /**
+ * The desktop application's Electron executable inside one installation
+ * (Windows: `<install>\DeepSeek Harness.exe`; macOS: `<app>.app/Contents/MacOS/...`).
+ * Null when the expected file is absent.
+ */
+export function resolveDesktopAppExecutable(installDir: string): string | null {
+  const exe = process.platform === 'darwin'
+    ? join(installDir, 'Contents', 'MacOS', 'DeepSeek Harness')
+    : join(installDir, 'DeepSeek Harness.exe')
+  return existsSync(exe) ? exe : null
+}
+
+/**
  * Platform-conventional directory where the desktop app writes its crash
  * reports (`app.setAppLogsPath()`): Windows/Linux put logs under Electron
  * userData (`%APPDATA%\@deepseek-ai\dsh-desktop\logs`), macOS under

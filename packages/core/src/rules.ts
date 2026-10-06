@@ -10,12 +10,13 @@ import {
   registryDependencies,
 } from './profile.js'
 import { readPackageManifest } from './package-tree.js'
-import { resolvePackageDir, toleratesOptionalBundles, type ResolutionGeneration } from './generation.js'
+import { resolvePackageDir, toleratesOptionalBundles, OPTIONAL_TOLERANCE_MIN_VERSION, type ResolutionGeneration } from './generation.js'
 import type { LockedDirectDeps } from './lockfile.js'
 import { lastSuccessSnapshot, diffSnapshots } from './memory.js'
 import type { OutdatedState } from './outdated.js'
 import { readTextFile } from './fsutil.js'
-import { isRetiredBundle } from './retired.js'
+import { isRetiredBundle, RETIRED_BUNDLES, RETIRED_BUNDLES_MIN_VERSION } from './retired.js'
+import { boundaryNote, decisionVersion, type VersionView } from './versions.js'
 
 export interface RuleContext {
   profileName: string
@@ -25,6 +26,12 @@ export interface RuleContext {
   generation: ResolutionGeneration
   /** Installed dsh version from the installation manifest; null when unknown. */
   dshVersion: string | null
+  /**
+   * Reporting view for version-sensitive severities: `all` judges the oldest
+   * known boundary (strictest) and annotates version ranges, `latest` the
+   * newest known boundary. Undefined keeps the actual installed version.
+   */
+  versionView?: VersionView | undefined
   locked: LockedDirectDeps
   /**
    * Whether this is the official desktop profile. The desktop app ships dsh
@@ -105,6 +112,7 @@ function installedVersion(ctx: RuleContext, resolved: ResolvedBundle[], name: st
 
 export function ruleBundleDeclaration(ctx: RuleContext): Finding[] {
   const findings: Finding[] = []
+  const version = decisionVersion(ctx.versionView, ctx.dshVersion)
   const { problems, resolved } = resolveBundles(ctx.paths, ctx.manifest, ctx.generation.installAnchor, ctx.isDesktop)
   for (const problem of problems) {
     // Desktop ships its official bundles inside the packaged asar; a plain
@@ -114,12 +122,12 @@ export function ruleBundleDeclaration(ctx: RuleContext): Finding[] {
     // 0.2.1-alpha.1+ retires this bundle and drops a leftover entry from the
     // profile while loading it (verified against dsh-v0.2.1-alpha.1); a
     // pre-boot fatal would block a start the launcher heals on its own.
-    if (isRetiredBundle(problem.name, ctx.dshVersion)) {
+    if (isRetiredBundle(problem.name, version)) {
       findings.push({
         ruleId: 'bundle-declaration',
         severity: 'info',
         packageName: problem.name,
-        message: `${problem.message}; retired upstream - dsh ${ctx.dshVersion} removes it from the profile on the next start`,
+        message: `${problem.message}; retired upstream - dsh ${version} removes it from the profile on the next start`,
         detail: 'no action needed: start the profile once with dsh and the launcher rewrites dsh.profile.bundles',
         fix: { kind: 'none' },
       })
@@ -127,14 +135,25 @@ export function ruleBundleDeclaration(ctx: RuleContext): Finding[] {
     }
     // 0.1.7+ skips an unreadable optional bundle and keeps loading the profile
     // (verified against 0.1.7-alpha.1); older releases abort the boot.
-    const tolerant = toleratesOptionalBundles(ctx.dshVersion) && problem.message.includes('unreadable')
+    const unreadable = problem.message.includes('unreadable')
+    const tolerant = toleratesOptionalBundles(version) && unreadable
+    const notes: string[] = []
+    if (ctx.versionView === 'all') {
+      if (RETIRED_BUNDLES.has(problem.name)) {
+        notes.push(boundaryNote(RETIRED_BUNDLES_MIN_VERSION, 'the retired bundle does not resolve and the boot aborts', 'the launcher removes it from the profile on the next start'))
+      }
+      if (unreadable) {
+        notes.push(boundaryNote(OPTIONAL_TOLERANCE_MIN_VERSION, 'an unreadable bundle aborts the boot', 'the launcher skips it with a warning'))
+      }
+    }
     findings.push({
       ruleId: 'bundle-declaration',
       severity: tolerant ? 'warn' : 'fatal',
       packageName: problem.name,
       message: tolerant
-        ? `${problem.message}; dsh ${ctx.dshVersion} skips this bundle and continues the boot`
+        ? `${problem.message}; dsh ${version} skips this bundle and continues the boot`
         : problem.message,
+      ...(notes.length > 0 ? { versionNote: notes.join('; ') } : {}),
       fix: { kind: 'none' },
     })
   }

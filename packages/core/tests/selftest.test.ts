@@ -17,7 +17,7 @@ describe('engine selftest', () => {
     try {
       writeProfile(fixture.paths, { dependencies: {}, bundles: [] })
       writeLockfile(fixture.paths, {})
-      writeFileSync(join(fixture.paths.profileDir, 'cordis.patch.yml'), '- id: ghost-row\n  name: ghost-package\n', 'utf8')
+      writeFileSync(join(fixture.paths.profileDir, 'cordis.patch.yml'), '- insert:\n    - id: ghost-row\n      name: ghost-package\n', 'utf8')
 
       const strict = await scanProfile({ paths: fixture.paths, profileName: 'web', dshVersion: '0.1.6-alpha.2' })
       expect(strict.findings.find((f) => f.ruleId === 'patch-resolution')?.severity).toBe('fatal')

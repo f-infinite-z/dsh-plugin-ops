@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs'
 import { readTextFile } from './fsutil.js'
 import { parseDocument } from 'yaml'
 import type { Finding, RuleId, Severity } from './types.js'
+import type { VersionView } from './versions.js'
 
 export interface RuleOverride {
   enabled?: boolean
@@ -11,6 +12,12 @@ export interface RuleOverride {
 export interface OpsConfig {
   rules?: Partial<Record<RuleId, RuleOverride>>
   ignorePackages?: string[]
+  /**
+   * Reporting view for version-sensitive findings: `all` (default at the CLI)
+   * judges every known release and annotates version ranges, `latest` only the
+   * newest known release. Gate ignores this and uses the actual install.
+   */
+  versionView?: VersionView
   /**
    * Explicit dsh installation directory (or its package.json path) used as the
    * resolution generation's root when the shared mirror link is absent, e.g.

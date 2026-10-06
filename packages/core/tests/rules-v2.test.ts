@@ -86,12 +86,13 @@ describe('rule 4: peer gaps and double instances', () => {
 })
 
 describe('rule 5: patch resolution', () => {
-  it('flags a row whose package does not resolve', async () => {
+  it('flags an inserted row whose package does not resolve', async () => {
     const fixture = makeHome()
     try {
       writeProfile(fixture.paths, { dependencies: {}, bundles: [] })
       mkdirSync(fixture.paths.profileDir, { recursive: true })
-      writeFileSync(join(fixture.paths.profileDir, 'cordis.patch.yml'), '- id: row-a\n  name: ghost-package\n', 'utf8')
+      writeFileSync(join(fixture.paths.profileDir, 'cordis.patch.yml'),
+        '- insert:\n    - id: row-a\n      name: ghost-package\n', 'utf8')
       const report = await scanProfile({ paths: fixture.paths, profileName: 'web', updateCheck: false })
       const finding = report.findings.find((f) => f.ruleId === 'patch-resolution')
       expect(finding?.severity).toBe('fatal')
@@ -106,7 +107,8 @@ describe('rule 5: patch resolution', () => {
     try {
       writeProfile(fixture.paths, { dependencies: {}, bundles: [] })
       mkdirSync(fixture.paths.profileDir, { recursive: true })
-      writeFileSync(join(fixture.paths.profileDir, 'cordis.patch.yml'), '- id: agent-loop\n  name: ghost-package\n', 'utf8')
+      writeFileSync(join(fixture.paths.profileDir, 'cordis.patch.yml'),
+        '- insert:\n    - id: agent-loop\n      name: ghost-package\n', 'utf8')
       const report = await scanProfile({ paths: fixture.paths, profileName: 'web', updateCheck: false })
       const finding = report.findings.find((f) => f.ruleId === 'patch-resolution')
       expect(finding?.severity).toBe('fatal')
@@ -122,7 +124,7 @@ describe('rule 5: patch resolution', () => {
       writeInstalledPackages(fixture.paths, [{ name: '@deepseek-ai/dsh-web-app', version: '1.0.0', dirName: '@deepseek-ai/dsh-web-app' }])
       mkdirSync(fixture.paths.profileDir, { recursive: true })
       writeFileSync(join(fixture.paths.profileDir, 'cordis.patch.yml'),
-        "- id: startup\n  name: '@deepseek-ai/dsh-web-app/startup'\n", 'utf8')
+        "- insert:\n    - id: startup\n      name: '@deepseek-ai/dsh-web-app/startup'\n", 'utf8')
       const report = await scanProfile({ paths: fixture.paths, profileName: 'web', updateCheck: false })
       expect(report.findings.some((f) => f.ruleId === 'patch-resolution' && f.severity === 'fatal')).toBe(false)
     } finally {
@@ -130,13 +132,13 @@ describe('rule 5: patch resolution', () => {
     }
   })
 
-  it('skips disabled rows and cordis builtins', async () => {
+  it('skips disabled inserted rows and cordis builtins', async () => {
     const fixture = makeHome()
     try {
       writeProfile(fixture.paths, { dependencies: {}, bundles: [] })
       mkdirSync(fixture.paths.profileDir, { recursive: true })
       writeFileSync(join(fixture.paths.profileDir, 'cordis.patch.yml'),
-        '- id: off\n  name: ghost-package\n  disabled: true\n- id: inc\n  name: cordis:include\n', 'utf8')
+        '- insert:\n    - id: off\n      name: ghost-package\n      disabled: true\n    - id: inc\n      name: cordis:include\n', 'utf8')
       const report = await scanProfile({ paths: fixture.paths, profileName: 'web', updateCheck: false })
       expect(reportOk(report)).toBe(true)
     } finally {
@@ -150,7 +152,7 @@ describe('rule 5: patch resolution', () => {
       writeProfile(fixture.paths, { dependencies: {}, bundles: [] })
       mkdirSync(fixture.paths.profileDir, { recursive: true })
       writeFileSync(join(fixture.paths.profileDir, 'cordis.patch.yml'),
-        '- id: row-a\n  name: ghost-package\n  disabled: !!js "(() => { try { require.resolve(\'ghost-package\') } catch { return true } return false })()"\n', 'utf8')
+        '- insert:\n    - id: row-a\n      name: ghost-package\n      disabled: !!js "(() => { try { require.resolve(\'ghost-package\') } catch { return true } return false })()"\n', 'utf8')
       const report = await scanProfile({ paths: fixture.paths, profileName: 'web', updateCheck: false })
       const finding = report.findings.find((f) => f.ruleId === 'patch-resolution')
       expect(finding?.severity).toBe('info')
@@ -167,7 +169,7 @@ describe('rule 5: patch resolution', () => {
       writeProfile(fixture.paths, { dependencies: {}, bundles: [] })
       mkdirSync(fixture.paths.profileDir, { recursive: true })
       writeFileSync(join(fixture.paths.profileDir, 'cordis.patch.yml'),
-        "- id: row-a\n  name: ghost-package\n  disabled: !!js \"process.env.CI === '1'\"\n", 'utf8')
+        "- insert:\n    - id: row-a\n      name: ghost-package\n      disabled: !!js \"process.env.CI === '1'\"\n", 'utf8')
       const report = await scanProfile({ paths: fixture.paths, profileName: 'web', updateCheck: false })
       const finding = report.findings.find((f) => f.ruleId === 'patch-resolution')
       expect(finding?.severity).toBe('fatal')
@@ -176,14 +178,14 @@ describe('rule 5: patch resolution', () => {
     }
   })
 
-  it('lets a user-layer row with the same id override a bundle-layer row', async () => {
+  it('lets a user-layer configuration row override a bundle-layer row', async () => {
     const fixture = makeHome()
     try {
       writeProfile(fixture.paths, { dependencies: { 'pkg-a': '^1.0.0' }, bundles: ['pkg-a'] })
       writeInstalledPackages(fixture.paths, [{ name: 'pkg-a', version: '1.0.0', dshBundlePatch: 'cordis.patch.yml' }])
-      // The bundle layer carries a bare row that cannot resolve.
+      // The bundle layer inserts a bare row that cannot resolve.
       writeFileSync(join(fixture.paths.profileDir, 'node_modules', 'pkg-a', 'cordis.patch.yml'),
-        '- id: row-a\n  name: ghost-package\n', 'utf8')
+        '- insert:\n    - id: row-a\n      name: ghost-package\n', 'utf8')
       // The user layer overrides the same id with a resolve guard.
       writeFileSync(join(fixture.paths.profileDir, 'cordis.patch.yml'),
         '- id: row-a\n  name: ghost-package\n  disabled: !!js "(() => { try { require.resolve(\'ghost-package\') } catch { return true } return false })()"\n', 'utf8')
@@ -203,7 +205,7 @@ describe('rule 5: patch resolution', () => {
       writeProfile(fixture.paths, { dependencies: { 'pkg-a': '^1.0.0' }, bundles: ['pkg-a'] })
       writeInstalledPackages(fixture.paths, [{ name: 'pkg-a', version: '1.0.0', dshBundlePatch: 'cordis.patch.yml' }])
       writeFileSync(join(fixture.paths.profileDir, 'node_modules', 'pkg-a', 'cordis.patch.yml'),
-        '- id: row-a\n  name: ghost-package\n', 'utf8')
+        '- insert:\n    - id: row-a\n      name: ghost-package\n', 'utf8')
       writeFileSync(join(fixture.paths.profileDir, 'cordis.patch.yml'),
         '- id: row-a\n  name: ghost-package\n  disabled: true\n', 'utf8')
       const report = await scanProfile({ paths: fixture.paths, profileName: 'web', updateCheck: false })
@@ -219,10 +221,65 @@ describe('rule 5: patch resolution', () => {
       writeProfile(fixture.paths, { dependencies: { 'pkg-a': '^1.0.0' }, bundles: ['pkg-a'] })
       writeInstalledPackages(fixture.paths, [{ name: 'pkg-a', version: '1.0.0', dshBundlePatch: 'cordis.patch.yml' }])
       writeFileSync(join(fixture.paths.profileDir, 'node_modules', 'pkg-a', 'cordis.patch.yml'),
-        '- id: row-a\n  name: ghost-package\n', 'utf8')
+        '- insert:\n    - id: row-a\n      name: ghost-package\n', 'utf8')
       const report = await scanProfile({ paths: fixture.paths, profileName: 'web', updateCheck: false })
       const finding = report.findings.find((f) => f.ruleId === 'patch-resolution')
       expect(finding?.severity).toBe('fatal')
+    } finally {
+      fixture.dispose()
+    }
+  })
+
+  it('keeps checking the inserted row when a later configuration row omits a name', async () => {
+    const fixture = makeHome()
+    try {
+      writeProfile(fixture.paths, { dependencies: { 'pkg-a': '^1.0.0' }, bundles: ['pkg-a'] })
+      writeInstalledPackages(fixture.paths, [{ name: 'pkg-a', version: '1.0.0', dshBundlePatch: 'cordis.patch.yml' }])
+      writeFileSync(join(fixture.paths.profileDir, 'node_modules', 'pkg-a', 'cordis.patch.yml'),
+        '- insert:\n    - id: row-a\n      name: ghost-package\n', 'utf8')
+      // A flat configuration row without a name merges into the inserted row;
+      // it must not mask the inserted row's unresolvable name.
+      writeFileSync(join(fixture.paths.profileDir, 'cordis.patch.yml'),
+        "- id: row-a\n  disabled: !!js \"process.env.CI === '1'\"\n", 'utf8')
+      const report = await scanProfile({ paths: fixture.paths, profileName: 'web', updateCheck: false })
+      const finding = report.findings.find((f) => f.ruleId === 'patch-resolution')
+      expect(finding?.severity).toBe('fatal')
+      expect(finding?.message).toContain('ghost-package')
+    } finally {
+      fixture.dispose()
+    }
+  })
+
+  it('skips a configuration row whose name assertion does not match its target', async () => {
+    const fixture = makeHome()
+    try {
+      writeProfile(fixture.paths, { dependencies: { 'pkg-a': '^1.0.0' }, bundles: ['pkg-a'] })
+      writeInstalledPackages(fixture.paths, [{ name: 'pkg-a', version: '1.0.0', dshBundlePatch: 'cordis.patch.yml' }])
+      writeFileSync(join(fixture.paths.profileDir, 'node_modules', 'pkg-a', 'cordis.patch.yml'),
+        '- insert:\n    - id: row-a\n      name: pkg-a\n', 'utf8')
+      // The include skips a patch whose name assertion mismatches, so the
+      // resolved inserted row stands and nothing is reported.
+      writeFileSync(join(fixture.paths.profileDir, 'cordis.patch.yml'),
+        '- id: row-a\n  name: wrong-name\n', 'utf8')
+      const report = await scanProfile({ paths: fixture.paths, profileName: 'web', updateCheck: false })
+      expect(report.findings.some((f) => f.ruleId === 'patch-resolution')).toBe(false)
+    } finally {
+      fixture.dispose()
+    }
+  })
+
+  it('reports an info when a configuration row targets an id no layer introduces', async () => {
+    const fixture = makeHome()
+    try {
+      writeProfile(fixture.paths, { dependencies: {}, bundles: [] })
+      mkdirSync(fixture.paths.profileDir, { recursive: true })
+      writeFileSync(join(fixture.paths.profileDir, 'cordis.patch.yml'),
+        '- id: ghost-row\n  name: ghost-package\n  disabled: true\n', 'utf8')
+      const report = await scanProfile({ paths: fixture.paths, profileName: 'web', updateCheck: false })
+      const finding = report.findings.find((f) => f.ruleId === 'patch-resolution')
+      expect(finding?.severity).toBe('info')
+      expect(finding?.message).toContain('does not apply')
+      expect(reportOk(report)).toBe(true)
     } finally {
       fixture.dispose()
     }
@@ -323,7 +380,7 @@ describe('version-aware severity (dsh 0.1.7 tolerance)', () => {
       writeProfile(fixture.paths, { dependencies: {}, bundles: [] })
       writeDshAnchor(fixture.paths, '0.1.7-alpha.1')
       mkdirSync(fixture.paths.profileDir, { recursive: true })
-      writeFileSync(join(fixture.paths.profileDir, 'cordis.patch.yml'), '- id: row-a\n  name: ghost-package\n', 'utf8')
+      writeFileSync(join(fixture.paths.profileDir, 'cordis.patch.yml'), '- insert:\n    - id: row-a\n      name: ghost-package\n', 'utf8')
       const report = await scanProfile({ paths: fixture.paths, profileName: 'web', updateCheck: false })
       const finding = report.findings.find((f) => f.ruleId === 'patch-resolution')
       expect(finding?.severity).toBe('warn')
@@ -339,7 +396,7 @@ describe('version-aware severity (dsh 0.1.7 tolerance)', () => {
       writeProfile(fixture.paths, { dependencies: {}, bundles: [] })
       writeDshAnchor(fixture.paths, '0.1.6-alpha.2')
       mkdirSync(fixture.paths.profileDir, { recursive: true })
-      writeFileSync(join(fixture.paths.profileDir, 'cordis.patch.yml'), '- id: row-a\n  name: ghost-package\n', 'utf8')
+      writeFileSync(join(fixture.paths.profileDir, 'cordis.patch.yml'), '- insert:\n    - id: row-a\n      name: ghost-package\n', 'utf8')
       const report = await scanProfile({ paths: fixture.paths, profileName: 'web', updateCheck: false })
       const finding = report.findings.find((f) => f.ruleId === 'patch-resolution')
       expect(finding?.severity).toBe('fatal')
@@ -354,7 +411,7 @@ describe('version-aware severity (dsh 0.1.7 tolerance)', () => {
       writeProfile(fixture.paths, { dependencies: {}, bundles: [] })
       writeDshAnchor(fixture.paths, '0.1.7-alpha.1')
       mkdirSync(fixture.paths.profileDir, { recursive: true })
-      writeFileSync(join(fixture.paths.profileDir, 'cordis.patch.yml'), '- id: agent-loop\n  name: ghost-package\n', 'utf8')
+      writeFileSync(join(fixture.paths.profileDir, 'cordis.patch.yml'), '- insert:\n    - id: agent-loop\n      name: ghost-package\n', 'utf8')
       const report = await scanProfile({ paths: fixture.paths, profileName: 'web', updateCheck: false })
       const finding = report.findings.find((f) => f.ruleId === 'patch-resolution')
       expect(finding?.severity).toBe('fatal')

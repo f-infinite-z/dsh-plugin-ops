@@ -29,10 +29,11 @@ describe('desktop profile scan', () => {
         bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'],
       })
       writeUserPatch(fixture.paths.profileDir, [
-        '- id: ui-settings',
-        '  name: "@deepseek-ai/dsh-client-ui-settings"',
-        '  config:',
-        '    enabled: true',
+        '- insert:',
+        '    - id: ui-settings',
+        '      name: "@deepseek-ai/dsh-client-ui-settings"',
+        '      config:',
+        '        enabled: true',
         '',
       ].join('\n'))
       const report = await scanProfile({ paths: fixture.paths, profileName: 'desktop' })
@@ -50,7 +51,7 @@ describe('desktop profile scan', () => {
     const fixture = makeHome('desktop')
     try {
       writeProfile(fixture.paths, { dependencies: {}, bundles: [] })
-      writeUserPatch(fixture.paths.profileDir, '- id: third-party\n  name: "some-missing-plugin"\n')
+      writeUserPatch(fixture.paths.profileDir, '- insert:\n    - id: third-party\n      name: "some-missing-plugin"\n')
       const report = await scanProfile({ paths: fixture.paths, profileName: 'desktop' })
       const finding = report.findings.find((f) => f.ruleId === 'patch-resolution')
       expect(finding).toBeDefined()
@@ -64,11 +65,23 @@ describe('desktop profile scan', () => {
     const fixture = makeHome('web')
     try {
       writeProfile(fixture.paths, { dependencies: {}, bundles: [] })
-      writeUserPatch(fixture.paths.profileDir, '- id: ui-settings\n  name: "@deepseek-ai/dsh-client-ui-settings"\n')
+      writeUserPatch(fixture.paths.profileDir, '- insert:\n    - id: ui-settings\n      name: "@deepseek-ai/dsh-client-ui-settings"\n')
       const report = await scanProfile({ paths: fixture.paths, profileName: 'web' })
       const finding = report.findings.find((f) => f.ruleId === 'patch-resolution')
       expect(finding).toBeDefined()
       expect(finding?.severity).toBe('fatal')
+    } finally {
+      fixture.dispose()
+    }
+  })
+
+  it('does not report a user-layer flat row on the desktop profile: the official layers sit in the asar', async () => {
+    const fixture = makeHome('desktop')
+    try {
+      writeProfile(fixture.paths, { dependencies: {}, bundles: [] })
+      writeUserPatch(fixture.paths.profileDir, '- id: ui-settings\n  config:\n    enabled: true\n')
+      const report = await scanProfile({ paths: fixture.paths, profileName: 'desktop' })
+      expect(report.findings.some((f) => f.ruleId === 'patch-resolution')).toBe(false)
     } finally {
       fixture.dispose()
     }

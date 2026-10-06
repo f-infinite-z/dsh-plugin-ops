@@ -7,7 +7,7 @@ English | [中文](README.zh.md)
 
 > DeepSeek Harness plugin operations: one-command health check, pre-boot gate, failure attribution and recovery, dependency-tree governance — the doctor for the plugin ecosystem, converging into an integrated plugin-management suite.
 
-**Status: v0.15.2 — packaging fix: the published bundle now ships `lib/adapt.js` (the host half failed to import on desktop since 0.14.0); includes the dsh 0.2.1-alpha.1 retired-bundle compatibility from 0.15.1. Interception, repair, and memory mechanics: [docs/architecture.md](docs/architecture.md).**
+**Status: v0.16.0 — three items in one release: (1) patch-row composition semantics corrected (only `insert` creates entries; fixes a latent defect where `verify --runtime` activation rows never took effect), (2) reporting version views (`--version-view all|latest` plus the verify dsh-peer coverage check), (3) `verify --desktop` (isolated desktop-sandbox boot check; verified BOOTED against 0.2.0-rc.2). Interception, repair, and memory mechanics: [docs/architecture.md](docs/architecture.md).**
 
 ## Names
 
@@ -27,7 +27,7 @@ Existing ecosystem tools cover **change-time protection** (dry runs during insta
 ```sh
 npm i -g dsh-plugin-ops
 dsh-ops check                  # scan every profile (offline, seconds)
-dsh-ops scan --profile web     # deep scan one profile (--json for machines)
+dsh-ops scan --profile web     # deep scan one profile (--json for machines; --version-view latest for newest-only)
 dsh-ops fix --profile web      # lockfile realign (--dry-run to preview)
 dsh-ops gate -- dsh web        # pre-boot gate; attribute failures automatically
 dsh-ops adapt <pkg>            # adapt a plugin the official gate rejects (canary + exemption)
@@ -45,7 +45,7 @@ dsh-ops selftest               # run built-in fault samples through all rules
 | 2 | Three-way dependency drift | fatal / auto-fix | package.json declaration vs pnpm-lock.yaml vs disk |
 | 3 | Registry version comparison | warn | updates via `pnpm outdated`; advisory, never blocks |
 | 4 | Peer gaps / double instances | double instance fatal | peers that cannot resolve; two physical copies of framework core |
-| 5 | Patch-row resolution | fatal | packages referenced by patch rows (including subpaths) unresolvable; patch rows apply through the required bootstrap Include, so one bad row aborts the boot (verified against dsh 0.1.6-alpha.2) |
+| 5 | Patch-row resolution (composition semantics) | fatal/info | a package referenced by an inserted row that does not resolve aborts the boot (required entries / version semantics); a flat row is a configuration patch whose `name` is only a match assertion, reported at info when no visible layer introduces its id; the last insert for an id is the effective row (vendored sources 0.1.7-rc.2 + 0.2.1-alpha.1, `--dump-config` probes) |
 | 6 | Fault memory | info/warn | packages that changed since the last successful boot (attribution baseline) |
 | 7 | Structure integrity | fatal/warn | missing default entry / CJS entry (the Loader needs ESM named exports) / missing types or client |
 | 8 | Plugin version compatibility | fatal / info (exempted) | `@deepseek-ai/dsh*` peer ranges that reject the running dsh version — dsh 0.1.7-rc.1+ skips such a bundle, silently dropping its features unless an exact-version exemption is granted |
@@ -60,12 +60,12 @@ Real-ecosystem validation: dangling peer declarations (authors referencing offic
 | Surface | Description |
 |---|---|
 | `check` | one-shot health check across all profiles (offline by default) |
-| `scan` | single-profile deep scan: rules 1-9 plus optional update check |
+| `scan` | single-profile deep scan: rules 1-9 plus optional update check; `--version-view all\|latest` selects the version view (all by default: every known release with version-range notes; latest: newest semantics only; severity always follows the actual install) |
 | `fix` | auto-fix set: disk↔lockfile realign (`pnpm install --frozen-lockfile --force`); plan → confirm → execute → backup |
 | `gate` | block-first graded disposition: fatal findings block (auto-fix then pass; complex ones get loud guidance; `--bypass` is a logged escape hatch); a boot failure reads the official startup diagnostics (`$DSH_HOME/logs/startup-*.log`), attributes the changed packages and the launcher-reported failed plugins, and offers interactive disable-and-retry; one-shot headless profiles pass exit codes through without attribution |
 | `serve` | local web panel: health cards / findings / fix execution / **plugin-row management** (health badges, severity filter, 10-per-page paging, official-row protection, enable/disable) / fault timeline / **diagnosis chat** with an **enhanced-retrieval (RAG) toggle** — troubleshooting experience deposits as Markdown and matching entries are retrieved into the chat (BM25 + optional embedding re-rank), zh/en switch |
 | `selftest` | engine self-check over six built-in fault samples |
-| `verify` | publish-time check for plugin authors: accepts a local directory or an **npm package spec** (`dsh-ops verify <name\|@scope/name\|name@version>`, downloaded from the registry); covers bundle patch declaration/parse, patch-row resolution, dependency protocols (`file:`/`workspace:`), peer contracts (peer keys must be package names, peer ranges must be semver), ESM entry and exports, client export contract and bundle shape, files completeness (`--json`, `--strict` for CI); **`--runtime`** additionally boots the package in an isolated DSH home (official install + launch) and reports whether the boot survives, naming the failed loader entries |
+| `verify` | publish-time check for plugin authors: accepts a local directory or an **npm package spec** (`dsh-ops verify <name\|@scope/name\|name@version>`, downloaded from the registry); covers bundle patch declaration/parse, patch-row resolution, dependency protocols (`file:`/`workspace:`), peer contracts (peer keys must be package names, peer ranges must be semver), **dsh-peer release coverage** (a declared `@deepseek-ai/dsh*` peer range must cover every known release boundary; gaps are named — a compatibility-matrix requirement for marketplace listings), ESM entry and exports, client export contract and bundle shape, files completeness (`--json`, `--strict` for CI); **`--runtime`** additionally boots the package in an isolated DSH home (official install + launch); **`--desktop`** boots it in an isolated desktop sandbox — a temporary `DSH_HOME` with its own desktop profile, an isolated Electron user-data-dir, and a sandbox-only webserver port, installed through the desktop app's own bundled CLI (0.2.0-rc.1+), judged by crash report / process / host port, tearing down only its own process tree and never touching a live instance or real data |
 | `adapt` | installation adaptation for a plugin the official gate rejects over incompatible `@deepseek-ai/dsh*` peer ranges: diagnoses the offending peers and classifies the risk (narrow bound versus cross-major / 0.x-minor), grants the official exact-version exemption in an **isolated canary boot first**, and writes the real profile only once that boot survives — a failed canary or install rolls the exemption back; for the **desktop profile** it drives the app's own bundled CLI (0.2.0-rc.1+, unit-tested; an end-to-end run is still pending) to install/remove directly once the app is fully exited, and falls back to writing the exemption with a pointer at the Plugins page when no CLI is available; `--remove` uninstalls the package and drops its exemptions in one step |
 | `sessions` | session-container repair: scans `$DSH_HOME/sessions` for the two boot-blocking corruption classes (an artifact whose first frame cannot be decoded; a session directory that does not match its header id); `--repair-paths` moves a renamed directory back to its header id, `--quarantine` moves unreadable session directories into `$DSH_HOME/cache/dsh-ops/quarantine` (never deleted); read-only plan by default, deep event-level diagnostics stay with `@argszero/cordis-plugin-session-audit` |
 | `dev` | development watcher for one plugin directory: static checks after every change (debounced, numbered, tagged with the package identity), `--runtime` also boots the package in an isolated DSH home after each clean pass and reports when it skips a dirty pass; a summary of checks/failures/elapsed prints on shutdown; never touches a running dsh |
@@ -81,6 +81,7 @@ rules:
     enabled: false          # disable a rule
   peer-gap:
     severity: info          # severity can only be demoted
+versionView: all            # version view: all (default: every known release + version-range notes) | latest
 ignorePackages:
   - some-noisy-plugin
 ```
@@ -112,7 +113,7 @@ dsh-xray rates this project C3 (a capability-surface rating, not intent); the ta
 
 - **Desktop adaptation (0.12.0).** The official desktop app (0.2.0+) ships dsh inside its packaged `app.asar` and has no CLI launch point. `scan`/`fix`/`check` recognize the desktop profile, read its release version, and trust the official bundles and rows the packaged runtime carries; `gate --profile desktop` pre-checks without booting and attributes the desktop crash report (`crash-*.log`).
 - **Installation adaptation (0.13.0–0.15.0).** `dsh-ops adapt` and the in-panel adapt card complement the official gate's change-time refusal: diagnose why a plugin is rejected, classify the risk, grant the official exact-version exemption (the CLI behind an isolated canary boot; the panel in-app through the official plugin manager), and clean the exemption up with removal. On the desktop profile the CLI path now drives the app's own bundled launcher (0.2.0-rc.1+) once the app is fully exited. This is the first step from diagnostics toward a repair loop; small source-level fixes for real incompatibilities, presented with an explanation, remain a later direction.
-- **Multi-surface test sandbox for plugin authors (planned).** An isolated `DSH_HOME` plus a separate Electron `user-data-dir` and a per-sandbox webserver port let the official desktop app run beside an already-running instance, so a plugin can be exercised on the web, CLI, and desktop surfaces without touching real data. Extending `verify --runtime` with a desktop runtime target and reporting a per-surface adaptation result is the planned follow-up.
+- **Multi-surface test sandbox for plugin authors.** `verify --desktop` (0.16.0) ships the first target: a temporary `DSH_HOME` (its own desktop profile) plus a separate Electron user-data-dir and a sandbox-only webserver port, installed through the desktop app's own bundled CLI and observed until its host port is ready — running beside a live instance without touching real data (verified BOOTED against 0.2.0-rc.2, no residue). A per-surface adaptation matrix (static + web runtime + desktop runtime) and a persistent sandbox are the follow-ups, pursued on demand.
 - **Consistency verification for plugin authors.** `dsh-ops verify` accepts a local directory or an npm package spec and ships nine checks (bundle patch declaration/parse, patch-row resolution, dependency protocols, peer contracts, ESM entry and exports, client export contract and bundle shape, files completeness); false positives were triaged against 30 real ecosystem plugins (28 report zero findings). `verify --runtime` boots the package in an isolated DSH home through the official install and launch commands and reports whether the boot survives.
 - **Integrated plugin management (v2).** Absorb the ecosystem's change-time protections (canary runs, enable/disable, update checks, market) into the startup-lifecycle guard, with the pre-boot gate as the single entry point.
 
@@ -120,7 +121,7 @@ dsh-xray rates this project C3 (a capability-surface rating, not intent); the ta
 
 ```sh
 pnpm install && pnpm run build
-pnpm run typecheck && pnpm run test      # 220 tests (core 170 + bundle 26 + cli 24)
+pnpm run typecheck && pnpm run test      # 243 tests (core 193 + bundle 26 + cli 24)
 node packages/cli/lib/index.js selftest  # engine self-check
 node scripts/e2e/scan-fix.e2e.mjs        # offline E2E (real pnpm repair)
 node scripts/e2e/gate.e2e.mjs            # gate scenarios (pass/block/bypass/attribution/headless)

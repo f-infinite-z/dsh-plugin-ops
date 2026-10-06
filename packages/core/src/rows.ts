@@ -7,18 +7,30 @@ import { PROFILE_PATCH_FILENAME, type PatchRow } from './patch-layer.js'
 export interface RowRef {
   source: string
   row: PatchRow
+  /**
+   * True when the row was introduced by an `insert` directive — the only form
+   * that creates an entry. False for a flat configuration patch, which merges
+   * its fields into an entry an earlier insert created.
+   */
+  inserted: boolean
+  /**
+   * Directory a relative module path in this row resolves against: the patch
+   * file's own directory for bundle rows, the profile directory for the user
+   * layer (app boot anchors inserted paths beside their patch file).
+   */
+  baseDir: string
 }
 
-function rowsOfFile(file: string, label: string): RowRef[] {
+function rowsOfFile(file: string, label: string, baseDir: string): RowRef[] {
   if (!existsSync(file)) return []
   try {
     const doc = parseDocument(readFileSync(file, 'utf8'))
     const value: unknown = doc.toJS()
     if (!Array.isArray(value)) return []
     const refs: RowRef[] = []
-    const pushRow = (row: unknown) => {
+    const pushRow = (row: unknown, inserted: boolean) => {
       if (typeof row === 'object' && row !== null) {
-        refs.push({ source: label, row: row as PatchRow })
+        refs.push({ source: label, row: row as PatchRow, inserted, baseDir })
       }
     }
     for (const item of value) {
@@ -26,9 +38,9 @@ function rowsOfFile(file: string, label: string): RowRef[] {
         const record = item as Record<string, unknown>
         // `insert` directives nest the real rows (applyEntryPatches semantics).
         if (Array.isArray(record.insert)) {
-          for (const sub of record.insert) pushRow(sub)
+          for (const sub of record.insert) pushRow(sub, true)
         } else {
-          pushRow(item)
+          pushRow(item, false)
         }
       }
     }
@@ -47,10 +59,10 @@ export function allVisibleRows(profileDir: string, bundles: ResolvedBundle[]): R
   for (const bundle of bundles) {
     for (const patch of bundle.patches) {
       const patchFile = join(bundle.dir, patch)
-      refs.push(...rowsOfFile(patchFile, `${bundle.name}@${patch}`))
+      refs.push(...rowsOfFile(patchFile, `${bundle.name}@${patch}`, bundle.dir))
     }
   }
-  refs.push(...rowsOfFile(join(profileDir, PROFILE_PATCH_FILENAME), `${PROFILE_PATCH_FILENAME} (user layer)`))
+  refs.push(...rowsOfFile(join(profileDir, PROFILE_PATCH_FILENAME), `${PROFILE_PATCH_FILENAME} (user layer)`, profileDir))
   return refs
 }
 

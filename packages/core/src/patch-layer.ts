@@ -100,12 +100,16 @@ export function appendDisabledRow(profileDir: string, rowId: string): PatchWrite
 }
 
 /**
- * Append a flat activation row (`id + name`) to the user patch layer by pushing
- * a node into the root sequence. Used by runtime verification to mount a plain
- * plugin into an isolated profile. Structural append is required because the
- * official profile template ships a comment header plus an empty `[]`
- * placeholder — text-concatenating after it would corrupt the document. Never
- * writes through an unparsable file and always leaves a backup.
+ * Append an `insert` directive that introduces a loader row (`id + name`) in
+ * the user patch layer. The include's patch algorithm only creates entries
+ * from `insert` rows — a flat id-targeted row is a configuration patch that
+ * the include skips (with a warning) when no earlier insert introduced the
+ * id — so activation must be written as an insert. Used by runtime
+ * verification to mount a plain plugin into an isolated profile. Structural
+ * append is required because the official profile template ships a comment
+ * header plus an empty `[]` placeholder — text-concatenating after it would
+ * corrupt the document. Never writes through an unparsable file and always
+ * leaves a backup.
  */
 export function appendActivationRow(profileDir: string, rowId: string, packageName: string): PatchWriteResult {
   const file = join(profileDir, PROFILE_PATCH_FILENAME)
@@ -121,7 +125,7 @@ export function appendActivationRow(profileDir: string, rowId: string, packageNa
     if (!Array.isArray(doc.toJS())) {
       return { ok: false, problem: 'patch file root is not a YAML list; refusing to write', backup }
     }
-    seq.items.push(doc.createNode({ id: rowId, name: packageName }))
+    seq.items.push(doc.createNode({ insert: [{ id: rowId, name: packageName }] }))
     writeTextAtomic(file, doc.toString())
     return { ok: true, backup }
   } catch (error) {
