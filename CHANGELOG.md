@@ -2,6 +2,17 @@
 
 All notable changes are tracked here.
 
+## 0.16.1 — 2026-10-06
+
+### Version-view exposure in both panels
+
+- The `serve` panel and the embedded desktop bundle now scan under the same
+  version view as the CLI (`config.versionView ?? 'all'`) and render the
+  `versionNote` on version-sensitive findings — previously both panels judged
+  against the actual install and dropped the note, so the 0.16.0 version view
+  was CLI-only.
+- 248 tests (core 198 + bundle 26 + cli 24).
+
 ## 0.16.0 — 2026-10-06
 
 ### Patch-row composition correctness + reporting version views + desktop verification

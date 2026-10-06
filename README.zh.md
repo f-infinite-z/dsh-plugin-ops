@@ -7,7 +7,7 @@
 
 > DeepSeek Harness 插件运维（Plugin Operations）：启动前体检与拦截、失败归因与恢复、依赖治理、安装适配、作者发布前验证——让插件生态保持可加载。
 
-**状态：v0.16.0 — 三项合并发布：①patch 行合并语义修正（insert 才引入条目；`verify --runtime` 激活行此前从未生效的缺陷一并修复）②报告版本视角（`--version-view all|latest` + verify 的 dsh peer 全版本覆盖检查）③`verify --desktop`（隔离桌面沙箱启动验证，0.2.0-rc.2 实测 BOOTED）。拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
+**状态：v0.16.1 — 面板补齐版本视角（serve 与桌面内嵌面板与 CLI 同口径 `all`/`latest` 并呈现版本注记）；上一版 0.16.0 含：patch 行合并语义修正（`verify --runtime` 激活行缺陷一并修复）、报告版本视角（`--version-view` + verify 的 dsh peer 覆盖检查）、`verify --desktop`（0.2.0-rc.2 实测 BOOTED）。拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
 
 ## 命名
 
@@ -121,7 +121,7 @@ dsh-xray 给本项目的评级为 C3（衡量能力面而非意图）；上表�
 
 ```sh
 pnpm install && pnpm run build
-pnpm run typecheck && pnpm run test      # 246 单测（core 196 + bundle 26 + cli 24）
+pnpm run typecheck && pnpm run test      # 248 单测（core 198 + bundle 26 + cli 24）
 node packages/cli/lib/index.js selftest  # 引擎自检
 node scripts/e2e/scan-fix.e2e.mjs        # 离线 E2E（真实 pnpm 修复）
 node scripts/e2e/gate.e2e.mjs            # gate 场景（放行/阻断/旁路/归因/headless）

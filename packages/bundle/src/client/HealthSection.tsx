@@ -17,6 +17,7 @@ interface Finding {
   packageName?: string
   message: string
   detail?: string
+  versionNote?: string
   fix: { kind: string }
 }
 
@@ -547,6 +548,7 @@ export function HealthSection(): ReactNode {
                   {finding.packageName !== undefined && <span className="dshops-mono">{finding.packageName}</span>}{' '}
                   {finding.message}
                   {finding.detail !== undefined && <div className="dshops-dim">{finding.detail}</div>}
+                  {finding.versionNote !== undefined && <div className="dshops-dim">{t.versionNote}: {finding.versionNote}</div>}
                 </div>
               ))}
             </div>

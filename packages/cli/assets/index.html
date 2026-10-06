@@ -180,7 +180,7 @@ const I18N = {
     knowledgeEmpty: '暂无知识条目（修复成功或对话沉淀后自动积累）', knowledgeSearchEmpty: '无命中条目', knowledgeFail: '知识库加载失败：',
     depositOk: '已沉淀为知识条目', depositFail: '沉淀失败：', depositNoChat: '先进行一轮对话再沉淀',
     btnDelete: '删除', knowledgeTimes: '出现 {n} 次', knowledgeScore: '匹配度',
-    sevLabel: { fatal: '致命', warn: '警告', info: '信息' },
+    sevLabel: { fatal: '致命', warn: '警告', info: '信息' }, versionNote: '版本',
     overallOk: 'OK', overallBlocked: '阻断',
     rule: {
       'bundle-declaration': 'bundle 声明完整性', 'dependency-drift': '依赖漂移', 'session-memory': '故障记忆',
@@ -216,7 +216,7 @@ const I18N = {
     knowledgeEmpty: 'No entries yet (fixes and deposits accumulate here)', knowledgeSearchEmpty: 'No matches', knowledgeFail: 'Failed to load knowledge: ',
     depositOk: 'Deposited as a knowledge entry', depositFail: 'Deposit failed: ', depositNoChat: 'Chat once before depositing',
     btnDelete: 'Delete', knowledgeTimes: 'seen {n}×', knowledgeScore: 'score',
-    sevLabel: { fatal: 'Fatal', warn: 'Warning', info: 'Info' },
+    sevLabel: { fatal: 'Fatal', warn: 'Warning', info: 'Info' }, versionNote: 'version',
     overallOk: 'OK', overallBlocked: 'Blocked',
     rule: {
       'bundle-declaration': 'Bundle declaration', 'dependency-drift': 'Dependency drift', 'session-memory': 'Session memory',
@@ -318,7 +318,8 @@ function renderReport(report) {
     d.innerHTML = `<span class="badge b-${f.severity}">${esc(sev)}</span>
       <div class="msg">${esc(f.message)}
         <div class="meta">${esc(ruleLabel(f.ruleId))}${f.packageName ? ' · ' + esc(f.packageName) : ''}</div>
-        ${f.detail ? `<div class="det">${esc(f.detail)}</div>` : ''}</div>`
+        ${f.detail ? `<div class="det">${esc(f.detail)}</div>` : ''}
+        ${f.versionNote ? `<div class="det">${esc(t('versionNote'))}: ${esc(f.versionNote)}</div>` : ''}</div>`
     box.appendChild(d)
   }
 }

@@ -124,6 +124,7 @@ export async function handlePanelApi(
     const report = await scanProfile({
       paths, profileName: profile, config: options.config,
       updateCheck: url.searchParams.get('updates') === 'true',
+      versionView: options.config?.versionView ?? 'all',
     })
     const counts = { fatal: 0, warn: 0, info: 0 }
     for (const finding of report.findings) counts[finding.severity]++
@@ -146,7 +147,7 @@ export async function handlePanelApi(
 
   if (method === 'GET' && pathname === '/api/fix/preview') {
     const paths = pathsFor(options, profile)
-    const report = await scanProfile({ paths, profileName: profile, config: options.config, updateCheck: false })
+    const report = await scanProfile({ paths, profileName: profile, config: options.config, updateCheck: false, versionView: options.config?.versionView ?? 'all' })
     const alignable = report.findings.filter((f) => f.severity === 'fatal' && f.fix.kind === 'align-lockfile')
     return {
       status: 200,
@@ -161,7 +162,7 @@ export async function handlePanelApi(
 
   if (method === 'POST' && pathname === '/api/fix/execute') {
     const paths = pathsFor(options, profile)
-    const report = await scanProfile({ paths, profileName: profile, config: options.config, updateCheck: false })
+    const report = await scanProfile({ paths, profileName: profile, config: options.config, updateCheck: false, versionView: options.config?.versionView ?? 'all' })
     const alignable = report.findings.filter((f) => f.severity === 'fatal' && f.fix.kind === 'align-lockfile')
     if (alignable.length === 0) return { status: 200, body: { ok: true, detail: 'nothing to realign' } }
     const drifted = [...new Set(alignable.map((f) => f.packageName).filter((n): n is string => n !== undefined))]

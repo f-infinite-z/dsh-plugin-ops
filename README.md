@@ -7,7 +7,7 @@ English | [中文](README.zh.md)
 
 > DeepSeek Harness plugin operations: pre-boot checks and a blocking gate, failure attribution and recovery, dependency governance, install adaptation, and publish-time verification for plugin authors — keeping the plugin ecosystem loadable.
 
-**Status: v0.16.0 — three items in one release: (1) patch-row composition semantics corrected (only `insert` creates entries; fixes a latent defect where `verify --runtime` activation rows never took effect), (2) reporting version views (`--version-view all|latest` plus the verify dsh-peer coverage check), (3) `verify --desktop` (isolated desktop-sandbox boot check; verified BOOTED against 0.2.0-rc.2). Interception, repair, and memory mechanics: [docs/architecture.md](docs/architecture.md).**
+**Status: v0.16.1 — version-view exposure in both panels (the `serve` panel and the embedded desktop bundle share the CLI's view, `all`/`latest`, and render version notes); 0.16.0 carried the patch-row semantics fix, the reporting version views (`--version-view` plus the verify dsh-peer coverage check), and `verify --desktop` (BOOTED against 0.2.0-rc.2). Interception, repair, and memory mechanics: [docs/architecture.md](docs/architecture.md).**
 
 ## Names
 
@@ -121,7 +121,7 @@ dsh-xray rates this project C3 (a capability-surface rating, not intent); the ta
 
 ```sh
 pnpm install && pnpm run build
-pnpm run typecheck && pnpm run test      # 246 tests (core 196 + bundle 26 + cli 24)
+pnpm run typecheck && pnpm run test      # 248 tests (core 198 + bundle 26 + cli 24)
 node packages/cli/lib/index.js selftest  # engine self-check
 node scripts/e2e/scan-fix.e2e.mjs        # offline E2E (real pnpm repair)
 node scripts/e2e/gate.e2e.mjs            # gate scenarios (pass/block/bypass/attribution/headless)

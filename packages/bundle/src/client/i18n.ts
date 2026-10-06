@@ -22,6 +22,7 @@ export interface Dict {
   disable: string
   enable: string
   protectedTag: string
+  versionNote: string
   disabledTag: string
   prev: string
   next: string
@@ -96,6 +97,7 @@ export const DICTS: Record<Lang, Dict> = {
     disable: '禁用',
     enable: '启用',
     protectedTag: '官方保护',
+    versionNote: '版本',
     disabledTag: '已禁用',
     prev: '上一页',
     next: '下一页',
@@ -168,6 +170,7 @@ export const DICTS: Record<Lang, Dict> = {
     disable: 'Disable',
     enable: 'Enable',
     protectedTag: 'official',
+    versionNote: 'version',
     disabledTag: 'disabled',
     prev: 'Prev',
     next: 'Next',
