@@ -2,11 +2,12 @@
 
 All notable changes are tracked here.
 
-## 0.16.2 — 2026-10-09
+## 0.17.0 — 2026-10-09
 
-### Install-anchor fallback through the CLI on PATH (fresh-home fix)
+### Reusable desktop sandbox + `dev --desktop` + multi-target verify + desktop adapt canary
 
-- **Fresh-home anchor gap**: `locateInstallAnchor` recognized only the legacy
+- **Fresh-home install anchor (the unreleased 0.16.2 fix, folded in)**:
+  `locateInstallAnchor` recognized only the legacy
   `$DSH_HOME/profiles/node_modules/@deepseek-ai/dsh` mirror. Modern dsh
   (runtime resolution, 0.1.6+) reads, writes, and deletes no physical links
   there — the launcher derives its own anchor from the running CLI's real
@@ -18,7 +19,27 @@ All notable changes are tracked here.
   generated forms name the target relative to their own directory (`%dp0%`,
   `$basedir`) or absolutely. Found by the 0.2.1-alpha.2 upgrade smoke on an
   isolated home; there the scan now reports 0 fatal / 0 warn.
-- 254 tests (core 204 + bundle 26 + cli 24).
+- **Reusable desktop sandbox**: the `verify --desktop` orchestration is now
+  one internal capability (`desktop-sandbox.ts`) shared by every consumer
+  instead of a verify-only path.
+- **Sandbox registry inheritance**: the sandbox profile receives an `.npmrc`
+  with the caller's `npm_config_registry` when one is set, so a mirror-only
+  network installs through the desktop's bundled pnpm (found by the first
+  end-to-end sandbox run against a registry package).
+- **`dev --desktop`**: the development watcher can boot each clean pass in an
+  isolated desktop sandbox, side by side with `--runtime` (the isolated web
+  boot); the startup banner lists what each pass runs.
+- **Multi-target verify**: `verify --runtime --desktop` checks both surfaces
+  in one run and reports a per-target matrix; JSON carries a
+  `runtimes: { web, desktop }` map for the combined run (single-target runs
+  keep the existing `runtime` field).
+- **Desktop adapt canary**: the `adapt` canary for a desktop profile now
+  boots the package in a real desktop sandbox (the exemption is written into
+  the sandbox profile) instead of a web home driven by the desktop CLI.
+- Verified end to end against the 0.2.0-rc.2 desktop: `verify --desktop`
+  BOOTED, `verify --runtime --desktop` BOOTED on both targets, `dev
+  --desktop` BOOTED.
+- 255 tests (core 204 + bundle 26 + cli 25).
 
 ## 0.16.1 — 2026-10-06
 

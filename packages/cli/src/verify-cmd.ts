@@ -273,6 +273,26 @@ function renderRuntime(result: RuntimeVerifyResult): string {
   return lines.join('\n')
 }
 
+/** One target's line in the multi-target matrix, with failure detail when it failed. */
+function renderTarget(label: string, result: RuntimeVerifyResult): string[] {
+  const lines = [`  ${label}: ${result.ok ? 'BOOTED' : 'FAILED'} — ${result.detail}`]
+  if (!result.ok) {
+    for (const entry of result.failedEntries) lines.push(`    failed entry: ${entry}`)
+    if (result.outputTail !== '') {
+      for (const line of result.outputTail.split('\n').slice(-8)) lines.push(`    ${line}`)
+    }
+  }
+  return lines
+}
+
+/** Render both runtime targets as one matrix (`verify --runtime --desktop`). */
+function renderRuntimeTargets(web: RuntimeVerifyResult, desktop: RuntimeVerifyResult): string {
+  const lines = ['', 'runtime targets:']
+  lines.push(...renderTarget('web', web))
+  lines.push(...renderTarget('desktop', desktop))
+  return lines.join('\n')
+}
+
 /**
  * Publish-time check for one plugin package: a local directory, or an npm
  * package spec that is downloaded from the registry into a temp directory.
@@ -304,27 +324,41 @@ export async function runVerifyCommand(options: VerifyCommandOptions): Promise<n
   try {
     const report = verifyPluginPackage(dir)
     const staticOk = verifyOk(report, options.strict)
-    let runtime: RuntimeVerifyResult | null = null
     const installSource: RuntimeInstallSource = kind === 'npm' ? { kind: 'spec', value: input } : { kind: 'dir', value: dir }
+    let webRuntime: RuntimeVerifyResult | null = null
+    let desktopRuntime: RuntimeVerifyResult | null = null
+    if (options.runtime) {
+      if (!options.json) process.stdout.write('\nrunning the isolated web boot check...\n')
+      webRuntime = await runRuntimeVerify(dir, installSource, options.runtimeTimeoutSec)
+    }
     if (options.desktop) {
       if (!options.json) process.stdout.write('\nrunning the isolated desktop boot check...\n')
-      runtime = await runDesktopVerify({ installSource, timeoutSec: options.runtimeTimeoutSec })
-    } else if (options.runtime) {
-      if (!options.json) process.stdout.write('\nrunning the isolated boot check...\n')
-      runtime = await runRuntimeVerify(dir, installSource, options.runtimeTimeoutSec)
+      desktopRuntime = await runDesktopVerify({ installSource, timeoutSec: options.runtimeTimeoutSec })
     }
-    const ok = staticOk && (runtime === null || runtime.ok)
+    const runtimeFailed = [webRuntime, desktopRuntime].some((result) => result !== null && !result.ok)
+    const ok = staticOk && !runtimeFailed
     if (options.json) {
-      process.stdout.write(`${JSON.stringify({ ...report, ok, ...(runtime === null ? {} : { runtime }) })}\n`)
+      const runtimePayload = webRuntime !== null && desktopRuntime !== null
+        ? { runtimes: { web: webRuntime, desktop: desktopRuntime } }
+        : webRuntime !== null ? { runtime: webRuntime }
+          : desktopRuntime !== null ? { runtime: desktopRuntime }
+            : {}
+      process.stdout.write(`${JSON.stringify({ ...report, ok, ...runtimePayload })}\n`)
     } else {
       process.stdout.write(`${renderHuman(report)}\n`)
-      if (runtime !== null) process.stdout.write(`${renderRuntime(runtime)}\n`)
+      if (webRuntime !== null && desktopRuntime !== null) {
+        process.stdout.write(`${renderRuntimeTargets(webRuntime, desktopRuntime)}\n`)
+      } else if (webRuntime !== null) {
+        process.stdout.write(`${renderRuntime(webRuntime)}\n`)
+      } else if (desktopRuntime !== null) {
+        process.stdout.write(`${renderRuntime(desktopRuntime)}\n`)
+      }
       if (!ok) {
         process.stderr.write(
           options.strict
             ? 'FAILED (--strict: warnings count as failures)\n'
-            : runtime !== null && !runtime.ok
-              ? 'FAILED: the isolated boot did not survive; fix the package before publishing\n'
+            : runtimeFailed
+              ? 'FAILED: an isolated boot did not survive; fix the package before publishing\n'
               : 'FAILED: fix the errors before publishing\n',
         )
       }

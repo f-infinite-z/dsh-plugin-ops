@@ -2,11 +2,14 @@ import { existsSync, statSync, watch, type FSWatcher } from 'node:fs'
 import { resolve } from 'node:path'
 import { readPackageManifest, verifyPluginPackage, type VerifyReport } from 'dsh-plugin-ops-core'
 import { runRuntimeVerify } from './verify-cmd.js'
+import { runDesktopSandbox, type DesktopSandboxRun } from './desktop-sandbox.js'
 
 export interface DevCommandOptions {
   dir: string
-  /** Also run the isolated boot check after a clean static pass. */
+  /** Also run the isolated web boot check after a clean static pass. */
   runtime: boolean
+  /** Also boot the package in an isolated desktop sandbox after a clean static pass. */
+  desktop: boolean
   runtimeTimeoutSec: number
 }
 
@@ -35,6 +38,15 @@ export function renderDevStatic(report: VerifyReport): string[] {
   for (const finding of report.findings) {
     lines.push(`    [${finding.ruleId}] ${finding.severity.toUpperCase()} ${finding.message}`)
     if (finding.detail !== undefined) lines.push(`      ${finding.detail}`)
+  }
+  return lines
+}
+
+/** Render one desktop sandbox result as indented lines (exported for tests). */
+export function renderDevDesktop(run: DesktopSandboxRun): string[] {
+  const lines = [`  desktop: ${run.ok ? 'BOOTED' : 'FAILED'} — ${run.detail}`]
+  if (!run.ok && run.outputTail !== '') {
+    for (const line of run.outputTail.split('\n').slice(-8)) lines.push(`    ${line}`)
   }
   return lines
 }
@@ -79,6 +91,15 @@ async function checkOnce(
       process.stdout.write('  runtime: skipped (static checks still report errors)\n')
     }
   }
+  if (options.desktop) {
+    if (clean) {
+      process.stdout.write(`  desktop: booting in an isolated desktop sandbox (up to ${options.runtimeTimeoutSec}s)...\n`)
+      const run = await runDesktopSandbox({ installSource: { kind: 'dir', value: dir }, timeoutSec: options.runtimeTimeoutSec })
+      for (const line of renderDevDesktop(run)) process.stdout.write(`${line}\n`)
+    } else {
+      process.stdout.write('  desktop: skipped (static checks still report errors)\n')
+    }
+  }
 }
 
 /**
@@ -99,9 +120,10 @@ export async function runDevCommand(options: DevCommandOptions): Promise<number>
   const startedAt = Date.now()
   process.stdout.write(`dsh-ops dev: watching ${identity}\n`)
   process.stdout.write(`  directory: ${dir}\n`)
-  process.stdout.write(options.runtime
-    ? `  static checks + isolated boot (${options.runtimeTimeoutSec}s window) after each change\n`
-    : '  static checks after each change (pass --runtime for the isolated boot)\n')
+  process.stdout.write('  static checks after each change\n')
+  if (options.runtime) process.stdout.write(`  + isolated web boot (${options.runtimeTimeoutSec}s window) after each clean pass\n`)
+  if (options.desktop) process.stdout.write(`  + isolated desktop sandbox boot (${options.runtimeTimeoutSec}s window) after each clean pass\n`)
+  if (!options.runtime && !options.desktop) process.stdout.write('  (pass --runtime for the web boot, --desktop for the desktop sandbox)\n')
 
   const stats: DevStats = { seq: 0, checks: 0, failed: 0 }
   await checkOnce(dir, identity, options, 'initial check', stats)

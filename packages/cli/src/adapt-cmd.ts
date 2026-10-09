@@ -7,6 +7,7 @@ import {
   type DshPaths, type OpsConfig,
 } from 'dsh-plugin-ops-core'
 import { runRuntimeVerify } from './verify-cmd.js'
+import { runDesktopSandbox } from './desktop-sandbox.js'
 import { spawnCli } from './spawn-dsh.js'
 
 export interface AdaptCommandOptions {
@@ -194,22 +195,36 @@ export async function runAdaptCommand(options: AdaptCommandOptions): Promise<num
     process.stdout.write('\nadapt: isolated boot check (grant exemption + install + launch)...\n')
     const packageName = manifest.name
     const packageVersion = diagnosis.version
-    const canary = await runRuntimeVerify(
-      packageDir,
-      { kind: 'spec', value: options.spec },
-      options.timeoutSec,
-      async ({ paths: isoPaths, dsh }) => {
-        // Init the isolated profile first so the canary runs the same dsh
-        // release the real install will use; the exemption then names that
-        // exact runtime (the shared closure mirror is absent under runtime
-        // resolution, so the resolved version is authoritative).
-        await dsh(['plugin', '--profile', 'web', 'install'])
-        if (dshVersion !== null) {
-          writeVersionExemption(isoPaths.profileDir, packageName, packageVersion, dshVersion)
-        }
-      },
-      desktopCli ?? 'dsh',
-    )
+    // The canary boots the same surface the real install targets: a desktop
+    // profile is proved in an isolated desktop sandbox (the exemption written
+    // into the sandbox profile lets the official gate admit the package), a
+    // web profile in an isolated DSH home through the dsh the install will use.
+    const canary = isDesktopProfile(options.profileName)
+      ? await runDesktopSandbox({
+          installSource: { kind: 'spec', value: options.spec },
+          timeoutSec: options.timeoutSec,
+          prepare: ({ profileDir: sandboxProfileDir }) => {
+            if (dshVersion !== null) {
+              writeVersionExemption(sandboxProfileDir, packageName, packageVersion, dshVersion)
+            }
+          },
+        })
+      : await runRuntimeVerify(
+          packageDir,
+          { kind: 'spec', value: options.spec },
+          options.timeoutSec,
+          async ({ paths: isoPaths, dsh }) => {
+            // Init the isolated profile first so the canary runs the same dsh
+            // release the real install will use; the exemption then names that
+            // exact runtime (the shared closure mirror is absent under runtime
+            // resolution, so the resolved version is authoritative).
+            await dsh(['plugin', '--profile', 'web', 'install'])
+            if (dshVersion !== null) {
+              writeVersionExemption(isoPaths.profileDir, packageName, packageVersion, dshVersion)
+            }
+          },
+          desktopCli ?? 'dsh',
+        )
     if (!canary.ok) {
       process.stderr.write(`\nadapt: FAILED — the package did not survive an isolated boot even with the exemption:\n  ${canary.detail}\n`)
       process.stderr.write('no change was written to the real profile; the plugin likely needs a code fix from its author\n')

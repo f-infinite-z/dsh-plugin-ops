@@ -7,7 +7,7 @@
 
 > DeepSeek Harness 插件运维（Plugin Operations）：启动前体检与拦截、失败归因与恢复、依赖治理、安装适配、作者发布前验证——让插件生态保持可加载。
 
-**状态：v0.16.2 — 全新 home 安装锚点回退（旧共享镜像缺失时改用 PATH 上的 dsh 命令定位安装，0.1.6+ 无镜像的全新环境不再把官方 bundle 误报为无法解析）；0.16.1 面板补齐版本视角；0.16.0 含：patch 行合并语义修正（`verify --runtime` 激活行缺陷一并修复）、报告版本视角（`--version-view` + verify 的 dsh peer 覆盖检查）、`verify --desktop`（0.2.0-rc.2 实测 BOOTED）。拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
+**状态：v0.17.0 — 桌面沙箱抽成可复用能力：`dev --desktop`、`verify --runtime --desktop`（多端矩阵）、桌面 `adapt` canary 三者共用；全新 home 安装锚点修复一并并入。0.16.0/0.16.1 含：patch 行合并语义修正（`verify --runtime` 激活行缺陷一并修复）、报告版本视角（`--version-view` + verify 的 dsh peer 覆盖检查）、首个 `verify --desktop`（0.2.0-rc.2 实测 BOOTED）。拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
 
 ## 命名
 
@@ -65,10 +65,10 @@ dsh-ops selftest               # 自检：内置故障样本跑全规则
 | `gate` | 先阻断分级处置：fatal 先拦（自动修→放行；复杂→醒目指引；`--bypass` 逃生舱记录不静默）；dsh 启动秒退 → 读取官方启动诊断（`$DSH_HOME/logs/startup-*.log`）→ 归因差异包与启动器报告的失败插件 → 交互禁用重试；headless 一次性 profile 退出码透传不归因 |
 | `serve` | 本地 Web 面板：健康卡/结果列表/修复执行/**插件行管理**（健康徽标、致命/警告/正常筛选、每页 10 行分页、官方行保护、启停开关）/故障时间线/**诊断对话（带增强检索 RAG 开关）**——排障经验沉淀为 Markdown，开启后自动检索命中条目注入对话（BM25 + 可选向量重排），zh/en 切换 |
 | `selftest` | 引擎自检（6 内置故障样本），验证安装健康 |
-| `verify` | 面向插件作者的发布前校验：支持本地目录或 **npm 包名**（`dsh-ops verify <name\|@scope/name\|name@version>`，从 registry 下载发布物校验）；检查 bundle patch 声明与解析、patch 行可解析性、依赖协议（`file:`/`workspace:`）、peer 契约（peer 名必须是包名、range 必须是 semver）、**dsh peer 全版本覆盖**（声明了 `@deepseek-ai/dsh*` peer 时须覆盖全部已知版本边界，标注缺口版本——市场上架兼容性矩阵要求）、ESM 入口与导出、client 导出契约与产物形状、files 完整性（`--json`、CI 用 `--strict`）；**`--runtime`** 追加隔离启动验证——在独立 DSH home 中经官方命令安装并启动；**`--desktop`** 在隔离桌面沙箱中启动官方桌面端验证——临时 `DSH_HOME`（自带 desktop profile）+ 独立 Electron user-data-dir + 沙箱专属 webserver 端口，经桌面自带 CLI（0.2.0-rc.1+）安装，观察崩溃报告/进程/端口判定，只回收沙箱自己的进程树，不触碰真实实例与数据 |
-| `adapt` | 安装适配：对官方门禁因 `@deepseek-ai/dsh*` peer 范围拒绝的插件，诊断冲突的 peer、分级风险（窄范围 vs 跨 breaking 边界），**先在隔离 canary 启动中授予官方 exact-version 豁免**，只有该启动存活才写入真实 profile；canary 或安装失败即回滚豁免；**desktop profile** 在应用自带 CLI（0.2.0-rc.1+，单测覆盖、待实机验证）可用时，完全退出应用后直接经它安装/卸载，无 CLI 时回退为只写豁免并指引到桌面端 Plugins 页；`--remove` 一步完成卸载 + 清理豁免 |
+| `verify` | 面向插件作者的发布前校验：支持本地目录或 **npm 包名**（`dsh-ops verify <name\|@scope/name\|name@version>`，从 registry 下载发布物校验）；检查 bundle patch 声明与解析、patch 行可解析性、依赖协议（`file:`/`workspace:`）、peer 契约（peer 名必须是包名、range 必须是 semver）、**dsh peer 全版本覆盖**（声明了 `@deepseek-ai/dsh*` peer 时须覆盖全部已知版本边界，标注缺口版本——市场上架兼容性矩阵要求）、ESM 入口与导出、client 导出契约与产物形状、files 完整性（`--json`、CI 用 `--strict`）；**`--runtime`** 追加隔离启动验证——在独立 DSH home 中经官方命令安装并启动；**`--desktop`** 在隔离桌面沙箱中启动官方桌面端验证——临时 `DSH_HOME`（自带 desktop profile）+ 独立 Electron user-data-dir + 沙箱专属 webserver 端口，经桌面自带 CLI（0.2.0-rc.1+）安装，观察崩溃报告/进程/端口判定，只回收沙箱自己的进程树，不触碰真实实例与数据；**`--runtime` 与 `--desktop` 可同时给**，一次运行检查两端（JSON 输出 `runtimes: { web, desktop }` 矩阵） |
+| `adapt` | 安装适配：对官方门禁因 `@deepseek-ai/dsh*` peer 范围拒绝的插件，诊断冲突的 peer、分级风险（窄范围 vs 跨 breaking 边界），**先在隔离 canary 启动中授予官方 exact-version 豁免**（web profile 用独立 DSH home；desktop profile 用真实隔离桌面沙箱），只有该启动存活才写入真实 profile；canary 或安装失败即回滚豁免；**desktop profile** 在应用自带 CLI（0.2.0-rc.1+，单测覆盖、待实机验证）可用时，完全退出应用后直接经它安装/卸载，无 CLI 时回退为只写豁免并指引到桌面端 Plugins 页；`--remove` 一步完成卸载 + 清理豁免 |
 | `sessions` | 会话容器修复：扫描 `$DSH_HOME/sessions` 中两类会阻断启动的损坏（首帧无法解码的产物；目录名与 header id 不匹配的会话目录）；`--repair-paths` 把被改名的目录移回其 header id，`--quarantine` 把不可读会话目录移入 `$DSH_HOME/cache/dsh-ops/quarantine`（永不删除）；默认只读计划，深层事件级诊断仍由 `@argszero/cordis-plugin-session-audit` 覆盖 |
-| `dev` | 单插件目录的开发监视器：每次变更后（防抖）跑静态检查（带序号、标注包名@版本），`--runtime` 在每次通过后追加隔离 DSH home 启动冒烟、静态仍有 error 时明确提示跳过；停止时打印检查/失败/耗时汇总；全程不触碰正在运行的 dsh |
+| `dev` | 单插件目录的开发监视器：每次变更后（防抖）跑静态检查（带序号、标注包名@版本），`--runtime` 在每次通过后追加隔离 DSH home 启动冒烟、静态仍有 error 时明确提示跳过；**`--desktop`** 在每次通过后追加隔离桌面沙箱启动冒烟（两者可同时给）；停止时打印检查/失败/耗时汇总；全程不触碰正在运行的 dsh |
 | 内嵌 bundle（`dsh-plugin-ops-bundle`） | 装进 profile 后在 dsh Web 设置页出现"dsh-ops"健康页（扫描/行管理/**安装适配**——经官方 `pluginManager` 服务的豁免安装，含豁免清单与撤销/卸载并清理/时间线/带 RAG 知识库的诊断对话）；host 半边与 `serve` 复用同一引擎与路由白名单，诊断对话优先走官方 `ctx.llm`、无 llm 时降级直连 |
 
 退出码：`0` 通过（或 dsh 自身码）/ `1` 仍有 fatal / `2` 用法或 profile 缺失 / `3` gate 被需人工处置的 fatal 阻断 / `4-5` gate 归因相关。
@@ -121,7 +121,7 @@ dsh-xray 给本项目的评级为 C3（衡量能力面而非意图）；上表�
 
 ```sh
 pnpm install && pnpm run build
-pnpm run typecheck && pnpm run test      # 254 单测（core 204 + bundle 26 + cli 24）
+pnpm run typecheck && pnpm run test      # 255 单测（core 204 + bundle 26 + cli 25）
 node packages/cli/lib/index.js selftest  # 引擎自检
 node scripts/e2e/scan-fix.e2e.mjs        # 离线 E2E（真实 pnpm 修复）
 node scripts/e2e/gate.e2e.mjs            # gate 场景（放行/阻断/旁路/归因/headless）

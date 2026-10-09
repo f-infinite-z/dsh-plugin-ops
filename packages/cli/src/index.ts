@@ -24,7 +24,7 @@ usage:
   dsh-ops verify [<dir>|<npm-package>] [--json] [--strict] [--runtime] [--desktop] [--runtime-timeout <s>]
   dsh-ops adapt  <npm-package> [--profile <name>] [--home <dir>] [--yes] [--remove] [--runtime-timeout <s>] [--config <file>]
   dsh-ops sessions [--home <dir>] [--json] [--repair-paths] [--quarantine]
-  dsh-ops dev   <plugin-dir> [--runtime] [--runtime-timeout <s>]
+  dsh-ops dev   <plugin-dir> [--runtime] [--desktop] [--runtime-timeout <s>]
   dsh-ops selftest
   dsh-ops help
 
@@ -35,7 +35,8 @@ config: read from <DSH_HOME>/dsh-ops.yml by default (rules on/off, severity
 
 verify --runtime boots the package in an isolated DSH home (official install +
   launch) and reports whether the boot survives; needs the dsh command on PATH
-  and network access for the isolated install.
+  and network access for the isolated install. Pass --runtime and --desktop
+  together to check both targets in one run (JSON reports a "runtimes" map).
 verify --desktop boots it in an isolated desktop sandbox instead (temporary
   DSH home + user-data-dir, installed through the desktop app's bundled CLI,
   observed on an isolated host port); needs the desktop app 0.2.0-rc.1+ and
@@ -171,10 +172,6 @@ async function main(): Promise<number> {
         process.stderr.write('invalid --runtime-timeout\n')
         return 2
       }
-      if ((values.runtime ?? false) && (values.desktop ?? false)) {
-        process.stderr.write('verify: choose one of --runtime and --desktop\n')
-        return 2
-      }
       return await runVerifyCommand({
         dir: positionals[0] ?? '.',
         json: values.json ?? false,
@@ -229,6 +226,7 @@ async function main(): Promise<number> {
       return await runDevCommand({
         dir: positionals[0] ?? '.',
         runtime: values.runtime ?? false,
+        desktop: values.desktop ?? false,
         runtimeTimeoutSec,
       })
     }

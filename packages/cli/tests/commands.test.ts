@@ -17,7 +17,7 @@ import * as core from 'dsh-plugin-ops-core'
 import { runFixCommand } from '../src/fix-cmd.js'
 import { runGateCommand } from '../src/gate-cmd.js'
 import { runVerifyCommand } from '../src/verify-cmd.js'
-import { runDevCommand, renderDevStatic, packageIdentity } from '../src/dev-cmd.js'
+import { runDevCommand, renderDevStatic, renderDevDesktop, packageIdentity } from '../src/dev-cmd.js'
 import { helpRequested } from '../src/args.js'
 import type { ScanReport, Finding, VerifyReport } from 'dsh-plugin-ops-core'
 
@@ -319,7 +319,7 @@ describe('verify command', () => {
   it('verifies a local plugin directory without touching the registry', async () => {
     const dir = makePluginDir()
     try {
-      const code = await runVerifyCommand({ dir, json: true, strict: false, runtime: false, runtimeTimeoutSec: 45 })
+      const code = await runVerifyCommand({ dir, json: true, strict: false, runtime: false, desktop: false, runtimeTimeoutSec: 45 })
       expect(code).toBe(0)
       expect(mockedFetch).not.toHaveBeenCalled()
     } finally {
@@ -328,7 +328,7 @@ describe('verify command', () => {
   })
 
   it('rejects a path-like input that does not exist', async () => {
-    const code = await runVerifyCommand({ dir: './definitely-not-a-dir-dshops', json: false, strict: false, runtime: false, runtimeTimeoutSec: 45 })
+    const code = await runVerifyCommand({ dir: './definitely-not-a-dir-dshops', json: false, strict: false, runtime: false, desktop: false, runtimeTimeoutSec: 45 })
     expect(code).toBe(2)
     expect(mockedFetch).not.toHaveBeenCalled()
   })
@@ -344,7 +344,7 @@ describe('verify command', () => {
       },
     })
     try {
-      const code = await runVerifyCommand({ dir: 'good-plugin', json: true, strict: false, runtime: false, runtimeTimeoutSec: 45 })
+      const code = await runVerifyCommand({ dir: 'good-plugin', json: true, strict: false, runtime: false, desktop: false, runtimeTimeoutSec: 45 })
       expect(code).toBe(0)
       expect(mockedFetch).toHaveBeenCalledWith('good-plugin')
       expect(cleaned).toBe(true)
@@ -363,7 +363,7 @@ describe('verify command', () => {
         cleaned = true
       },
     })
-    const code = await runVerifyCommand({ dir: 'broken-plugin', json: false, strict: false, runtime: false, runtimeTimeoutSec: 45 })
+    const code = await runVerifyCommand({ dir: 'broken-plugin', json: false, strict: false, runtime: false, desktop: false, runtimeTimeoutSec: 45 })
     expect(code).toBe(2)
     expect(cleaned).toBe(true)
   })
@@ -371,7 +371,7 @@ describe('verify command', () => {
 
 describe('dev command', () => {
   it('rejects a non-directory input', async () => {
-    const code = await runDevCommand({ dir: join(tmpdir(), 'definitely-missing-dir-xyz'), runtime: false, runtimeTimeoutSec: 10 })
+    const code = await runDevCommand({ dir: join(tmpdir(), 'definitely-missing-dir-xyz'), runtime: false, desktop: false, runtimeTimeoutSec: 10 })
     expect(code).toBe(2)
   })
 
@@ -385,6 +385,23 @@ describe('dev command', () => {
     const lines = renderDevStatic(failing)
     expect(lines[0]).toContain('1 error')
     expect(lines[1]).toContain('no exports')
+  })
+
+  it('renders desktop sandbox results, with a failure output tail', () => {
+    const okLines = renderDevDesktop({
+      ok: true, kind: 'ready', detail: 'desktop boot: the isolated sandbox reached its host port in 3.2s (port 19388)',
+      exitCode: 0, elapsedMs: 3200, port: 19388, outputTail: '', outcome: { kind: 'ready', elapsedMs: 3200 },
+    })
+    expect(okLines).toHaveLength(1)
+    expect(okLines[0]).toContain('BOOTED')
+    expect(okLines[0]).toContain('3.2s')
+    const failed = renderDevDesktop({
+      ok: false, kind: 'crashed', detail: 'desktop wrote a crash report before the host port opened: crash-1.log',
+      exitCode: 0, elapsedMs: 1000, port: 19388, outputTail: 'line a\nline b',
+      outcome: { kind: 'crashed', crashLogs: ['crash-1.log'], elapsedMs: 1000 },
+    })
+    expect(failed[0]).toContain('FAILED')
+    expect(failed.join('\n')).toContain('line b')
   })
 
   it('renders packageIdentity as name@version', () => {
