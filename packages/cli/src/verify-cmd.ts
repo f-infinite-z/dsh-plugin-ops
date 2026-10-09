@@ -256,14 +256,14 @@ export async function runRuntimeVerify(
 
 function renderRuntime(result: RuntimeVerifyResult): string {
   const lines: string[] = ['', 'runtime: isolated boot check']
-  lines.push(`  result: ${result.ok ? 'BOOTED' : 'FAILED'} —?${result.detail}`)
+  lines.push(`  result: ${result.ok ? 'BOOTED' : 'FAILED'} — ${result.detail}`)
   if (!result.ok) {
     for (const entry of result.failedEntries) lines.push(`  failed entry: ${entry}`)
   }
   if (result.startupReport !== null) {
     lines.push(`  official startup diagnostics: ${result.startupReport.file}`)
     for (const entry of result.startupReport.entries) {
-      lines.push(`    [${entry.required ? 'required' : 'optional'}] ${entry.id} —?${entry.module}`)
+      lines.push(`    [${entry.required ? 'required' : 'optional'}] ${entry.id} — ${entry.module}`)
     }
   }
   if (!result.ok && result.outputTail !== '') {

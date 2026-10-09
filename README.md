@@ -7,7 +7,7 @@ English | [中文](README.zh.md)
 
 > DeepSeek Harness plugin operations: pre-boot checks and a blocking gate, failure attribution and recovery, dependency governance, install adaptation, and publish-time verification for plugin authors — keeping the plugin ecosystem loadable.
 
-**Status: v0.17.0 — the desktop sandbox became a reusable capability: `dev --desktop`, `verify --runtime --desktop` (a per-target matrix), and the desktop `adapt` canary all share it; the fresh-home install anchor fix is folded in. 0.16.0/0.16.1 carried the patch-row semantics fix, the reporting version views (`--version-view` plus the verify dsh-peer coverage check), and the first `verify --desktop` (BOOTED against 0.2.0-rc.2). Interception, repair, and memory mechanics: [docs/architecture.md](docs/architecture.md).**
+**Status: v0.17.1 — the desktop sandbox became a reusable capability: `dev --desktop`, `verify --runtime --desktop` (a per-target matrix), and the desktop `adapt` canary all share it; the fresh-home install anchor fix is folded in. 0.16.0/0.16.1 carried the patch-row semantics fix, the reporting version views (`--version-view` plus the verify dsh-peer coverage check), and the first `verify --desktop` (BOOTED against 0.2.0-rc.2). Interception, repair, and memory mechanics: [docs/architecture.md](docs/architecture.md).**
 
 ## Names
 

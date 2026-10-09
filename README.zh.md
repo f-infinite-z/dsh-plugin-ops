@@ -7,7 +7,7 @@
 
 > DeepSeek Harness 插件运维（Plugin Operations）：启动前体检与拦截、失败归因与恢复、依赖治理、安装适配、作者发布前验证——让插件生态保持可加载。
 
-**状态：v0.17.0 — 桌面沙箱抽成可复用能力：`dev --desktop`、`verify --runtime --desktop`（多端矩阵）、桌面 `adapt` canary 三者共用；全新 home 安装锚点修复一并并入。0.16.0/0.16.1 含：patch 行合并语义修正（`verify --runtime` 激活行缺陷一并修复）、报告版本视角（`--version-view` + verify 的 dsh peer 覆盖检查）、首个 `verify --desktop`（0.2.0-rc.2 实测 BOOTED）。拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
+**状态：v0.17.1 — 桌面沙箱抽成可复用能力：`dev --desktop`、`verify --runtime --desktop`（多端矩阵）、桌面 `adapt` canary 三者共用；全新 home 安装锚点修复一并并入。0.16.0/0.16.1 含：patch 行合并语义修正（`verify --runtime` 激活行缺陷一并修复）、报告版本视角（`--version-view` + verify 的 dsh peer 覆盖检查）、首个 `verify --desktop`（0.2.0-rc.2 实测 BOOTED）。拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
 
 ## 命名
 

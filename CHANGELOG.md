@@ -2,6 +2,18 @@
 
 All notable changes are tracked here.
 
+## 0.17.1 — 2026-10-09
+
+### Output and help cleanups
+
+- Fix a leftover `—?` in the `verify --runtime` result line and in the
+  startup-diagnostics entry line (an em dash followed by a stray question
+  mark, present since the runtime check was introduced).
+- The CLI usage text now documents `dev` — static checks plus the isolated
+  web boot (`--runtime`) and the isolated desktop sandbox (`--desktop`)
+  after each clean pass.
+- 255 tests (core 204 + bundle 26 + cli 25).
+
 ## 0.17.0 — 2026-10-09
 
 ### Reusable desktop sandbox + `dev --desktop` + multi-target verify + desktop adapt canary

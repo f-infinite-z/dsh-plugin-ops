@@ -42,6 +42,11 @@ verify --desktop boots it in an isolated desktop sandbox instead (temporary
   observed on an isolated host port); needs the desktop app 0.2.0-rc.1+ and
   network access for the isolated install.
 
+dev watches one plugin directory: static checks after every change, plus an
+  isolated web boot with --runtime and an isolated desktop sandbox with
+  --desktop after each clean pass (both flags may be combined); the desktop
+  sandbox needs the desktop app 0.2.0-rc.1+.
+
 exit codes:
   0  ok (or dsh's own exit code after a gate pass)
   1  findings are fatal after the action taken
