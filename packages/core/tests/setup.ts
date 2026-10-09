@@ -7,3 +7,12 @@ import { vi } from 'vitest'
 vi.mock('../src/dsh-version.js', () => ({
   readGlobalDshVersion: async () => null,
 }))
+
+// The CLI install anchor reads PATH, where a developer machine or CI runner
+// may carry a real `dsh`; tests that build their own fixture homes must not
+// inherit it. The anchor is stubbed to null here and exercised for real in
+// cli-anchor.test.ts, which unmocks this module.
+vi.mock('../src/cli-anchor.js', () => ({
+  locateCliInstallAnchor: () => null,
+  resetCliAnchorCache: () => {},
+}))

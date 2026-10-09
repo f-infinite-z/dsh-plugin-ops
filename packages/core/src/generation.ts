@@ -22,6 +22,7 @@ import { existsSync, lstatSync, readlinkSync, realpathSync } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
 import semver from 'semver'
 import { packageDirFromAnchor, readPackageManifest, type PackageManifest } from './package-tree.js'
+import { locateCliInstallAnchor } from './cli-anchor.js'
 import type { DshPaths } from './paths.js'
 import type { ResolvedBundle } from './profile.js'
 
@@ -156,9 +157,11 @@ export function isProfileFallbackProjection(profileDir: string, name: string): b
 
 /**
  * Locate the dsh installation manifest the launcher would use as its anchor.
- * The shared mirror's `@deepseek-ai/dsh` link is the primary source (it points
- * at the running installation even after an upgrade); an explicit config value
- * overrides it for non-standard layouts.
+ * The shared mirror's `@deepseek-ai/dsh` link is the primary source (legacy
+ * homes still carry it); modern dsh (0.1.6+) derives its own anchor from the
+ * running CLI's real path and never writes that mirror, so a fresh home has
+ * no physical file to read and the `dsh` shim on PATH is the fallback. An
+ * explicit config value overrides both for non-standard layouts.
  * @param paths - resolved DSH paths.
  * @param configured - explicit install anchor directory or package.json path from config.
  * @returns the absolute package.json path, or null when no installation is locatable.
@@ -169,7 +172,8 @@ export function locateInstallAnchor(paths: DshPaths, configured?: string | null)
     if (existsSync(direct)) return direct
   }
   const mirror = join(paths.sharedProfilesDir, '@deepseek-ai', 'dsh', 'package.json')
-  return existsSync(mirror) ? mirror : null
+  if (existsSync(mirror)) return mirror
+  return locateCliInstallAnchor()
 }
 
 /** Official `packageDirFromAnchor` with the projection-exclude hook for the profile plane. */

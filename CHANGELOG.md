@@ -2,6 +2,24 @@
 
 All notable changes are tracked here.
 
+## 0.16.2 — 2026-10-09
+
+### Install-anchor fallback through the CLI on PATH (fresh-home fix)
+
+- **Fresh-home anchor gap**: `locateInstallAnchor` recognized only the legacy
+  `$DSH_HOME/profiles/node_modules/@deepseek-ai/dsh` mirror. Modern dsh
+  (runtime resolution, 0.1.6+) reads, writes, and deletes no physical links
+  there — the launcher derives its own anchor from the running CLI's real
+  path — so a freshly installed home reported `dsh-base`/`dsh-web-app` as
+  unresolvable bundle fatals and flagged installation-closure peers as gaps.
+  The anchor now falls back to the `dsh` shim on PATH (the same command the
+  version probe runs): the ancestor `node_modules` chain around the shim
+  (npm and npx layouts, Unix `lib/node_modules`), then the shim text whose
+  generated forms name the target relative to their own directory (`%dp0%`,
+  `$basedir`) or absolutely. Found by the 0.2.1-alpha.2 upgrade smoke on an
+  isolated home; there the scan now reports 0 fatal / 0 warn.
+- 254 tests (core 204 + bundle 26 + cli 24).
+
 ## 0.16.1 — 2026-10-06
 
 ### Version-view exposure in both panels
