@@ -27,7 +27,7 @@ importers:
         specifier: ^4.0.0
         version: 4.0.2
       dsh-plugin-ops-core:
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
     devDependencies:
       '@types/react':
@@ -46,7 +46,7 @@ importers:
   packages/cli:
     dependencies:
       dsh-plugin-ops-core:
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
     devDependencies:
       tsup:

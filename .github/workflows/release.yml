@@ -19,6 +19,19 @@ jobs:
           node-version: 24
           registry-url: https://registry.npmjs.org
           cache: pnpm
+      # A tag whose name disagrees with the manifests would publish builds
+      # nobody can account for by version number (a past smoke shipped
+      # "0.19.0-dev" tarballs whose manifest still said 0.18.1).
+      - name: verify the tag matches every package version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          for dir in core cli bundle; do
+            version=$(node -p "require('./packages/$dir/package.json').version")
+            if [ "$version" != "$tag" ]; then
+              echo "packages/$dir/package.json is $version but the tag is $GITHUB_REF_NAME" >&2
+              exit 1
+            fi
+          done
       # Trusted publishing (OIDC) needs npm CLI >= 11.5.1.
       - run: npm install -g npm@latest
       - run: pnpm install --frozen-lockfile

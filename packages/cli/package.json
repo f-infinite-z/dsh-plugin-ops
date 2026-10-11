@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-ops",
-  "version": "0.18.1",
+  "version": "0.19.0",
   "type": "module",
   "description": "DeepSeek Harness plugin operations: pre-boot health gate (scan/fix/gate), fault memory, dependency governance, and a local web panel",
   "license": "MIT",
@@ -50,7 +50,7 @@
     "clean": "node -e \"require('fs').rmSync('lib',{recursive:true,force:true});require('fs').rmSync('dist',{recursive:true,force:true})\""
   },
   "dependencies": {
-    "dsh-plugin-ops-core": "workspace:*"
+    "dsh-plugin-ops-core": "workspace:^"
   },
   "devDependencies": {
     "tsup": "^8.5.1",

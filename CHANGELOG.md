@@ -2,6 +2,45 @@
 
 All notable changes are tracked here.
 
+## 0.19.0 — 2026-10-11
+
+### Sandbox console: drive an isolated number-2 dsh from the panel, behind an authenticated API
+
+- **Isolated sandbox instance**: a new manager starts a second dsh in a
+  temporary DSH home (the running installation's own CLI entry, sandbox home
+  as cwd), observes its boot, keeps a bounded output log, reads its official
+  startup diagnostics, scans its profile, and stops with full cleanup. The
+  sandbox is configuration-level isolation for plugin work — it runs this
+  user's environment and file-system access, stated as such in the tool and
+  panel copy.
+- **Agent tools**: `dsh_ops_sandbox_start` / `_stop` / `_status` / `_scan` /
+  `_fix` — start, observe, scan, and repair the sandbox from the running
+  agent; the launch token is redacted in tool output.
+- **Panel surfaces**: a sidebar footer entry opens a right-column sandbox
+  panel (start / restart-keeping-state / stop, open in a new tab, live log,
+  diagnostics, scan findings, disable-row repair), with tab title and guide
+  capsule; hosts without the right column keep the settings section and skip
+  the surfaces silently.
+- **Honest repair semantics**: `fix` resolves visible rows through the
+  running installation's closure (the fresh sandbox home has no anchor of its
+  own), reports "cannot resolve the closure" separately from "no such row",
+  and claims a successful restart only when one actually happened.
+- **`/dsh-ops/*` is authenticated**: every route passes the harness
+  connection's admission (Host/Origin trust fence + launch-token/cookie
+  browser authentication — the same gate the harness API uses); a host
+  without the connection service is refused (fail-closed). The surface was
+  previously open to any local process (external security review).
+- **Hardening from three external verification rounds**: teardown kills whole
+  POSIX process groups and surfaces an unexpected sandbox exit in the status;
+  a kill that outlives SIGTERM+SIGKILL keeps the home for diagnosis;
+  cleanup retries are bounded and timers are unref'd; peer-gap honors
+  `peerDependenciesMeta.optional` and resolves through the anchor chain only.
+- 275 tests (core 221 + bundle 27 + cli 33; one POSIX-only test skipped on
+  Windows); three external verification rounds passed (auth matrix,
+  fresh-sandbox repair, fake-success wording, isolation and cleanup).
+- The release workflow now rejects a tag whose name disagrees with the
+  package manifests.
+
 ## 0.18.1 — 2026-10-11
 
 ### Peer-gap false positives fixed (field report from a real desktop user)

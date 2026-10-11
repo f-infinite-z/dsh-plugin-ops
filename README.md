@@ -7,7 +7,7 @@ English | [中文](README.zh.md)
 
 > DeepSeek Harness plugin operations: pre-boot checks and a blocking gate, failure attribution and recovery, dependency governance, install adaptation, and publish-time verification for plugin authors — keeping the plugin ecosystem loadable.
 
-**Status: v0.18.1 — the gate verifies a disable-fix on an isolated copy of the profile before writing the real one (web and desktop), `verify --report` renders a marketplace-style compatibility matrix, and macOS teardown kills whole process groups. 0.18.1 fixes peer-gap false positives on desktop profiles and client bundles (a field report) and restricts resolution to the anchor chain. 0.17.x carried the reusable desktop sandbox and the fresh-home install anchor fix. Interception, repair, and memory mechanics: [docs/architecture.md](docs/architecture.md).**
+**Status: v0.19.0 — the sandbox console: a sidebar entry and a right-column panel start an isolated number-2 dsh, show its live log and startup diagnostics, scan and repair it (agent tools included), with every `/dsh-ops` route behind the same browser authentication the harness API uses (found and fixed after an external security review). 0.18.1 carried the peer-gap field fixes and the 0.18.0 sandbox-verified gate recovery plus the `verify --report` compatibility matrix. Interception, repair, and memory mechanics: [docs/architecture.md](docs/architecture.md).**
 
 ## Names
 
