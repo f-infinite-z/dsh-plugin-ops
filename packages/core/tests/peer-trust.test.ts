@@ -18,6 +18,7 @@ function writeBundle(
   name: string,
   peers: Record<string, string>,
   dshExtra: Record<string, unknown> = {},
+  peerMeta?: Record<string, unknown>,
 ): void {
   const dir = join(paths.profileDir, 'node_modules', name)
   writeJson(join(dir, 'package.json'), {
@@ -26,6 +27,7 @@ function writeBundle(
     type: 'module',
     main: 'lib/index.js',
     peerDependencies: peers,
+    ...(peerMeta === undefined ? {} : { peerDependenciesMeta: peerMeta }),
     dsh: { bundle: { patch: 'cordis.patch.yml' }, ...dshExtra },
   })
   writeFileSync(join(dir, 'cordis.patch.yml'), '- id: probe\n', 'utf8')
@@ -68,6 +70,31 @@ describe('peer-gap trust and exemptions', () => {
       writeBundle(fixture.paths, 'client-plug', { react: '^18.2.0', 'react-dom': '^18.2.0' }, { client: { platform: 'web' } })
       const report = await scanProfile({ paths: fixture.paths, profileName: 'web', updateCheck: false })
       expect(report.findings.some((f) => f.ruleId === 'peer-gap' && (f.severity === 'warn' || f.severity === 'fatal'))).toBe(false)
+    } finally {
+      fixture.dispose()
+    }
+  })
+
+  it('exempts an absent peer marked optional in peerDependenciesMeta', async () => {
+    const fixture = makeHome('web')
+    try {
+      writeProfile(fixture.paths, { dependencies: { 'opt-plug': '1.0.0' }, bundles: ['opt-plug'] })
+      writeBundle(fixture.paths, 'opt-plug', { 'some-optional-peer': '^1.0.0' }, {}, { 'some-optional-peer': { optional: true } })
+      const report = await scanProfile({ paths: fixture.paths, profileName: 'web', updateCheck: false })
+      expect(report.findings.some((f) => f.ruleId === 'peer-gap' && f.severity === 'warn')).toBe(false)
+    } finally {
+      fixture.dispose()
+    }
+  })
+
+  it('still reports an absent peer without the optional marking', async () => {
+    const fixture = makeHome('web')
+    try {
+      writeProfile(fixture.paths, { dependencies: { 'req-plug': '1.0.0' }, bundles: ['req-plug'] })
+      writeBundle(fixture.paths, 'req-plug', { 'some-optional-peer': '^1.0.0' }, {}, { 'some-optional-peer': {} })
+      const report = await scanProfile({ paths: fixture.paths, profileName: 'web', updateCheck: false })
+      const finding = report.findings.find((f) => f.ruleId === 'peer-gap' && f.severity === 'warn')
+      expect(finding?.message).toContain('some-optional-peer')
     } finally {
       fixture.dispose()
     }

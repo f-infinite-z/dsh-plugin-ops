@@ -47,6 +47,16 @@ function hasClientHalf(manifest: { dsh?: { client?: unknown } }): boolean {
 }
 
 /**
+ * Whether npm/pnpm mark this peer optional (`peerDependenciesMeta[name].optional`).
+ * An absent optional peer is legal by package-manager semantics, so it is
+ * never a gap.
+ */
+function isOptionalPeer(manifest: { peerDependenciesMeta?: Record<string, unknown> }, peerName: string): boolean {
+  const entry = manifest.peerDependenciesMeta?.[peerName]
+  return typeof entry === 'object' && entry !== null && (entry as { optional?: unknown }).optional === true
+}
+
+/**
  * Rule 4: peer gaps and double-instance detection. Every direct peer of every
  * tracked package must resolve through the anchor chain (the host the harness
  * closure provides) or the package's own embedded copy. A peer that resolves
@@ -98,11 +108,14 @@ export function rulePeerGap(ctx: RuleContext, resolved: ResolvedBundle[]): Findi
           fix: { kind: 'none' },
         })
       } else if (host === null && internal === null) {
-        // Three trusted-absence cases keep this from being a gap: a client
-        // bundle's shell-seeded modules arrive through the client module
-        // table; the desktop profile's official packages live inside the
-        // packaged asar; and without a located installation the remaining
-        // official peers may sit in an unreadable installation closure.
+        // Trusted absences and legal absences all keep this from being a gap:
+        // an optional-marked peer is absent legally by package-manager
+        // semantics; a client bundle's shell-seeded modules arrive through
+        // the client module table; the desktop profile's official packages
+        // live inside the packaged asar; and without a located installation
+        // the remaining official peers may sit in an unreadable installation
+        // closure.
+        if (isOptionalPeer(bundle.manifest, peerName)) continue
         if (hasClientHalf(bundle.manifest) && CLIENT_SHELL_MODULES.has(peerName)) continue
         if (peerName.startsWith('@deepseek-ai/') && (ctx.isDesktop || closureUnknown)) continue
         findings.push({
