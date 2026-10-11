@@ -21,7 +21,7 @@ usage:
   dsh-ops gate  [--profile <name>] [--home <dir>] [--bypass] [--no-attribution]
                 [--boot-threshold-ms <n>] [--config <file>] [--] <dsh command...>
   dsh-ops serve [--home <dir>] [--port <n>] [--host <addr>] [--config <file>]
-  dsh-ops verify [<dir>|<npm-package>] [--json] [--strict] [--runtime] [--desktop] [--runtime-timeout <s>]
+  dsh-ops verify [<dir>|<npm-package>] [--json] [--strict] [--runtime] [--desktop] [--runtime-timeout <s>] [--report <file.md>]
   dsh-ops adapt  <npm-package> [--profile <name>] [--home <dir>] [--yes] [--remove] [--runtime-timeout <s>] [--config <file>]
   dsh-ops sessions [--home <dir>] [--json] [--repair-paths] [--quarantine]
   dsh-ops dev   <plugin-dir> [--runtime] [--desktop] [--runtime-timeout <s>]
@@ -40,7 +40,9 @@ verify --runtime boots the package in an isolated DSH home (official install +
 verify --desktop boots it in an isolated desktop sandbox instead (temporary
   DSH home + user-data-dir, installed through the desktop app's bundled CLI,
   observed on an isolated host port); needs the desktop app 0.2.0-rc.1+ and
-  network access for the isolated install.
+  network access for the isolated install. --report <file.md> writes the run
+  as a compatibility matrix (static checks + declared dsh peer coverage +
+  measured runtime targets + lifecycle coverage) for marketplace listings.
 
 dev watches one plugin directory: static checks after every change, plus an
   isolated web boot with --runtime and an isolated desktop sandbox with
@@ -73,6 +75,7 @@ const OPTIONS = {
   runtime: { type: 'boolean', default: false },
   desktop: { type: 'boolean', default: false },
   'runtime-timeout': { type: 'string' },
+  report: { type: 'string' },
   'repair-paths': { type: 'boolean', default: false },
   quarantine: { type: 'boolean', default: false },
   port: { type: 'string' },
@@ -80,7 +83,7 @@ const OPTIONS = {
   'boot-threshold-ms': { type: 'string' },
 } as const
 
-type Flags = { profile: string; home?: string; json?: boolean; 'dry-run'?: boolean; yes?: boolean; bypass?: boolean; 'no-attribution'?: boolean; remove?: boolean; config?: string; 'skip-update-check'?: boolean; updates?: boolean; strict?: boolean; runtime?: boolean; desktop?: boolean; 'runtime-timeout'?: string; 'repair-paths'?: boolean; quarantine?: boolean; port?: string; host?: string; 'boot-threshold-ms'?: string; 'version-view'?: string }
+type Flags = { profile: string; home?: string; json?: boolean; 'dry-run'?: boolean; yes?: boolean; bypass?: boolean; 'no-attribution'?: boolean; remove?: boolean; config?: string; 'skip-update-check'?: boolean; updates?: boolean; strict?: boolean; runtime?: boolean; desktop?: boolean; 'runtime-timeout'?: string; report?: string; 'repair-paths'?: boolean; quarantine?: boolean; port?: string; host?: string; 'boot-threshold-ms'?: string; 'version-view'?: string }
 
 function parse(rawArgs: string[]): { values: Flags; positionals: string[] } {
   const { values, positionals } = parseArgs({
@@ -184,6 +187,7 @@ async function main(): Promise<number> {
         runtime: values.runtime ?? false,
         desktop: values.desktop ?? false,
         runtimeTimeoutSec,
+        ...(values.report === undefined ? {} : { report: values.report }),
       })
     }
     case 'adapt': {

@@ -69,15 +69,13 @@ export interface PatchWriteResult {
 }
 
 /**
- * Append a flat `id + disabled: true` row to the user patch layer by pushing a
- * node into the root sequence. A later row with the same id overrides earlier
- * rows, so this disables the entry without touching the user's own rows.
- * Structural append is required because the official profile template ships a
- * comment header plus an empty `[]` placeholder — text-concatenating after it
- * would corrupt the document. Never writes through an unparsable file and
- * always leaves a backup.
+ * Append one row node to the user patch layer's root sequence. Structural
+ * append is required because the official profile template ships a comment
+ * header plus an empty `[]` placeholder — text-concatenating after it would
+ * corrupt the document. Never writes through an unparsable file and always
+ * leaves a backup.
  */
-export function appendDisabledRow(profileDir: string, rowId: string): PatchWriteResult {
+function appendRootNode(profileDir: string, node: Record<string, unknown>): PatchWriteResult {
   const file = join(profileDir, PROFILE_PATCH_FILENAME)
   const raw = readTextFile(file)
   const backup = backupFile(file)
@@ -91,7 +89,7 @@ export function appendDisabledRow(profileDir: string, rowId: string): PatchWrite
     if (!Array.isArray(doc.toJS())) {
       return { ok: false, problem: 'patch file root is not a YAML list; refusing to write', backup }
     }
-    seq.items.push(doc.createNode({ id: rowId, disabled: true }))
+    seq.items.push(doc.createNode(node))
     writeTextAtomic(file, doc.toString())
     return { ok: true, backup }
   } catch (error) {
@@ -100,37 +98,34 @@ export function appendDisabledRow(profileDir: string, rowId: string): PatchWrite
 }
 
 /**
+ * Append a flat `id + disabled: true` row to the user patch layer. A later
+ * row with the same id overrides earlier rows, so this disables the entry
+ * without touching the user's own rows.
+ */
+export function appendDisabledRow(profileDir: string, rowId: string): PatchWriteResult {
+  return appendRootNode(profileDir, { id: rowId, disabled: true })
+}
+
+/**
  * Append an `insert` directive that introduces a loader row (`id + name`) in
  * the user patch layer. The include's patch algorithm only creates entries
  * from `insert` rows — a flat id-targeted row is a configuration patch that
  * the include skips (with a warning) when no earlier insert introduced the
  * id — so activation must be written as an insert. Used by runtime
- * verification to mount a plain plugin into an isolated profile. Structural
- * append is required because the official profile template ships a comment
- * header plus an empty `[]` placeholder — text-concatenating after it would
- * corrupt the document. Never writes through an unparsable file and always
- * leaves a backup.
+ * verification to mount a plain plugin into an isolated profile.
  */
 export function appendActivationRow(profileDir: string, rowId: string, packageName: string): PatchWriteResult {
-  const file = join(profileDir, PROFILE_PATCH_FILENAME)
-  const raw = readTextFile(file)
-  const backup = backupFile(file)
-  let doc: ReturnType<typeof parseDocument>
-  try {
-    doc = parseDocument(raw ?? '')
-    if (doc.contents === null) {
-      doc.contents = doc.createNode([])
-    }
-    const seq = doc.contents as unknown as YAMLSeq
-    if (!Array.isArray(doc.toJS())) {
-      return { ok: false, problem: 'patch file root is not a YAML list; refusing to write', backup }
-    }
-    seq.items.push(doc.createNode({ insert: [{ id: rowId, name: packageName }] }))
-    writeTextAtomic(file, doc.toString())
-    return { ok: true, backup }
-  } catch (error) {
-    return { ok: false, problem: `patch layer is not valid YAML: ${String(error)}`, backup }
-  }
+  return appendRootNode(profileDir, { insert: [{ id: rowId, name: packageName }] })
+}
+
+/**
+ * Append a flat `id + config` row to the user patch layer. Used by the
+ * desktop sandbox's copied-profile mode to pin the webserver to an isolated
+ * port without discarding the rows the copy already carries (the patch layer
+ * replaces a row's whole `config`, so callers must restate every key).
+ */
+export function appendConfigRow(profileDir: string, rowId: string, config: Record<string, unknown>): PatchWriteResult {
+  return appendRootNode(profileDir, { id: rowId, config })
 }
 
 /**

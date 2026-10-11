@@ -1,14 +1,20 @@
 import type { ChildProcess } from 'node:child_process'
-import { existsSync, mkdtempSync, rmSync, statSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import {
   appendActivationRow,
+  buildVerifyMatrix,
   classifyBootOutcome,
+  detectDesktop,
+  dshPeersOf,
   fetchNpmPackage,
   packLocalPackage,
+  readGlobalDshVersion,
   readLatestStartupReport,
+  readPackageManifest,
   readRuntimeVerifyPlan,
+  renderVerifyMatrix,
   resolveDshPaths,
   verifyOk,
   verifyPluginPackage,
@@ -29,6 +35,8 @@ export interface VerifyCommandOptions {
   desktop: boolean
   /** seconds a healthy boot must survive before the package passes */
   runtimeTimeoutSec: number
+  /** write the compatibility matrix as Markdown to this path */
+  report?: string
 }
 
 const SEVERITY_ORDER = { error: 0, warn: 1, info: 2 } as const
@@ -330,13 +338,24 @@ export async function runVerifyCommand(options: VerifyCommandOptions): Promise<n
     }
     const runtimeFailed = [webRuntime, desktopRuntime].some((result) => result !== null && !result.ok)
     const ok = staticOk && !runtimeFailed
+
+    const manifest = readPackageManifest(dir)
+    const matrix = buildVerifyMatrix({
+      packageName: report.packageName,
+      version: report.version,
+      findings: report.findings,
+      dshPeers: manifest === null ? {} : dshPeersOf(manifest),
+      web: webRuntime === null ? null : { ok: webRuntime.ok, detail: webRuntime.detail, runtimeVersion: await readGlobalDshVersion() },
+      desktop: desktopRuntime === null ? null : { ok: desktopRuntime.ok, detail: desktopRuntime.detail, runtimeVersion: detectDesktop().version },
+    })
+
     if (options.json) {
       const runtimePayload = webRuntime !== null && desktopRuntime !== null
         ? { runtimes: { web: webRuntime, desktop: desktopRuntime } }
         : webRuntime !== null ? { runtime: webRuntime }
           : desktopRuntime !== null ? { runtime: desktopRuntime }
             : {}
-      process.stdout.write(`${JSON.stringify({ ...report, ok, ...runtimePayload })}\n`)
+      process.stdout.write(`${JSON.stringify({ ...report, ok, ...runtimePayload, matrix })}\n`)
     } else {
       process.stdout.write(`${renderHuman(report)}\n`)
       if (webRuntime !== null && desktopRuntime !== null) {
@@ -354,6 +373,15 @@ export async function runVerifyCommand(options: VerifyCommandOptions): Promise<n
               ? 'FAILED: an isolated boot did not survive; fix the package before publishing\n'
               : 'FAILED: fix the errors before publishing\n',
         )
+      }
+    }
+    if (options.report !== undefined) {
+      try {
+        writeFileSync(options.report, renderVerifyMatrix(matrix), 'utf8')
+        if (!options.json) process.stdout.write(`\nmatrix report written to ${options.report}\n`)
+      } catch (error) {
+        process.stderr.write(`verify: cannot write the matrix report: ${error instanceof Error ? error.message : String(error)}\n`)
+        return 1
       }
     }
     return ok ? 0 : 1

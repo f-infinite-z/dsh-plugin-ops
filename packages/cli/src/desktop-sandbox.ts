@@ -4,10 +4,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import net from 'node:net'
 import {
+  appendConfigRow,
   classifyDesktopReadiness,
   desktopNeedsPortPatch,
   desktopPortPatchYaml,
   desktopVerifyProfileFiles,
+  desktopWebserverConfig,
   detectDesktop,
   packLocalPackage,
   resolveDesktopAppExecutable,
@@ -18,6 +20,7 @@ import {
 } from 'dsh-plugin-ops-core'
 import { spawnCli } from './spawn-dsh.js'
 import { killTree } from './kill-tree.js'
+import { copyProfileFiles } from './profile-copy.js'
 import type { RuntimeInstallSource } from './verify-cmd.js'
 
 /**
@@ -52,7 +55,15 @@ export interface DesktopSandboxContext {
 }
 
 export interface DesktopSandboxOptions {
-  installSource: RuntimeInstallSource
+  /** Install this source into the scaffolded profile (one package). */
+  installSource?: RuntimeInstallSource
+  /**
+   * Boot a copy of this profile's manifest instead of the scaffold plus a
+   * single-package install: the copy's files land in the sandbox profile and
+   * the install runs from the copied lockfile (`plugin install
+   * --frozen-lockfile`). Used by the gate's sandbox fix verification.
+   */
+  profileCopyFrom?: string
   /** Seconds the sandbox may take to reach readiness before it fails. */
   timeoutSec: number
   /**
@@ -203,8 +214,12 @@ export async function runDesktopSandbox(options: DesktopSandboxOptions): Promise
   let packCleanup: (() => void) | null = null
   try {
     mkdirSync(profileDir, { recursive: true })
-    for (const [rel, content] of Object.entries(desktopVerifyProfileFiles())) {
-      writeFileSync(join(profileDir, rel), content, 'utf8')
+    if (options.profileCopyFrom !== undefined) {
+      copyProfileFiles(options.profileCopyFrom, profileDir)
+    } else {
+      for (const [rel, content] of Object.entries(desktopVerifyProfileFiles())) {
+        writeFileSync(join(profileDir, rel), content, 'utf8')
+      }
     }
     // The sandbox's bundled pnpm reads the profile's project-level npm config;
     // propagate the registry the caller's environment selected (a mirror on
@@ -218,20 +233,29 @@ export async function runDesktopSandbox(options: DesktopSandboxOptions): Promise
       await options.prepare({ sandboxDir: sandbox, home, profileDir, launcher, executable, desktopVersion: desktop.version })
     }
 
-    let installTarget: string
-    if (options.installSource.kind === 'spec') {
-      installTarget = options.installSource.value
-    } else {
-      const packed = await packLocalPackage(options.installSource.value)
-      if (!packed.ok || packed.tarball === null) {
-        return unavailable(`cannot pack the directory for a tarball install: ${packed.error ?? 'unknown error'}`)
+    let installTarget: string | null = null
+    if (options.profileCopyFrom === undefined) {
+      const source = options.installSource
+      if (source === undefined) {
+        return unavailable('no install source and no profile copy to boot')
       }
-      installTarget = packed.tarball
-      packCleanup = packed.cleanup
+      if (source.kind === 'spec') {
+        installTarget = source.value
+      } else {
+        const packed = await packLocalPackage(source.value)
+        if (!packed.ok || packed.tarball === null) {
+          return unavailable(`cannot pack the directory for a tarball install: ${packed.error ?? 'unknown error'}`)
+        }
+        installTarget = packed.tarball
+        packCleanup = packed.cleanup
+      }
     }
 
     const env: NodeJS.ProcessEnv = { ...process.env, DSH_HOME: home }
-    const install = await runCli(launcher, ['plugin', '--profile', 'desktop', 'add', installTarget], env, 300_000)
+    const installArgs = installTarget === null
+      ? ['plugin', '--profile', 'desktop', 'install', '--frozen-lockfile']
+      : ['plugin', '--profile', 'desktop', 'add', installTarget]
+    const install = await runCli(launcher, installArgs, env, 300_000)
     if (install.code !== 0) {
       return {
         ok: false, kind: 'install-failed',
@@ -244,7 +268,14 @@ export async function runDesktopSandbox(options: DesktopSandboxOptions): Promise
     if (desktopNeedsPortPatch(desktop.version)) {
       port = await freePort()
       if (port === null) return unavailable('could not reserve a local port for the sandbox host')
-      writeFileSync(join(profileDir, 'cordis.patch.yml'), desktopPortPatchYaml(port), 'utf8')
+      if (options.profileCopyFrom !== undefined) {
+        // A copied profile carries its own patch rows: append the port pin
+        // instead of replacing the file.
+        const write = appendConfigRow(profileDir, 'webserver', desktopWebserverConfig(port))
+        if (!write.ok) return unavailable(`cannot pin the sandbox host port: ${write.problem ?? 'unknown error'}`)
+      } else {
+        writeFileSync(join(profileDir, 'cordis.patch.yml'), desktopPortPatchYaml(port), 'utf8')
+      }
     }
 
     const start = Date.now()

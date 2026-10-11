@@ -10,6 +10,11 @@ import {
   type Finding, type ScanReport, type DshPaths, type OpsConfig,
 } from 'dsh-plugin-ops-core'
 import { spawnCli, spawnDsh } from './spawn-dsh.js'
+import { killTree } from './kill-tree.js'
+import { runFixVerify } from './profile-sandbox.js'
+
+/** Seconds one sandbox fix-verification boot may take. */
+const FIX_VERIFY_TIMEOUT_SEC = 45
 
 export interface GateCommandOptions {
   paths: DshPaths
@@ -65,15 +70,10 @@ async function sessionContainerCheck(options: GateCommandOptions): Promise<numbe
   const command = config?.command ?? 'session-audit'
   if (!commandExists(command)) return null
   return new Promise((resolve) => {
-    const child = spawnCli(command, [sessionsRoot], { stdio: ['ignore', 'inherit', 'inherit'] })
+    // Detached on POSIX so the timeout kill reaches the audit's whole process group.
+    const child = spawnCli(command, [sessionsRoot], { stdio: ['ignore', 'inherit', 'inherit'], detached: process.platform !== 'win32' })
     const timer = setTimeout(() => {
-      if (child.pid !== undefined) {
-        if (process.platform === 'win32') {
-          spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' })
-        } else {
-          try { process.kill(child.pid, 'SIGTERM') } catch { /* already gone */ }
-        }
-      }
+      killTree(child.pid)
       resolve(null)
     }, 120_000)
     child.on('error', () => {
@@ -194,35 +194,106 @@ export async function runGateCommand(options: GateCommandOptions): Promise<numbe
  * desktop app has no CLI launch point, so this pass reports the outcome and
  * attributes the latest desktop crash report instead of exec'ing a boot.
  */
-function desktopGatePass(options: GateCommandOptions): number {
+function desktopGatePass(options: GateCommandOptions): number | Promise<number> {
   process.stdout.write('\n' + '='.repeat(60) + '\n')
   process.stdout.write('DESKTOP PROFILE: no CLI launch point\n')
   process.stdout.write('the desktop app boots its own host; the gate pre-checks without launching it\n')
   process.stdout.write('='.repeat(60) + '\n')
 
   const logsDir = options.config.desktopCrashReportDir ?? desktopLogsDir()
-  if (logsDir !== null) {
-    const crash = readLatestCrashReport(logsDir)
-    if (crash !== null) {
-      process.stdout.write('\nlatest desktop crash report:\n')
-      process.stdout.write(`  file: ${crash.file}\n`)
-      if (crash.source !== null || crash.phase !== null) {
-        process.stdout.write(`  source: ${crash.source ?? 'unknown'} (${crash.phase ?? 'unknown'})\n`)
-      }
-      if (crash.appVersion !== null) process.stdout.write(`  desktop ${crash.appVersion}\n`)
-      if (crash.entries.length > 0) {
-        process.stdout.write('  inactive entries:\n')
-        for (const entry of crash.entries) {
-          process.stdout.write(`    [${entry.required ? 'required' : 'optional'}] ${entry.id} — ${entry.module}\n`)
-        }
-      } else {
-        process.stdout.write('  (no inactive-entry list parsed; open the file for raw diagnostics)\n')
-      }
-      process.stdout.write('  recover: fix the reported entries, or use the desktop recovery dialog to disable third-party plugins, then start the desktop app again\n')
+  if (logsDir === null) return 0
+  const crash = readLatestCrashReport(logsDir)
+  if (crash === null) return 0
+
+  process.stdout.write('\nlatest desktop crash report:\n')
+  process.stdout.write(`  file: ${crash.file}\n`)
+  if (crash.source !== null || crash.phase !== null) {
+    process.stdout.write(`  source: ${crash.source ?? 'unknown'} (${crash.phase ?? 'unknown'})\n`)
+  }
+  if (crash.appVersion !== null) process.stdout.write(`  desktop ${crash.appVersion}\n`)
+  if (crash.entries.length > 0) {
+    process.stdout.write('  inactive entries:\n')
+    for (const entry of crash.entries) {
+      process.stdout.write(`    [${entry.required ? 'required' : 'optional'}] ${entry.id} — ${entry.module}\n`)
     }
+  } else {
+    process.stdout.write('  (no inactive-entry list parsed; open the file for raw diagnostics)\n')
   }
 
-  return 0
+  const recoverHint = '  recover: fix the reported entries, or use the desktop recovery dialog to disable third-party plugins, then start the desktop app again\n'
+  // Suspects: third-party failed modules from the crash report that map to a
+  // disableable loader row. Official rows are never touched (they are part of
+  // the shipped app, not the plugin tree the user changes).
+  const thirdParty = crash.entries.filter((entry) => !entry.module.startsWith('@deepseek-ai/'))
+  if (thirdParty.length === 0) {
+    process.stdout.write(recoverHint)
+    return 0
+  }
+  const manifest = readProfileManifest(options.paths.profileManifest)
+  const installAnchor = locateInstallAnchor(options.paths, options.config.installAnchor ?? null)
+  const bundles = manifest === null ? [] : resolveBundles(options.paths, manifest, installAnchor).resolved
+  const refs = allVisibleRows(options.paths.profileDir, bundles)
+  const suspects = thirdParty
+    .map((entry) => ({ entry, rows: rowIdsForPackage(refs, entry.module) }))
+    .filter((suspect) => suspect.rows.length > 0)
+  if (suspects.length === 0) {
+    process.stdout.write(recoverHint)
+    return 0
+  }
+
+  process.stderr.write('\n' + '='.repeat(60) + '\n')
+  process.stderr.write('SUSPECTS (third-party plugins the crash report names):\n')
+  for (const suspect of suspects) {
+    process.stderr.write(`  ${suspect.entry.module} — rows: ${suspect.rows.join(', ')}\n`)
+  }
+  if (!process.stdin.isTTY) {
+    process.stderr.write('Suggested action: disable these rows (or remove the plugins), then start the desktop app again.\n')
+    return 0
+  }
+
+  const rows = [...new Set(suspects.flatMap((suspect) => suspect.rows))]
+  const rl = createInterface({ input: process.stdin, output: process.stderr })
+  return (async () => {
+    try {
+      const answer = (await rl.question('\naction: [a] disable these rows with a sandbox-verified boot first, [s] skip: ')).trim().toLowerCase()
+      if (answer !== 'a' && answer !== 'all') {
+        process.stderr.write('skipped\n')
+        return 0
+      }
+      process.stderr.write('\nverifying the fix in an isolated sandbox (booting a copy of the desktop profile)...\n')
+      const verify = await runFixVerify({
+        sourceProfileDir: options.paths.profileDir,
+        profileName: options.profileName,
+        disableRows: rows,
+        dshCommand: options.dshCommand,
+        timeoutSec: FIX_VERIFY_TIMEOUT_SEC,
+      })
+      if (verify.kind === 'unavailable' || verify.kind === 'setup-failed') {
+        process.stderr.write(`sandbox verification unavailable: ${verify.detail}\n`)
+        process.stderr.write('applying the fix directly (the sandbox did not run)\n')
+      } else if (verify.ok) {
+        process.stderr.write(`sandbox verification passed: ${verify.detail}\n`)
+        appendMemory(options.paths, { type: 'fix', ts: new Date().toISOString(), profile: options.profileName, kind: 'verify-fix', detail: `rows ${rows.join(', ')} booted in an isolated copy` })
+      } else {
+        process.stderr.write(`sandbox verification failed: ${verify.detail}\n`)
+        if (verify.outputTail !== '') process.stderr.write(`${verify.outputTail}\n`)
+        const next = (await rl.question('these rows are not enough: [a] apply anyway, [q] quit: ')).trim().toLowerCase()
+        if (next !== 'a' && next !== 'apply') {
+          process.stderr.write('aborted\n')
+          return 0
+        }
+      }
+      for (const row of rows) {
+        const result = await disableRow(options.paths, options.profileName, row)
+        if (!result.ok) process.stderr.write(`disable ${row}: ${result.detail}\n`)
+        else process.stderr.write(`disabled row ${row} (backup: ${result.backup ?? 'none'})\n`)
+      }
+      process.stderr.write('\ndisabled rows recorded; start the desktop app to verify.\n')
+      return 0
+    } finally {
+      rl.close()
+    }
+  })()
 }
 
 function runDsh(command: string[]): Promise<number> {
@@ -324,22 +395,73 @@ async function attributeAndRecover(options: GateCommandOptions, report: ScanRepo
 
   const rl = createInterface({ input: process.stdin, output: process.stderr })
   try {
-    const answer = await rl.question('\naction: [a] disable all suspect rows and retry, [s] skip (start dsh anyway), or indices like 1,2 to pick: ')
-    const trimmed = answer.trim().toLowerCase()
-    if (trimmed === 's' || trimmed === 'skip') {
+    const parseChoice = (answer: string): { kind: 'skip' } | { kind: 'invalid' } | { kind: 'rows'; rows: string[] } => {
+      const trimmed = answer.trim().toLowerCase()
+      if (trimmed === 's' || trimmed === 'skip') return { kind: 'skip' }
+      let chosen = disableable
+      if (trimmed !== 'a' && trimmed !== 'all') {
+        const picked = new Set(trimmed.split(',').map((x) => Number(x.trim())).filter((n) => Number.isInteger(n)))
+        chosen = disableable.filter((_, index) => picked.has(index + 1))
+        if (chosen.length === 0) return { kind: 'invalid' }
+      }
+      return { kind: 'rows', rows: [...new Set(chosen.flatMap((s) => s.rows))] }
+    }
+    const pickPrompt = '\naction: [a] disable all suspect rows and retry, [s] skip (start dsh anyway), or indices like 1,2 to pick: '
+
+    let rows: string[]
+    const first = parseChoice(await rl.question(pickPrompt))
+    if (first.kind === 'skip') {
       process.stderr.write('skipped; starting dsh without changes\n')
       return runDsh(options.dshCommand)
     }
-    let chosen = disableable
-    if (trimmed !== 'a' && trimmed !== 'all') {
-      const picked = new Set(trimmed.split(',').map((x) => Number(x.trim())).filter((n) => Number.isInteger(n)))
-      chosen = disableable.filter((_, index) => picked.has(index + 1))
-      if (chosen.length === 0) {
-        process.stderr.write('no valid choice; aborting\n')
-        return 4
-      }
+    if (first.kind === 'invalid') {
+      process.stderr.write('no valid choice; aborting\n')
+      return 4
     }
-    const rows = [...new Set(chosen.flatMap((s) => s.rows))]
+    rows = first.rows
+
+    // --- prove the fix on an isolated copy before touching the real profile
+    for (;;) {
+      process.stderr.write(`\nverifying the fix in an isolated sandbox (booting a copy of the ${options.profileName} profile)...\n`)
+      const verify = await runFixVerify({
+        sourceProfileDir: options.paths.profileDir,
+        profileName: options.profileName,
+        disableRows: rows,
+        dshCommand: options.dshCommand,
+        timeoutSec: FIX_VERIFY_TIMEOUT_SEC,
+      })
+      if (verify.kind === 'unavailable' || verify.kind === 'setup-failed') {
+        process.stderr.write(`sandbox verification unavailable: ${verify.detail}\n`)
+        if (verify.outputTail !== '') process.stderr.write(`${verify.outputTail}\n`)
+        process.stderr.write('applying the fix directly (the sandbox did not run)\n')
+        break
+      }
+      if (verify.ok) {
+        process.stderr.write(`sandbox verification passed: ${verify.detail}\n`)
+        appendMemory(options.paths, { type: 'fix', ts: new Date().toISOString(), profile: options.profileName, kind: 'verify-fix', detail: `rows ${rows.join(', ')} booted in an isolated copy` })
+        break
+      }
+      process.stderr.write(`sandbox verification failed: ${verify.detail}\n`)
+      if (verify.outputTail !== '') process.stderr.write(`${verify.outputTail}\n`)
+      const next = (await rl.question('these rows are not enough: [r] pick again, [a] apply anyway, [q] quit: ')).trim().toLowerCase()
+      if (next === 'r' || next === 'retry' || next === 'pick') {
+        const again = parseChoice(await rl.question(pickPrompt))
+        if (again.kind === 'skip') {
+          process.stderr.write('skipped; starting dsh without changes\n')
+          return runDsh(options.dshCommand)
+        }
+        if (again.kind === 'invalid') {
+          process.stderr.write('no valid choice; aborting\n')
+          return 4
+        }
+        rows = again.rows
+        continue
+      }
+      if (next === 'a' || next === 'apply') break
+      process.stderr.write('aborted\n')
+      return 4
+    }
+
     for (const row of rows) {
       const result = await disableRow(options.paths, options.profileName, row)
       if (!result.ok) process.stderr.write(`disable ${row}: ${result.detail}\n`)

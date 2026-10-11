@@ -16,7 +16,9 @@ export interface RunResult extends SpawnResult {
 
 export function runCommand(bin: string, args: string[], cwd: string, timeoutMs?: number): Promise<RunResult> {
   return new Promise((resolve, reject) => {
-    const child = spawn(bin, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'], shell: false })
+    // Detached on POSIX so a timeout kill reaches the whole process group
+    // (pnpm forks children that a single-process SIGTERM would leave behind).
+    const child = spawn(bin, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'], shell: false, detached: process.platform !== 'win32' })
     const timer = timeoutMs === undefined ? undefined : setTimeout(() => {
       killProcessTree(child.pid ?? 0)
     }, timeoutMs)
@@ -35,12 +37,20 @@ export function runCommand(bin: string, args: string[], cwd: string, timeoutMs?:
   })
 }
 
+/** Kill one process tree: `taskkill /T` on Windows, the process group on POSIX (SIGTERM, then a SIGKILL sweep for stragglers). */
 function killProcessTree(pid: number): void {
+  if (pid <= 0) return
   if (process.platform === 'win32') {
     spawn('taskkill', ['/pid', String(pid), '/T', '/F'], { stdio: 'ignore' })
-  } else {
-    process.kill(pid, 'SIGTERM')
+    return
   }
+  const signalTree = (signal: NodeJS.Signals): void => {
+    try { process.kill(-pid, signal); return } catch { /* not a group leader */ }
+    try { process.kill(pid, signal) } catch { /* already gone */ }
+  }
+  signalTree('SIGTERM')
+  const timer = setTimeout(() => signalTree('SIGKILL'), 1000)
+  timer.unref()
 }
 
 /**

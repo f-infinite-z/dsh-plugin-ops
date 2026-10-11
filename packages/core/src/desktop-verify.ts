@@ -45,22 +45,39 @@ export function desktopNeedsPortPatch(version: string | null): boolean {
 }
 
 /**
- * The user-layer patch pinning the sandbox host to an isolated port. The
- * include replaces a row's whole `config`, so every key of the webserver row
- * is restated (the base bundle's `host`, `port`, and compression settings);
- * dropping any key would fail the host with a missing required value.
+ * The webserver config pinning one host to a fixed port. The include replaces
+ * a row's whole `config`, so every key of the webserver row is restated (the
+ * base bundle's `host`, `port`, and compression settings); dropping any key
+ * would fail the host with a missing required value. Shared by the text-form
+ * patch and the structural append used for a copied profile.
+ * @param port - the free port the sandbox host should bind.
+ */
+export function desktopWebserverConfig(port: number): Record<string, unknown> {
+  return {
+    host: '127.0.0.1',
+    port,
+    compression: 'gzip',
+    compressionLevel: 1,
+    compressionThresholdBytes: 1024,
+  }
+}
+
+/**
+ * The user-layer patch pinning the sandbox host to an isolated port (the
+ * fresh-scaffold form; a copied profile appends the same config structurally).
  * @param port - the free port the sandbox host should bind.
  */
 export function desktopPortPatchYaml(port: number): string {
+  const config = desktopWebserverConfig(port)
   return [
     '# dsh-ops verify --desktop: pin the sandbox host to an isolated port',
     '- id: webserver',
     '  config:',
-    '    host: 127.0.0.1',
-    `    port: ${port}`,
-    '    compression: gzip',
-    '    compressionLevel: 1',
-    '    compressionThresholdBytes: 1024',
+    `    host: ${String(config.host)}`,
+    `    port: ${String(config.port)}`,
+    `    compression: ${String(config.compression)}`,
+    `    compressionLevel: ${String(config.compressionLevel)}`,
+    `    compressionThresholdBytes: ${String(config.compressionThresholdBytes)}`,
     '',
   ].join('\n')
 }

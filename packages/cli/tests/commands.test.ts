@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
@@ -366,6 +366,21 @@ describe('verify command', () => {
     const code = await runVerifyCommand({ dir: 'broken-plugin', json: false, strict: false, runtime: false, desktop: false, runtimeTimeoutSec: 45 })
     expect(code).toBe(2)
     expect(cleaned).toBe(true)
+  })
+
+  it('writes the compatibility matrix report (--report)', async () => {
+    const dir = makePluginDir()
+    const reportPath = join(dir, 'matrix-report.md')
+    try {
+      const code = await runVerifyCommand({ dir, json: false, strict: false, runtime: false, desktop: false, runtimeTimeoutSec: 45, report: reportPath })
+      expect(code).toBe(0)
+      const text = readFileSync(reportPath, 'utf8')
+      expect(text).toContain('# Compatibility matrix — good-plugin@1.0.0')
+      expect(text).toContain('## Lifecycle coverage')
+      expect(text).toContain('| web | not run | - | pass --runtime/--desktop to measure |')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })
 

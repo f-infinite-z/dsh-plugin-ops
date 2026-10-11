@@ -6,6 +6,7 @@ export {
   desktopVerifyProfileFiles,
   desktopNeedsPortPatch,
   desktopPortPatchYaml,
+  desktopWebserverConfig,
   classifyDesktopReadiness,
   type DesktopReadinessProbe,
   type DesktopReadinessOutcome,
@@ -44,7 +45,7 @@ export { readLockedDirectDeps, type LockedDirectDeps } from './lockfile.js'
 export { appendMemory, lastSuccessSnapshot, recentEvents, diffSnapshots, type MemoryEvent } from './memory.js'
 export { scanProfile, ScanError, type ScanInput } from './scan.js'
 export { renderHuman, renderJson, reportOk, countSeverities } from './report.js'
-export { readPatchFile, appendDisabledRow, appendActivationRow, removeDisabledRow, PROFILE_PATCH_FILENAME, type PatchRow, type PatchFileState, type PatchWriteResult } from './patch-layer.js'
+export { readPatchFile, appendDisabledRow, appendActivationRow, appendConfigRow, removeDisabledRow, PROFILE_PATCH_FILENAME, type PatchRow, type PatchFileState, type PatchWriteResult } from './patch-layer.js'
 export {
   readRuntimeVerifyPlan,
   runtimeRowId,
@@ -73,6 +74,7 @@ export {
   type ExemptionWriteResult,
 } from './compatibility.js'
 export { verifyPluginPackage, verifyOk, type VerifyReport, type VerifyFinding, type VerifyRuleId } from './verify.js'
+export { buildVerifyMatrix, renderVerifyMatrix, dshPeersOf, type VerifyMatrix, type VerifyMatrixInput, type VerifyMatrixLifecyclePhase, type MatrixRuntimeResult } from './matrix.js'
 export { fetchNpmPackage, packLocalPackage, type FetchedPackage, type PackedPackage } from './npm-fetch.js'
 export { runSelfTest, type SelfTestResult } from './selftest.js'
 export { handlePanelApi, PanelApiError, type PanelApiOptions, type RowView } from './panel-api.js'
