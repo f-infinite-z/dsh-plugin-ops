@@ -28,6 +28,7 @@ export interface SandboxDict {
   fixApply: string
   fixApplied: string
   fixFailed: string
+  fixNotApplied: string
   restartHeld: string
   restartBroke: string
   useRow: string
@@ -65,6 +66,7 @@ export const SANDBOX_DICTS: Record<Lang, SandboxDict> = {
     fixApply: '应用修复',
     fixApplied: '已写入：',
     fixFailed: '写入失败：',
+    fixNotApplied: '未禁用任何行，沙盒未重启',
     restartHeld: '沙箱在禁用这些行后成功启动（说明它们不是唯一阻塞）',
     restartBroke: '禁用这些行后沙箱仍未启动；请查看日志与诊断，尝试其他行',
     useRow: '禁用此行',
@@ -100,6 +102,7 @@ export const SANDBOX_DICTS: Record<Lang, SandboxDict> = {
     fixApply: 'Apply repair',
     fixApplied: 'written: ',
     fixFailed: 'failed: ',
+    fixNotApplied: 'no rows were disabled; the sandbox was not restarted',
     restartHeld: 'the sandbox booted with these rows disabled: they are not the sole blocker',
     restartBroke: 'the sandbox still failed with these rows disabled; check the log and diagnostics and try other rows',
     useRow: 'disable this row',

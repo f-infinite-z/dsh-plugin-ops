@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import type { ModelChannel } from 'dsh-plugin-ops-core'
-import { createHostHandler, profileFromBaseUrl } from '../src/host.js'
+import { createHostHandler, profileFromBaseUrl, type RequestGuard } from '../src/host.js'
 
 function makeHome(): string {
   const home = mkdtempSync(join(tmpdir(), 'dsh-ops-bundle-test-'))
@@ -41,8 +41,11 @@ async function withServer(
   }
 }
 
-function handlerFor(home: string, channel: ModelChannel | null) {
-  return createHostHandler({ home, profile: 'web', config: {}, channel: () => channel })
+/** A guard that admits everything, so route behavior is testable without a harness. */
+const allowGuard = (): RequestGuard => ({ requestRejection: () => undefined })
+
+function handlerFor(home: string, channel: ModelChannel | null, guard: () => RequestGuard | null = allowGuard) {
+  return createHostHandler({ home, profile: 'web', config: {}, channel: () => channel, guard })
 }
 
 describe('profileFromBaseUrl', () => {
@@ -105,12 +108,33 @@ describe('createHostHandler', () => {
     }
   })
 
-  it('rejects cross-origin requests', async () => {
+  it('passes the connection guard rejection through (401/403)', async () => {
     const home = makeHome()
     try {
-      await withServer(handlerFor(home, null), async (base) => {
-        const res = await fetch(`${base}/dsh-ops/api/info`, { headers: { origin: 'http://evil.example' } })
+      await withServer(handlerFor(home, null, () => ({ requestRejection: () => 401 })), async (base) => {
+        const res = await fetch(`${base}/dsh-ops/api/info`)
+        expect(res.status).toBe(401)
+        const body = (await res.json()) as { error: string }
+        expect(body.error).toBe('unauthorized')
+      })
+      await withServer(handlerFor(home, null, () => ({ requestRejection: () => 403 })), async (base) => {
+        const res = await fetch(`${base}/dsh-ops/api/info`)
         expect(res.status).toBe(403)
+      })
+    } finally {
+      rmSync(home, { recursive: true, force: true })
+    }
+  })
+
+  it('refuses every route when the host provides no connection guard', async () => {
+    const home = makeHome()
+    try {
+      const handler = createHostHandler({ home, profile: 'web', config: {}, channel: () => null })
+      await withServer(handler, async (base) => {
+        const res = await fetch(`${base}/dsh-ops/api/info`)
+        expect(res.status).toBe(403)
+        const body = (await res.json()) as { error: string }
+        expect(body.error).toContain('no connection service')
       })
     } finally {
       rmSync(home, { recursive: true, force: true })

@@ -1,11 +1,12 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import net from 'node:net'
 import {
   allVisibleRows,
   appendDisabledRow,
+  locateInstallAnchor,
   readLatestStartupReport,
   readProfileManifest,
   resolveBundles,
@@ -57,6 +58,13 @@ export interface SandboxDiagnosis {
 
 export interface SandboxFixResult {
   applied: { row: string; ok: boolean; detail: string }[]
+  /**
+   * Whether the sandbox actually restarted with disabled rows in effect.
+   * False when nothing was applied, the closure was unresolvable, or the old
+   * process refused to exit — the outcome sentence must follow this, not the
+   * status alone.
+   */
+  restarted: boolean
   status: SandboxStatus
 }
 
@@ -158,6 +166,17 @@ export class SandboxManager {
   private readonly logs: SandboxLogLine[] = []
   private seq = 0
   private readonly driver: DshDriver = resolveDshDriver()
+  /**
+   * The running installation's package.json. Sandbox-side analysis resolves
+   * official bundles through this closure — the same installation the
+   * sandbox boots from — because the fresh sandbox home has no install
+   * anchor of its own.
+   */
+  private readonly installAnchor: string | null = (() => {
+    if (this.driver.kind !== 'node') return null
+    const candidate = resolve(dirname(this.driver.entry), '..', 'package.json')
+    return existsSync(candidate) ? candidate : null
+  })()
   /** A kill that outlived SIGTERM and the SIGKILL sweep keeps the home for diagnosis. */
   private killTimedOut = false
 
@@ -315,6 +334,10 @@ export class SandboxManager {
    */
   async restart(): Promise<SandboxStatus> {
     await this.killOnly()
+    if (this.killTimedOut) {
+      this.appendLog('# restart skipped: the old process did not exit')
+      return this.status()
+    }
     this.appendLog('# restarting the sandbox (home kept)')
     return this.start(true)
   }
@@ -368,18 +391,25 @@ export class SandboxManager {
     return scanProfile({ paths, profileName: 'web', config: {}, updateCheck: false })
   }
 
-  /** Row ids visible in the sandbox profile's loader layers (bundle patches plus the user patch). */
-  private visibleRows(paths: DshPaths): Set<string> {
+  /**
+   * Row ids visible in the sandbox profile's loader layers (bundle patches
+   * plus the user patch), resolved through the running installation's
+   * closure. Returns null when the profile manifest is unreadable — an
+   * unresolvable closure must read as "cannot tell", never as "no rows".
+   */
+  private visibleRows(paths: DshPaths): Set<string> | null {
     try {
       const manifest = readProfileManifest(paths.profileManifest)
-      const bundles = manifest === null ? [] : resolveBundles(paths, manifest).resolved
+      if (manifest === null) return null
+      const anchor = this.installAnchor ?? locateInstallAnchor(paths, null)
+      const bundles = resolveBundles(paths, manifest, anchor).resolved
       return new Set(
         allVisibleRows(paths.profileDir, bundles)
           .map((ref) => ref.row.id)
           .filter((id): id is string => typeof id === 'string'),
       )
     } catch {
-      return new Set()
+      return null
     }
   }
 
@@ -394,9 +424,16 @@ export class SandboxManager {
     const paths = this.paths()
     const applied: SandboxFixResult['applied'] = []
     if (paths === null) {
-      return { applied: rows.map((row) => ({ row, ok: false, detail: 'no sandbox home; start the sandbox first' })), status: this.status() }
+      return { applied: rows.map((row) => ({ row, ok: false, detail: 'no sandbox home; start the sandbox first' })), restarted: false, status: this.status() }
     }
     const known = this.visibleRows(paths)
+    if (known === null) {
+      return {
+        applied: rows.map((row) => ({ row, ok: false, detail: 'cannot resolve the sandbox profile dependency closure; restart the sandbox and retry' })),
+        restarted: false,
+        status: this.status(),
+      }
+    }
     for (const row of rows) {
       if (!known.has(row)) {
         applied.push({ row, ok: false, detail: 'no visible loader row with this id exists in the sandbox profile' })
@@ -406,12 +443,15 @@ export class SandboxManager {
       applied.push({ row, ok: write.ok, detail: write.ok ? `disabled row "${row}"` : write.problem ?? 'unknown error' })
     }
     if (!applied.some((entry) => entry.ok)) {
-      return { applied, status: this.status() }
+      return { applied, restarted: false, status: this.status() }
     }
     const disabled = applied.filter((entry) => entry.ok).map((entry) => entry.row)
     await this.killOnly()
+    if (this.killTimedOut) {
+      return { applied, restarted: false, status: this.status() }
+    }
     this.appendLog(`# restarting with these rows disabled: ${disabled.join(', ')}`)
     const restart = await this.start(true)
-    return { applied, status: restart }
+    return { applied, restarted: true, status: restart }
   }
 }

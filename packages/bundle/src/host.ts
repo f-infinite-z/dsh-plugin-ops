@@ -94,18 +94,6 @@ async function collectBody(req: IncomingMessage): Promise<string> {
   }
   return Buffer.concat(chunks).toString('utf8')
 }
-
-/** Browsers on the same machine must not drive writes cross-site; bare CLI/curl requests are allowed. */
-function sameOrigin(req: IncomingMessage): boolean {
-  const origin = req.headers.origin
-  if (origin === undefined) return true
-  try {
-    return new URL(origin).host === req.headers.host
-  } catch {
-    return false
-  }
-}
-
 /**
  * Build the HTTP handler served under {@link ROUTE_PREFIX}. Panel API routes
  * are delegated to the shared engine; the chat route is answered here because
@@ -117,18 +105,19 @@ export function createHostHandler(options: HostHandlerOptions): (req: IncomingMe
   const apiOptions: PanelApiOptions = { paths, config: options.config, defaultProfile: options.profile }
   return async (req, res) => {
     try {
-      // Every /dsh-ops route passes the harness connection's admission when
-      // that service exists (trust fence + browser authentication, the same
-      // gate the harness API uses); older hosts without it keep the
-      // same-origin check as the only guard.
+      // Every /dsh-ops route passes the harness connection's admission (trust
+      // fence + browser authentication, the same gate the harness API uses).
+      // A host that provides no connection service has no way to
+      // authenticate a request, so it is refused rather than falling back to
+      // a check a local process satisfies trivially.
       const guard = options.guard?.() ?? null
-      const rejection = guard?.requestRejection({ headers: req.headers })
-      if (rejection !== undefined) {
-        json(res, rejection, { error: rejection === 401 ? 'unauthorized' : 'forbidden' })
+      if (guard === null) {
+        json(res, 403, { error: 'this host provides no connection service to authenticate against' })
         return
       }
-      if (guard === null && !sameOrigin(req)) {
-        json(res, 403, { error: 'cross-origin request rejected' })
+      const rejection = guard.requestRejection({ headers: req.headers })
+      if (rejection !== undefined) {
+        json(res, rejection, { error: rejection === 401 ? 'unauthorized' : 'forbidden' })
         return
       }
       const url = new URL(req.url ?? '/', `http://${req.headers.host ?? '127.0.0.1'}`)

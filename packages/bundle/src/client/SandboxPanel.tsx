@@ -174,8 +174,11 @@ export function SandboxPanel(): ReactNode {
     if (data === null) return
     const applied = Array.isArray(data.applied) ? (data.applied as { row: string; ok: boolean; detail: string }[]) : []
     const lines = applied.map((entry) => `${entry.ok ? t.fixApplied : t.fixFailed}${entry.row}`)
+    const restarted = data.restarted === true
     const restart = data.status as SandboxStatus | undefined
-    if (restart !== undefined) {
+    if (!restarted) {
+      lines.push(t.fixNotApplied)
+    } else if (restart !== undefined) {
       lines.push(restart.state === 'running' ? t.restartHeld : t.restartBroke)
     }
     setMessage(lines.join('\n'))

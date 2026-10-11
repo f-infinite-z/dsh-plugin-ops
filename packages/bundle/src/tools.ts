@@ -167,12 +167,16 @@ function fixTool(manager: SandboxManager): SandboxTool {
     output: {
       schema: { type: 'object' },
       render(_args, value) {
-        const payload = value as { applied: { row: string; ok: boolean; detail: string }[]; status: SandboxStatus }
+        const payload = value as { applied: { row: string; ok: boolean; detail: string }[]; restarted: boolean; status: SandboxStatus }
         const lines = payload.applied.map((entry) => `${entry.ok ? 'disabled' : 'FAILED'} ${entry.row}: ${entry.detail}`)
         lines.push('', `restart result:\n${statusLine(payload.status)}`)
-        lines.push(payload.status.state === 'running'
-          ? 'the sandbox booted with these rows disabled: they are not the sole blocker'
-          : 'the sandbox did not boot with these rows disabled; inspect the log and diagnostics before trying more rows')
+        if (!payload.restarted) {
+          lines.push('no rows were disabled and the sandbox was not restarted')
+        } else {
+          lines.push(payload.status.state === 'running'
+            ? 'the sandbox booted with these rows disabled: they are not the sole blocker'
+            : 'the sandbox did not boot with these rows disabled; inspect the log and diagnostics before trying more rows')
+        }
         return text(lines.join('\n'))
       },
     },
