@@ -26,6 +26,7 @@ import {
   revokeExemptionsFor,
   type PluginManagerLike,
 } from './adapt.js'
+import type { SandboxManager } from './sandbox.js'
 
 /** HTTP prefix the bundle owns on the harness Web server. */
 export const ROUTE_PREFIX = '/dsh-ops'
@@ -38,6 +39,8 @@ export interface HostHandlerOptions {
   channel: () => ModelChannel | null
   /** The official plugin-manager service, when this profile provides it. */
   manager?: () => PluginManagerLike | null
+  /** The isolated sandbox manager (the "number 2 dsh"); absent when the host runs without one. */
+  sandbox?: SandboxManager
 }
 
 /**
@@ -116,6 +119,10 @@ export function createHostHandler(options: HostHandlerOptions): (req: IncomingMe
       }
       if (apiPath.startsWith('/api/adapt/')) {
         await handleAdapt(res, options, apiPath, req.method ?? 'GET', body)
+        return
+      }
+      if (apiPath.startsWith('/api/sandbox/')) {
+        await handleSandbox(res, options.sandbox ?? null, apiPath, req.method ?? 'GET', url.searchParams, body)
         return
       }
       const apiUrl = new URL(url)
@@ -210,6 +217,97 @@ async function handleAdapt(
     }
     default:
       json(res, 404, { ok: false, code: 'not-found', message: `no adapt route for ${apiPath}` })
+  }
+}
+
+/**
+ * Sandbox routes: the isolated "number 2 dsh" driven from outside — status
+ * with incremental logs, start/stop, profile scan, startup diagnostics, and
+ * disable-row fixes (which restart the sandbox to prove the repair).
+ */
+async function handleSandbox(
+  res: ServerResponse,
+  sandbox: SandboxManager | null,
+  apiPath: string,
+  method: string,
+  query: URLSearchParams,
+  body: string | undefined,
+): Promise<void> {
+  if (sandbox === null) {
+    json(res, 501, { ok: false, code: 'no-sandbox', message: 'this host runs without a sandbox manager' })
+    return
+  }
+  const allowGet = (): boolean => {
+    if (method === 'GET') return true
+    json(res, 405, { ok: false, code: 'method-not-allowed', message: 'GET required' })
+    return false
+  }
+  const allowPost = (): boolean => {
+    if (method === 'POST') return true
+    json(res, 405, { ok: false, code: 'method-not-allowed', message: 'POST required' })
+    return false
+  }
+  switch (apiPath) {
+    case '/api/sandbox/status': {
+      if (!allowGet()) return
+      const after = Number(query.get('after') ?? '0')
+      const logs = sandbox.logsAfter(Number.isFinite(after) && after >= 0 ? after : 0)
+      json(res, 200, { ok: true, status: sandbox.status(), logs: logs.lines, nextSeq: logs.nextSeq })
+      return
+    }
+    case '/api/sandbox/start': {
+      if (!allowPost()) return
+      json(res, 200, { ok: true, status: await sandbox.start() })
+      return
+    }
+    case '/api/sandbox/stop': {
+      if (!allowPost()) return
+      json(res, 200, { ok: true, status: await sandbox.stop() })
+      return
+    }
+    case '/api/sandbox/restart': {
+      if (!allowPost()) return
+      json(res, 200, { ok: true, status: await sandbox.restart() })
+      return
+    }
+    case '/api/sandbox/diagnose': {
+      if (!allowGet()) return
+      json(res, 200, { ok: true, diagnosis: sandbox.diagnose() })
+      return
+    }
+    case '/api/sandbox/scan': {
+      if (!allowGet()) return
+      const report = await sandbox.scan()
+      json(res, 200, report === null
+        ? { ok: false, code: 'no-home', message: 'no sandbox home exists; start the sandbox first' }
+        : { ok: true, findings: report.findings })
+      return
+    }
+    case '/api/sandbox/fix': {
+      if (!allowPost()) return
+      let rows: string[] = []
+      if (body !== undefined && body !== '') {
+        try {
+          const parsed: unknown = JSON.parse(body)
+          if (typeof parsed === 'object' && parsed !== null && Array.isArray((parsed as { rows?: unknown }).rows)) {
+            rows = ((parsed as { rows: unknown[] }).rows)
+              .filter((row): row is string => typeof row === 'string' && row.trim() !== '')
+              .map((row) => row.trim())
+          }
+        } catch {
+          json(res, 400, { ok: false, code: 'invalid-json', message: 'request body is not JSON' })
+          return
+        }
+      }
+      if (rows.length === 0) {
+        json(res, 400, { ok: false, code: 'invalid-rows', message: 'POST with a non-empty rows array is required' })
+        return
+      }
+      json(res, 200, { ok: true, ...(await sandbox.fix(rows)) })
+      return
+    }
+    default:
+      json(res, 404, { ok: false, code: 'not-found', message: `no sandbox route for ${apiPath}` })
   }
 }
 

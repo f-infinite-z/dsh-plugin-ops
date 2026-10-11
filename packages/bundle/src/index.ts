@@ -19,6 +19,8 @@ import {
 import { ROUTE_PREFIX, createHostHandler, profileFromBaseUrl } from './host.js'
 import type { PluginManagerLike } from './adapt.js'
 import { LlmChannel, type LlmRuntimeLike, type ModelSelectionLike } from './llm-channel.js'
+import { SandboxManager } from './sandbox.js'
+import { registerSandboxTools, type ToolRuntimeLike } from './tools.js'
 
 export const name = 'dsh-ops-bundle'
 
@@ -58,17 +60,35 @@ function registerPanel(ctx: HostContext): void {
   if (!read.ok) {
     console.error(`[dsh-ops] ignoring unreadable config: ${read.problem ?? 'unknown problem'}`)
   }
+  const sandbox = new SandboxManager()
+  ctx.effect(() => () => { sandbox.dispose() }, 'dsh-ops-bundle: sandbox teardown')
   const handler = createHostHandler({
     home: paths.home,
     profile,
     config: read.ok ? read.config : {},
     channel: () => resolveChannel(ctx, paths.home),
     manager: () => resolveManager(ctx),
+    sandbox,
   })
   ctx.effect(
     () => ctx.webServer.register({ kind: 'prefix', path: ROUTE_PREFIX, handler }),
     'dsh-ops-bundle: /dsh-ops prefix',
   )
+  // The agent tools are optional like every service read here: a tree
+  // without the tools service keeps booting, the sandbox just stays
+  // panel-only.
+  ctx.inject(['tools'], (toolCtx) => {
+    try {
+      const tools = toolCtx.get('tools') as ToolRuntimeLike | null | undefined
+      if (tools === null || tools === undefined || typeof tools.register !== 'function') return
+      toolCtx.effect(() => {
+        const disposers = registerSandboxTools(tools, sandbox)
+        return () => { for (const dispose of disposers) dispose() }
+      }, 'dsh-ops-bundle: sandbox tools')
+    } catch (error) {
+      console.error('[dsh-ops] sandbox tools disabled:', error)
+    }
+  })
 }
 
 /** The official plugin-manager service, when this profile provides one. */

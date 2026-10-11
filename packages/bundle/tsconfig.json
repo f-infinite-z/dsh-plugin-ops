@@ -4,5 +4,5 @@
     "rootDir": "src",
     "outDir": "lib"
   },
-  "include": ["src/index.ts", "src/host.ts", "src/llm-channel.ts"]
+  "include": ["src/index.ts", "src/host.ts", "src/llm-channel.ts", "src/sandbox.ts", "src/tools.ts"]
 }
