@@ -17,6 +17,7 @@ import {
   type DesktopReadinessProbe,
 } from 'dsh-plugin-ops-core'
 import { spawnCli } from './spawn-dsh.js'
+import { killTree } from './kill-tree.js'
 import type { RuntimeInstallSource } from './verify-cmd.js'
 
 /**
@@ -84,16 +85,6 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolvePromise) => setTimeout(resolvePromise, ms))
 }
 
-/** Kill one process tree; the tree is this run's sandbox, never the live desktop. */
-function killTree(pid: number | undefined): void {
-  if (pid === undefined) return
-  if (process.platform === 'win32') {
-    try { spawn('taskkill', ['/pid', String(pid), '/T', '/F'], { stdio: 'ignore' }) } catch { /* best effort */ }
-    return
-  }
-  try { process.kill(pid, 'SIGTERM') } catch { /* already gone */ }
-}
-
 /** Whether a local port accepts a connection right now. */
 function isPortListening(port: number): Promise<boolean> {
   return new Promise((resolvePromise) => {
@@ -155,7 +146,8 @@ interface CliRun {
 /** Run one CLI command with the sandbox environment and a hard timeout. */
 function runCli(bin: string, args: readonly string[], env: NodeJS.ProcessEnv, timeoutMs: number): Promise<CliRun> {
   return new Promise((resolvePromise) => {
-    const child = spawnCli(bin, args, { stdio: ['ignore', 'pipe', 'pipe'], env })
+    // Detached on POSIX so a timeout kill reaches the whole process group.
+    const child = spawnCli(bin, args, { stdio: ['ignore', 'pipe', 'pipe'], env, detached: process.platform !== 'win32' })
     const timer = setTimeout(() => killTree(child.pid), timeoutMs)
     let output = ''
     child.stdout?.on('data', (chunk: Buffer) => { output += chunk.toString() })
@@ -199,6 +191,13 @@ export async function runDesktopSandbox(options: DesktopSandboxOptions): Promise
   const home = join(sandbox, 'home')
   const userdata = join(sandbox, 'userdata')
   const profileDir = join(home, 'profiles', 'desktop')
+  // Crash-report detection reads the Electron-userData logs directory, which
+  // `--user-data-dir` isolates on Windows. macOS ignores that flag for logs
+  // (`app.setAppLogsPath()` keeps the shared `~/Library/Logs/DeepSeek Harness`),
+  // so reports there cannot be attributed to one instance: readiness degrades
+  // to process liveness, the exit code, and the host port, and the shared
+  // directory is never read (a live instance crashing concurrently must not
+  // fail this run).
   const logsDir = join(userdata, 'logs')
   let instance: ChildProcess | null = null
   let packCleanup: (() => void) | null = null
@@ -250,7 +249,8 @@ export async function runDesktopSandbox(options: DesktopSandboxOptions): Promise
 
     const start = Date.now()
     const deadline = options.timeoutSec * 1000
-    const child = spawn(executable, [`--user-data-dir=${userdata}`], { stdio: ['ignore', 'pipe', 'pipe'], env })
+    // Detached on POSIX: teardown must reach Electron's helper processes too.
+    const child = spawn(executable, [`--user-data-dir=${userdata}`], { stdio: ['ignore', 'pipe', 'pipe'], env, detached: process.platform !== 'win32' })
     instance = child
     let output = ''
     child.stdout?.on('data', (chunk: Buffer) => { output += chunk.toString() })
@@ -265,7 +265,7 @@ export async function runDesktopSandbox(options: DesktopSandboxOptions): Promise
         // The 0.2.1+ host binds a system-assigned port this run cannot know;
         // readiness there degrades to process liveness and crash reports.
         listening: port === null ? true : await isPortListening(port),
-        crashLogs: newCrashLogs(logsDir, start),
+        crashLogs: process.platform === 'darwin' ? [] : newCrashLogs(logsDir, start),
       }
       outcome = classifyDesktopReadiness(probe, Date.now() - start, deadline)
     }

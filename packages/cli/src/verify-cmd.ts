@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from 'node:child_process'
+import type { ChildProcess } from 'node:child_process'
 import { existsSync, mkdtempSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -17,6 +17,7 @@ import {
 } from 'dsh-plugin-ops-core'
 import { spawnCli } from './spawn-dsh.js'
 import { runDesktopVerify } from './desktop-verify.js'
+import { killTree } from './kill-tree.js'
 
 export interface VerifyCommandOptions {
   dir: string
@@ -91,18 +92,10 @@ interface CommandResult {
   output: string
 }
 
-function killTree(pid: number | undefined): void {
-  if (pid === undefined || pid <= 0) return
-  if (process.platform === 'win32') {
-    spawn('taskkill', ['/pid', String(pid), '/T', '/F'], { stdio: 'ignore' })
-  } else {
-    try { process.kill(pid, 'SIGTERM') } catch { /* already gone */ }
-  }
-}
-
 function runDshWithEnv(args: readonly string[], env: NodeJS.ProcessEnv, timeoutMs: number, command = 'dsh'): Promise<CommandResult> {
   return new Promise((resolvePromise) => {
-    const child = spawnCli(command, args, { stdio: ['ignore', 'pipe', 'pipe'], env })
+    // Detached on POSIX so a timeout kill reaches the whole process group.
+    const child = spawnCli(command, args, { stdio: ['ignore', 'pipe', 'pipe'], env, detached: process.platform !== 'win32' })
     const timer = setTimeout(() => killTree(child.pid), timeoutMs)
     let output = ''
     child.stdout?.on('data', (chunk: Buffer) => { output += chunk.toString() })
@@ -214,7 +207,7 @@ export async function runRuntimeVerify(
     const port = 39000 + Math.floor(Math.random() * 1000)
     const start = Date.now()
     const thresholdMs = timeoutSec * 1000
-    child = spawnCli(dshCommand, ['--profile', 'web', '--port', String(port), '--no-open'], { stdio: ['ignore', 'pipe', 'pipe'], env })
+    child = spawnCli(dshCommand, ['--profile', 'web', '--port', String(port), '--no-open'], { stdio: ['ignore', 'pipe', 'pipe'], env, detached: process.platform !== 'win32' })
     let output = ''
     child.stdout?.on('data', (chunk: Buffer) => { output += chunk.toString() })
     child.stderr?.on('data', (chunk: Buffer) => { output += chunk.toString() })
