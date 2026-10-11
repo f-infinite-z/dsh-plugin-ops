@@ -2,6 +2,45 @@
 
 All notable changes are tracked here.
 
+## 0.18.0 — 2026-10-11
+
+### Sandbox-verified gate recovery + compatibility matrix report
+
+- **Gate fix verification in a copied profile**: before a disable-fix touches
+  the real profile, it is applied to an isolated copy and booted. Web profiles
+  boot the copy in a temporary DSH home (official `plugin install
+  --frozen-lockfile` from the copied lockfile, then the copied patch plus the
+  proposed rows, observed on a host port); the desktop profile reuses the
+  reusable desktop sandbox through a new `profileCopyFrom` mode. Only a
+  surviving sandbox boot writes the real profile; a failed or unavailable
+  sandbox falls back to applying the fix directly — the verifier never blocks
+  recovery. The desktop gate offers the same flow from the latest crash
+  report's third-party entries.
+- **Profile copies mirror relative `file:` dependencies**: pnpm records a
+  `file:` dependency's resolution relative to the profile directory, so a copy
+  elsewhere resolved those references to nowhere and the install failed
+  (ENOENT). Copies now re-create relative targets at the same relative
+  location (files are copied, directories junctioned/symlinked).
+- **`verify --report <file.md>` compatibility matrix**: one verification run
+  renders as a marketplace-style matrix — static check counts, dsh peer
+  declaration coverage against the known release boundaries, measured runtime
+  targets with their versions, and an explicit lifecycle coverage list
+  (visibility/uninstall/rollback named as not covered). `--json` carries the
+  same model under `matrix`.
+- **macOS teardown and crash detection hardened**: process trees are killed
+  as POSIX process groups (SIGTERM, then a SIGKILL sweep) so Electron helpers
+  and pnpm grandchildren cannot survive teardown; macOS desktop readiness
+  explicitly degrades to process liveness, exit code, and the host port, and
+  never reads the shared `~/Library/Logs` (its crash reports cannot be
+  attributed to one instance).
+- The session audit and core pnpm timeouts share the same group-kill
+  behavior; the patch layer's structural appends share one helper
+  (`appendDisabledRow` / `appendActivationRow` / `appendConfigRow`).
+- 273 tests (core 214 + bundle 26 + cli 33; one POSIX-only test skipped on
+  Windows). Real-machine smoke: fix verification BOOTED on both targets
+  (web 4.1s, desktop 45.4s), a broken required row was observed as
+  exited/crashed, and the `--report` matrix was written and verified.
+
 ## 0.17.1 — 2026-10-09
 
 ### Output and help cleanups

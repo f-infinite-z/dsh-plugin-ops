@@ -7,7 +7,7 @@ English | [中文](README.zh.md)
 
 > DeepSeek Harness plugin operations: pre-boot checks and a blocking gate, failure attribution and recovery, dependency governance, install adaptation, and publish-time verification for plugin authors — keeping the plugin ecosystem loadable.
 
-**Status: v0.17.1 — the desktop sandbox became a reusable capability: `dev --desktop`, `verify --runtime --desktop` (a per-target matrix), and the desktop `adapt` canary all share it; the fresh-home install anchor fix is folded in. 0.16.0/0.16.1 carried the patch-row semantics fix, the reporting version views (`--version-view` plus the verify dsh-peer coverage check), and the first `verify --desktop` (BOOTED against 0.2.0-rc.2). Interception, repair, and memory mechanics: [docs/architecture.md](docs/architecture.md).**
+**Status: v0.18.0 — the gate verifies a disable-fix on an isolated copy of the profile before writing the real one (web and desktop), `verify --report` renders a marketplace-style compatibility matrix, and macOS teardown kills whole process groups. 0.17.x carried the reusable desktop sandbox (`dev --desktop`, the two-target matrix, the desktop adapt canary) and the fresh-home install anchor fix. Interception, repair, and memory mechanics: [docs/architecture.md](docs/architecture.md).**
 
 ## Names
 
