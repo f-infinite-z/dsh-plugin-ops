@@ -40,7 +40,7 @@ export interface SandboxDict {
 export const SANDBOX_DICTS: Record<Lang, SandboxDict> = {
   zh: {
     title: '沙箱实例',
-    subtitle: '在隔离的 2 号 dsh 中测试与修复插件；出问题不会影响当前实例',
+    subtitle: '隔离实例：用于插件配置的测试与修复。注意：它继承你的环境与文件权限，请勿用于不可信代码',
     start: '启动沙箱',
     stop: '停止并清理',
     restart: '重启（保留现场）',
@@ -65,7 +65,7 @@ export const SANDBOX_DICTS: Record<Lang, SandboxDict> = {
     fixApply: '应用修复',
     fixApplied: '已写入：',
     fixFailed: '写入失败：',
-    restartHeld: '修复有效：沙箱在禁用这些行后成功启动',
+    restartHeld: '沙箱在禁用这些行后成功启动（说明它们不是唯一阻塞）',
     restartBroke: '禁用这些行后沙箱仍未启动；请查看日志与诊断，尝试其他行',
     useRow: '禁用此行',
     logs: '运行日志',
@@ -75,7 +75,7 @@ export const SANDBOX_DICTS: Record<Lang, SandboxDict> = {
   },
   en: {
     title: 'Sandbox instance',
-    subtitle: 'Test and repair plugins inside an isolated number-2 dsh; failures cannot touch this instance',
+    subtitle: 'Isolated instance for plugin configuration work. Note: it inherits your environment and file-system access — not for untrusted code',
     start: 'Start sandbox',
     stop: 'Stop and clean up',
     restart: 'Restart (keep state)',
@@ -100,7 +100,7 @@ export const SANDBOX_DICTS: Record<Lang, SandboxDict> = {
     fixApply: 'Apply repair',
     fixApplied: 'written: ',
     fixFailed: 'failed: ',
-    restartHeld: 'repair held: the sandbox booted with these rows disabled',
+    restartHeld: 'the sandbox booted with these rows disabled: they are not the sole blocker',
     restartBroke: 'the sandbox still failed with these rows disabled; check the log and diagnostics and try other rows',
     useRow: 'disable this row',
     logs: 'Runtime log',

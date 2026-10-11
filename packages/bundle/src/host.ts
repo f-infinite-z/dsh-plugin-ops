@@ -31,6 +31,18 @@ import type { SandboxManager } from './sandbox.js'
 /** HTTP prefix the bundle owns on the harness Web server. */
 export const ROUTE_PREFIX = '/dsh-ops'
 
+/**
+ * The harness connection's request admission — the Host/Origin trust fence
+ * plus browser authentication (launch-token/cookie) — read through
+ * `ctx.get('connection')`. Kept structural so the host half imports no
+ * official runtime code; a host without that service falls back to the
+ * same-origin check alone.
+ */
+export interface RequestGuard {
+  /** 401/403 for a request that must not pass; undefined admits it. */
+  requestRejection(request: { headers: IncomingMessage['headers'] }): number | undefined
+}
+
 export interface HostHandlerOptions {
   home: string
   profile: string
@@ -41,6 +53,13 @@ export interface HostHandlerOptions {
   manager?: () => PluginManagerLike | null
   /** The isolated sandbox manager (the "number 2 dsh"); absent when the host runs without one. */
   sandbox?: SandboxManager
+  /**
+   * Resolves the connection service's admission; called per request because
+   * plugin rows activate concurrently — the service may register after this
+   * host half does. Null when the host provides no connection service, in
+   * which case the same-origin check is the only guard.
+   */
+  guard?: () => RequestGuard | null
 }
 
 /**
@@ -98,7 +117,17 @@ export function createHostHandler(options: HostHandlerOptions): (req: IncomingMe
   const apiOptions: PanelApiOptions = { paths, config: options.config, defaultProfile: options.profile }
   return async (req, res) => {
     try {
-      if (!sameOrigin(req)) {
+      // Every /dsh-ops route passes the harness connection's admission when
+      // that service exists (trust fence + browser authentication, the same
+      // gate the harness API uses); older hosts without it keep the
+      // same-origin check as the only guard.
+      const guard = options.guard?.() ?? null
+      const rejection = guard?.requestRejection({ headers: req.headers })
+      if (rejection !== undefined) {
+        json(res, rejection, { error: rejection === 401 ? 'unauthorized' : 'forbidden' })
+        return
+      }
+      if (guard === null && !sameOrigin(req)) {
         json(res, 403, { error: 'cross-origin request rejected' })
         return
       }

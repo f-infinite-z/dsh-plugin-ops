@@ -35,9 +35,14 @@ function text(value: string): ToolTextBlock[] {
   return [{ type: 'text', text: value }]
 }
 
+/** The sandbox URL carries its launch token; tool output (model context and session log) only needs the address. */
+function redactToken(url: string): string {
+  return url.replace(/([?&]token=)[^&]*/i, '$1***')
+}
+
 function statusLine(status: SandboxStatus): string {
   const parts = [`state: ${status.state}`]
-  if (status.url !== null) parts.push(`url: ${status.url}`)
+  if (status.url !== null) parts.push(`url: ${redactToken(status.url)}`)
   if (status.home !== null) parts.push(`home: ${status.home}`)
   if (status.startedAt !== null) parts.push(`started: ${status.startedAt}`)
   if (status.problem !== null) parts.push(`problem: ${status.problem}`)
@@ -48,7 +53,7 @@ function statusLine(status: SandboxStatus): string {
 function startTool(manager: SandboxManager): SandboxTool {
   return {
     name: 'dsh_ops_sandbox_start',
-    description: 'Start the isolated DeepSeek Harness sandbox (a temporary DSH home used to test risky plugins). Returns the sandbox URL and state. Installing or repairing plugins inside the sandbox cannot affect this instance.',
+    description: 'Start the isolated DeepSeek Harness sandbox (a temporary DSH home used for plugin configuration work). Returns the sandbox state and address. Installing or repairing plugins there cannot affect this instance. This is configuration-level isolation, not a security boundary: the sandbox inherits this process environment and your file-system access — do not use it to run untrusted plugin code.',
     parameters: { type: 'object', properties: {}, additionalProperties: false },
     output: {
       schema: { type: 'object' },
@@ -146,14 +151,14 @@ function scanTool(manager: SandboxManager): SandboxTool {
 function fixTool(manager: SandboxManager): SandboxTool {
   return {
     name: 'dsh_ops_sandbox_fix',
-    description: 'Disable one or more loader rows inside the sandbox profile and restart the sandbox to prove the repair. Use the row ids named by the scan findings or the sandbox boot log. The restart outcome tells whether the fix worked.',
+    description: 'Disable one or more loader rows inside the sandbox profile and restart the sandbox with those rows disabled. Use the row ids named by the scan findings or the sandbox boot log. A successful boot reports that these rows are not the sole blocker of the failure — it does not prove they caused it.',
     parameters: {
       type: 'object',
       properties: {
         rows: {
           type: 'array',
           items: { type: 'string' },
-          description: 'loader row ids to disable in the sandbox profile',
+          description: 'loader row ids to disable in the sandbox profile (must be visible rows)',
         },
       },
       required: ['rows'],
@@ -165,7 +170,9 @@ function fixTool(manager: SandboxManager): SandboxTool {
         const payload = value as { applied: { row: string; ok: boolean; detail: string }[]; status: SandboxStatus }
         const lines = payload.applied.map((entry) => `${entry.ok ? 'disabled' : 'FAILED'} ${entry.row}: ${entry.detail}`)
         lines.push('', `restart result:\n${statusLine(payload.status)}`)
-        lines.push(payload.status.state === 'running' ? 'the fix held: the sandbox booted with these rows disabled' : 'the sandbox did not boot with these rows disabled; inspect the log and diagnostics before trying more rows')
+        lines.push(payload.status.state === 'running'
+          ? 'the sandbox booted with these rows disabled: they are not the sole blocker'
+          : 'the sandbox did not boot with these rows disabled; inspect the log and diagnostics before trying more rows')
         return text(lines.join('\n'))
       },
     },

@@ -1,11 +1,14 @@
 import { spawn, type ChildProcess } from 'node:child_process'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import net from 'node:net'
 import {
+  allVisibleRows,
   appendDisabledRow,
   readLatestStartupReport,
+  readProfileManifest,
+  resolveBundles,
   resolveDshPaths,
   scanProfile,
   type DshPaths,
@@ -16,9 +19,12 @@ import {
 /**
  * The isolated sandbox instance (the "number 2 dsh") that the panel starts,
  * watches, and repairs from outside. One temporary DSH_HOME per run, cleaned
- * up on stop: the sandbox carries the risky plugin work, while every reading
- * here comes from outside its process — files, diagnostics, and the child's
- * output — so nothing the sandbox loads can reach this host.
+ * up on stop.
+ *
+ * The isolation is configuration-level, not a security boundary: the sandbox
+ * is a fresh DSH profile, but it runs as this user with the inherited
+ * environment and full file-system access — good for testing that a plugin
+ * configuration boots, not for running untrusted plugin code.
  */
 
 export type SandboxState = 'stopped' | 'starting' | 'running' | 'stopping'
@@ -81,19 +87,43 @@ export function killTree(pid: number | undefined, graceMs = 1000): void {
   timer.unref()
 }
 
+/** How the sandbox process is launched. */
+type DshDriver =
+  /** The running installation's own CLI entry (same version and closure as this host). */
+  | { kind: 'node'; execPath: string; entry: string }
+  /** A `dsh` command found on PATH (fallback when the host entry is not recognizable). */
+  | { kind: 'command'; name: string }
+
+/**
+ * Prefer the running installation's own CLI entry so the sandbox matches this
+ * host exactly (same version and package closure) instead of whatever `dsh`
+ * resolves to on PATH.
+ */
+function resolveDshDriver(): DshDriver {
+  const entry = process.argv[1]
+  if (entry !== undefined && /[\\/]@deepseek-ai[\\/]dsh[\\/].*\.(js|mjs|cjs)$/.test(entry) && existsSync(entry)) {
+    return { kind: 'node', execPath: process.execPath, entry }
+  }
+  return { kind: 'command', name: 'dsh' }
+}
+
 /** Quote one argument for a `cmd.exe` command string. */
 function quoteCmdArg(arg: string): string {
   return `"${arg.replace(/"/g, '""').replace(/%/g, '%%')}"`
 }
 
-/** Spawn the dsh CLI portably; a bare `dsh` is an npm shim, which Node refuses to spawn without a shell on Windows. */
-function spawnDsh(args: string[], env: NodeJS.ProcessEnv): ChildProcess {
+/** Spawn the sandbox CLI portably, with the sandbox home as the working directory. */
+function spawnSandbox(driver: DshDriver, args: string[], env: NodeJS.ProcessEnv, cwd: string): ChildProcess {
   const detached = process.platform !== 'win32'
-  if (process.platform !== 'win32') {
-    return spawn('dsh', args, { env, stdio: ['ignore', 'pipe', 'pipe'], detached })
+  const stdio: ('ignore' | 'pipe')[] = ['ignore', 'pipe', 'pipe']
+  if (driver.kind === 'node') {
+    return spawn(driver.execPath, [driver.entry, ...args], { env, cwd, stdio, detached })
   }
-  const inner = ['dsh', ...args].map(quoteCmdArg).join(' ')
-  return spawn('cmd.exe', ['/d', '/s', '/c', `"${inner}"`], { env, stdio: ['ignore', 'pipe', 'pipe'], windowsVerbatimArguments: true })
+  if (process.platform !== 'win32') {
+    return spawn(driver.name, args, { env, cwd, stdio, detached })
+  }
+  const inner = [driver.name, ...args].map(quoteCmdArg).join(' ')
+  return spawn('cmd.exe', ['/d', '/s', '/c', `"${inner}"`], { env, cwd, stdio, windowsVerbatimArguments: true })
 }
 
 /** Reserve one free local port; null when the probe fails. */
@@ -127,8 +157,9 @@ export class SandboxManager {
   private lastExit: { code: number | null; at: string } | null = null
   private readonly logs: SandboxLogLine[] = []
   private seq = 0
-
-  constructor(private readonly dshCommand = 'dsh') {}
+  private readonly driver: DshDriver = resolveDshDriver()
+  /** A kill that outlived SIGTERM and the SIGKILL sweep keeps the home for diagnosis. */
+  private killTimedOut = false
 
   /** The sandbox paths for the current run; null when no home exists. */
   private paths(): DshPaths | null {
@@ -182,7 +213,7 @@ export class SandboxManager {
         return this.status()
       }
       this.port = port
-      const child = spawnDsh(['--profile', 'web', '--port', String(port), '--no-open'], { ...process.env, DSH_HOME: home })
+      const child = spawnSandbox(this.driver, ['--profile', 'web', '--port', String(port), '--no-open'], { ...process.env, DSH_HOME: home }, home)
       this.child = child
       this.appendLog(`$ dsh --profile web --port ${port} --no-open`)
       const collect = (chunk: Buffer): void => {
@@ -197,6 +228,21 @@ export class SandboxManager {
       }
       child.stdout?.on('data', collect)
       child.stderr?.on('data', collect)
+      // Track an unexpected exit so the panel state cannot keep claiming a
+      // running sandbox after its process is gone. killOnly owns expected
+      // exits (it sets 'stopping' first) and start's own wait loop handles
+      // the startup window.
+      child.on('exit', (code) => {
+        if (this.child !== child) return
+        if (this.state !== 'running') return
+        this.lastExit = { code, at: new Date().toISOString() }
+        this.problem = `the sandbox process exited ${code ?? 'by signal'}`
+        this.state = 'stopped'
+        this.child = null
+        this.url = null
+        this.startedAt = null
+        this.appendLog(`# sandbox process exited ${code ?? 'by signal'}`)
+      })
 
       const deadline = Date.now() + START_TIMEOUT_MS
       for (;;) {
@@ -227,14 +273,21 @@ export class SandboxManager {
     }
   }
 
-  /** Stop the sandbox process but keep its home (the fix restart path). */
+  /** Stop the sandbox process but keep its home (the fix/restart path). */
   private async killOnly(): Promise<void> {
     this.state = 'stopping'
+    this.killTimedOut = false
     const child = this.child
     if (child !== null && child.exitCode === null) {
       killTree(child.pid)
       const deadline = Date.now() + 8000
       while (child.exitCode === null && Date.now() < deadline) await delay(200)
+      if (child.exitCode === null) {
+        // SIGTERM and the SIGKILL sweep both failed to settle this tree; keep
+        // the home for diagnosis instead of pretending the teardown was clean.
+        this.killTimedOut = true
+        this.problem = 'the sandbox process did not exit; its home is kept for diagnosis'
+      }
       this.lastExit = { code: child.exitCode, at: new Date().toISOString() }
     }
     this.child = null
@@ -246,6 +299,10 @@ export class SandboxManager {
   /** Stop the sandbox and clean its temporary home (关掉即清理). */
   async stop(): Promise<SandboxStatus> {
     await this.killOnly()
+    if (this.killTimedOut) {
+      this.appendLog('# sandbox process did not exit; home kept for diagnosis')
+      return this.status()
+    }
     this.appendLog('# sandbox stopped; temporary home removed')
     this.cleanup()
     return this.status()
@@ -277,11 +334,16 @@ export class SandboxManager {
     const home = this.home
     this.home = null
     if (home !== null) {
+      let attempts = 0
       const remove = (): void => {
         try {
           rmSync(home, { recursive: true, force: true })
         } catch {
-          setTimeout(remove, 500)
+          attempts += 1
+          if (attempts < 5) {
+            const timer = setTimeout(remove, 500)
+            timer.unref()
+          }
         }
       }
       remove()
@@ -306,10 +368,27 @@ export class SandboxManager {
     return scanProfile({ paths, profileName: 'web', config: {}, updateCheck: false })
   }
 
+  /** Row ids visible in the sandbox profile's loader layers (bundle patches plus the user patch). */
+  private visibleRows(paths: DshPaths): Set<string> {
+    try {
+      const manifest = readProfileManifest(paths.profileManifest)
+      const bundles = manifest === null ? [] : resolveBundles(paths, manifest).resolved
+      return new Set(
+        allVisibleRows(paths.profileDir, bundles)
+          .map((ref) => ref.row.id)
+          .filter((id): id is string => typeof id === 'string'),
+      )
+    } catch {
+      return new Set()
+    }
+  }
+
   /**
-   * Apply a disable-row fix inside the sandbox and restart it to prove the
-   * repair. Each row is written structurally into the sandbox profile's patch
-   * layer; the restart's outcome decides whether the fix worked.
+   * Apply a disable-row fix inside the sandbox and restart it with those rows
+   * disabled. A row id with no visible loader row in the sandbox profile is
+   * rejected instead of writing a meaningless patch entry; the restart's
+   * outcome reports whether the boot succeeds with the disabled rows (which
+   * shows they are not the sole blocker — it cannot prove they were the cause).
    */
   async fix(rows: string[]): Promise<SandboxFixResult> {
     const paths = this.paths()
@@ -317,12 +396,21 @@ export class SandboxManager {
     if (paths === null) {
       return { applied: rows.map((row) => ({ row, ok: false, detail: 'no sandbox home; start the sandbox first' })), status: this.status() }
     }
+    const known = this.visibleRows(paths)
     for (const row of rows) {
+      if (!known.has(row)) {
+        applied.push({ row, ok: false, detail: 'no visible loader row with this id exists in the sandbox profile' })
+        continue
+      }
       const write = appendDisabledRow(paths.profileDir, row)
       applied.push({ row, ok: write.ok, detail: write.ok ? `disabled row "${row}"` : write.problem ?? 'unknown error' })
     }
+    if (!applied.some((entry) => entry.ok)) {
+      return { applied, status: this.status() }
+    }
+    const disabled = applied.filter((entry) => entry.ok).map((entry) => entry.row)
     await this.killOnly()
-    this.appendLog(`# restarting to verify the fix (rows: ${rows.join(', ')})`)
+    this.appendLog(`# restarting with these rows disabled: ${disabled.join(', ')}`)
     const restart = await this.start(true)
     return { applied, status: restart }
   }

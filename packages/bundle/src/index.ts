@@ -16,7 +16,7 @@ import {
   resolveModelConfig,
   type ModelChannel,
 } from 'dsh-plugin-ops-core'
-import { ROUTE_PREFIX, createHostHandler, profileFromBaseUrl } from './host.js'
+import { ROUTE_PREFIX, createHostHandler, profileFromBaseUrl, type RequestGuard } from './host.js'
 import type { PluginManagerLike } from './adapt.js'
 import { LlmChannel, type LlmRuntimeLike, type ModelSelectionLike } from './llm-channel.js'
 import { SandboxManager } from './sandbox.js'
@@ -69,6 +69,7 @@ function registerPanel(ctx: HostContext): void {
     channel: () => resolveChannel(ctx, paths.home),
     manager: () => resolveManager(ctx),
     sandbox,
+    guard: () => resolveGuard(ctx),
   })
   ctx.effect(
     () => ctx.webServer.register({ kind: 'prefix', path: ROUTE_PREFIX, handler }),
@@ -98,6 +99,23 @@ function resolveManager(ctx: HostContext): PluginManagerLike | null {
     return manager === null || manager === undefined || typeof manager !== 'object'
       ? null
       : manager as PluginManagerLike
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The connection service's request admission (Host/Origin fence plus browser
+ * authentication), when this tree provides it — the same gate the harness API
+ * routes use, so /dsh-ops is not an unauthenticated side door.
+ */
+function resolveGuard(ctx: HostContext): RequestGuard | null {
+  try {
+    const connection = ctx.get('connection') as { requestRejection?: (request: { headers: unknown }) => number | undefined } | null | undefined
+    if (connection === null || connection === undefined || typeof connection.requestRejection !== 'function') return null
+    return {
+      requestRejection: (request) => connection.requestRejection!(request),
+    }
   } catch {
     return null
   }
