@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-ops-bundle",
-  "version": "0.18.0",
+  "version": "0.18.1",
   "type": "module",
   "description": "Embedded dsh bundle for dsh-plugin-ops: a settings-page health panel (scan, plugin rows, diagnosis chat) over the shared engine",
   "license": "MIT",
@@ -41,6 +41,8 @@
     "lib/host.js",
     "lib/adapt.js",
     "lib/llm-channel.js",
+    "lib/sandbox.js",
+    "lib/tools.js",
     "lib/*.d.ts",
     "lib/client.js",
     "cordis.patch.yml"

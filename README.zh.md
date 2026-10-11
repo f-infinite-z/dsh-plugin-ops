@@ -7,7 +7,7 @@
 
 > DeepSeek Harness 插件运维（Plugin Operations）：启动前体检与拦截、失败归因与恢复、依赖治理、安装适配、作者发布前验证——让插件生态保持可加载。
 
-**状态：v0.18.0 — gate 会先把修复放在隔离的 profile 副本上启动验证，通过才写入真实 profile（web 与桌面双端）；`verify --report` 输出市场风格的兼容性矩阵；macOS 收尾按进程组整树清理。0.17.x 含：桌面沙箱可复用化（`dev --desktop`、双端矩阵、桌面 adapt canary）与全新 home 安装锚点修复。拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
+**状态：v0.18.1 — gate 会先把修复放在隔离的 profile 副本上启动验证，通过才写入真实 profile（web 与桌面双端）；`verify --report` 输出市场风格的兼容性矩阵；macOS 收尾按进程组整树清理。0.18.1 修复了桌面 profile 与 client 插件的 peer-gap 误报（真实用户反馈），并将解析限定在锚点链上。0.17.x 含：桌面沙箱可复用化与全新 home 安装锚点修复。拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
 
 ## 命名
 

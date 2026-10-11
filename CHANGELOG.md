@@ -2,6 +2,28 @@
 
 All notable changes are tracked here.
 
+## 0.18.1 — 2026-10-11
+
+### Peer-gap false positives fixed (field report from a real desktop user)
+
+- **Desktop profiles**: the official packages live inside the packaged asar
+  and a plain Node process can never observe them; the peer-gap rule now
+  trusts official peers there exactly like rules 1/2/5 already did. This
+  removes the bulk of a reported 14-warning wall against installed 0.2.x
+  plugins.
+- **Client bundles**: `react` and `react-dom` reach every bundle with a
+  browser half (`dsh.client`) through the client module table, so host-side
+  resolution of them is never expected; they are exempt from the gap
+  judgment.
+- **Anchor-chain-only resolution**: the Node lookup now ignores
+  environment-injected search paths (NODE_PATH, global paths,
+  loader-supplied chains) — the official launcher resolves through its own
+  package table and never through them, and neither do we.
+- When no installation anchor can be located, official peers are no longer
+  judged against an unknown closure; one info finding states the
+  degradation instead of a wall of phantom gaps.
+- 219 core tests (+5) pin the new behavior.
+
 ## 0.18.0 — 2026-10-11
 
 ### Sandbox-verified gate recovery + compatibility matrix report
