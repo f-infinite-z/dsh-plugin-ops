@@ -1,15 +1,18 @@
 import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { join } from 'node:path'
+import { basename, dirname, join, sep } from 'node:path'
 import { readJsonFile } from './fsutil.js'
 
 /**
  * Node's own node_modules lookup order, same algorithm the dsh Loader uses
  * (behavioral port of `packageDirFromAnchor` in the official
  * packages/boot/app-boot/src/profile.ts; ~20 lines, kept in-process so we
- * never import the harness runtime). The optional `exclude` hook mirrors the
- * official signature: candidates it rejects are skipped, so a managed
- * fallback projection never claims local precedence.
+ * never import the harness runtime). Only the physical ancestor chain of the
+ * anchor participates: environment-injected entries (NODE_PATH, global
+ * paths, loader-supplied chains) resolve packages the official launcher
+ * never sees — it resolves through its own package table. The optional
+ * `exclude` hook mirrors the official signature: candidates it rejects are
+ * skipped, so a managed fallback projection never claims local precedence.
  */
 export function packageDirFromAnchor(
   anchorFile: string,
@@ -17,7 +20,11 @@ export function packageDirFromAnchor(
   exclude?: (candidate: string, packageName: string) => boolean,
 ): string | null {
   const require_ = createRequire(anchorFile)
+  const anchorDir = dirname(anchorFile)
   for (const searchPath of require_.resolve.paths(packageName) ?? []) {
+    const parent = dirname(searchPath)
+    if (basename(searchPath) !== 'node_modules') continue
+    if (anchorDir !== parent && !anchorDir.startsWith(parent + sep)) continue
     const candidate = join(searchPath, packageName)
     if (existsSync(join(candidate, 'package.json')) && !(exclude?.(candidate, packageName) ?? false)) return candidate
   }

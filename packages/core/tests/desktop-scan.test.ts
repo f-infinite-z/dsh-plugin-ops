@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { scanProfile } from '../src/index.js'
-import { makeHome, writeProfile } from './helpers.js'
+import { makeHome, writeProfile, writeJson } from './helpers.js'
 
 // The desktop install lives in an Electron app directory that a plain Node
 // process can neither depend on nor reach reliably in CI, so the scan-path
@@ -42,6 +42,29 @@ describe('desktop profile scan', () => {
       expect(report.findings.some((f) => f.ruleId === 'patch-resolution')).toBe(false)
       expect(report.findings.some((f) => f.ruleId === 'bundle-declaration')).toBe(false)
       expect(report.findings.some((f) => f.ruleId === 'dependency-drift')).toBe(false)
+    } finally {
+      fixture.dispose()
+    }
+  })
+
+  it('trusts official peers of third-party bundles on the desktop profile', async () => {
+    const fixture = makeHome('desktop')
+    try {
+      writeProfile(fixture.paths, { dependencies: { 'third-party-plug': '1.0.0' }, bundles: ['third-party-plug'] })
+      const dir = join(fixture.paths.profileDir, 'node_modules', 'third-party-plug')
+      writeJson(join(dir, 'package.json'), {
+        name: 'third-party-plug',
+        version: '1.0.0',
+        type: 'module',
+        main: 'lib/index.js',
+        peerDependencies: { '@deepseek-ai/dsh-settings': '0.2.0-rc.2', '@deepseek-ai/dsh-atomic-write': '0.2.0-rc.2' },
+        dsh: { bundle: { patch: 'cordis.patch.yml' } },
+      })
+      writeFileSync(join(dir, 'cordis.patch.yml'), '- id: probe\n', 'utf8')
+      mkdirSync(join(dir, 'lib'), { recursive: true })
+      writeFileSync(join(dir, 'lib', 'index.js'), 'export const name = "third-party-plug"\n', 'utf8')
+      const report = await scanProfile({ paths: fixture.paths, profileName: 'desktop' })
+      expect(report.findings.filter((f) => f.ruleId === 'peer-gap' && f.severity === 'warn')).toHaveLength(0)
     } finally {
       fixture.dispose()
     }

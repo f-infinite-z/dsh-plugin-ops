@@ -34,6 +34,19 @@ function embeddedCopy(dir: string, peerName: string): string | null {
 }
 
 /**
+ * Shell-seeded baseline modules: every web client bundle receives these from
+ * the client module table at load time, so a host-side resolution of them is
+ * never expected (the harness explicitly discourages declaring them).
+ */
+const CLIENT_SHELL_MODULES = new Set(['react', 'react-dom'])
+
+/** Whether the bundle ships a browser half (`dsh.client`). */
+function hasClientHalf(manifest: { dsh?: { client?: unknown } }): boolean {
+  const client = manifest.dsh?.client
+  return typeof client === 'object' && client !== null
+}
+
+/**
  * Rule 4: peer gaps and double-instance detection. Every direct peer of every
  * tracked package must resolve through the anchor chain (the host the harness
  * closure provides) or the package's own embedded copy. A peer that resolves
@@ -41,10 +54,27 @@ function embeddedCopy(dir: string, peerName: string): string | null {
  * framework core, warn otherwise. An unreachable peer is a gap: warn (a real
  * import failure only surfaces at load time, so the static signal is advisory
  * unless the peer is a duplicate).
+ *
+ * Three resolution realities suppress the gap judgment: a bundle's
+ * shell-seeded client modules (react/react-dom) reach the browser half through
+ * the client module table; the desktop profile's official packages live inside
+ * the packaged asar and are trusted (rule 1/5's policy); and without a located
+ * installation the closure half of the resolution is unknown, so official
+ * peers judged against it would be phantom gaps.
  */
 export function rulePeerGap(ctx: RuleContext, resolved: ResolvedBundle[]): Finding[] {
   const findings: Finding[] = []
   const seen = new Set<string>()
+  const closureUnknown = ctx.generation.installAnchor === null
+  if (closureUnknown && !ctx.isDesktop) {
+    findings.push({
+      ruleId: 'peer-gap',
+      severity: 'info',
+      message: 'the dsh installation could not be located, so harness-closure peer resolution is degraded',
+      detail: 'official peers are only judged through the profile and bundle closures; point `installAnchor` in dsh-ops.yml at the installation for full resolution',
+      fix: { kind: 'none' },
+    })
+  }
   for (const bundle of resolved) {
     const peerNames = Object.keys(bundle.manifest.peerDependencies ?? {})
     if (peerNames.length === 0) continue
@@ -68,6 +98,13 @@ export function rulePeerGap(ctx: RuleContext, resolved: ResolvedBundle[]): Findi
           fix: { kind: 'none' },
         })
       } else if (host === null && internal === null) {
+        // Three trusted-absence cases keep this from being a gap: a client
+        // bundle's shell-seeded modules arrive through the client module
+        // table; the desktop profile's official packages live inside the
+        // packaged asar; and without a located installation the remaining
+        // official peers may sit in an unreadable installation closure.
+        if (hasClientHalf(bundle.manifest) && CLIENT_SHELL_MODULES.has(peerName)) continue
+        if (peerName.startsWith('@deepseek-ai/') && (ctx.isDesktop || closureUnknown)) continue
         findings.push({
           ruleId: 'peer-gap',
           severity: 'warn',

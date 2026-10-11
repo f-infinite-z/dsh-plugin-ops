@@ -53,7 +53,7 @@ describe('rule 4: peer gaps and double instances', () => {
     const fixture = peerFixture({ '@deepseek-ai/cordis': '^4.0.0' }, { name: 'cordis', scope: '@deepseek-ai' }, true)
     try {
       const report = await scanProfile({ paths: fixture.paths, profileName: 'web', updateCheck: false })
-      const finding = report.findings.find((f) => f.ruleId === 'peer-gap')
+      const finding = report.findings.find((f) => f.ruleId === 'peer-gap' && f.severity === 'fatal')
       expect(finding?.severity).toBe('fatal')
       expect(finding?.message).toContain('double instance')
     } finally {
@@ -66,7 +66,7 @@ describe('rule 4: peer gaps and double instances', () => {
     try {
       const report = await scanProfile({ paths: fixture.paths, profileName: 'web', updateCheck: false })
       expect(reportOk(report)).toBe(true)
-      const finding = report.findings.find((f) => f.ruleId === 'peer-gap')
+      const finding = report.findings.find((f) => f.ruleId === 'peer-gap' && f.severity === 'warn')
       expect(finding?.severity).toBe('warn')
       expect(finding?.message).toContain('does not resolve')
     } finally {
@@ -78,7 +78,7 @@ describe('rule 4: peer gaps and double instances', () => {
     const fixture = peerFixture({ '@deepseek-ai/cordis': '^4.0.0' }, null, true)
     try {
       const report = await scanProfile({ paths: fixture.paths, profileName: 'web', updateCheck: false })
-      expect(report.findings.some((f) => f.ruleId === 'peer-gap')).toBe(false)
+      expect(report.findings.some((f) => f.ruleId === 'peer-gap' && (f.severity === 'warn' || f.severity === 'fatal'))).toBe(false)
     } finally {
       fixture.dispose()
     }
