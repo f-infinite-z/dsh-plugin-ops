@@ -31,6 +31,7 @@ dsh-ops scan --profile web     # 单 profile 深扫（--json 机器可读；--ve
 dsh-ops fix --profile web      # 修复：lockfile 对齐（--dry-run 预览 / --yes 免确认）
 dsh-ops gate -- dsh web        # 启动门：预检通过才放行 dsh；失败自动归因
 dsh-ops adapt <pkg>            # 安装适配：官方门禁拒绝的插件（canary 验证 + 豁免）
+dsh-ops verify <pkg> --runtime # 作者门禁：静态检查 + 隔离启动（--report 输出兼容性矩阵）
 dsh-ops serve                  # 本地 Web 面板 http://127.0.0.1:8912（中英可切）
 dsh-ops selftest               # 自检：内置故障样本跑全规则
 ```
@@ -44,14 +45,14 @@ dsh-ops selftest               # 自检：内置故障样本跑全规则
 | 1 | bundle 声明完整性 | fatal | 层列表里的包不可解析 / 无 `dsh.bundle.patch` / patch 文件缺失（bundle 可声明有序多 patch 文件，0.1.7+） |
 | 2 | 依赖三方漂移 | fatal/自动修 | package.json 声明 vs pnpm-lock.yaml 锁定 vs 磁盘实际 |
 | 3 | registry 版本对比 | warn | 经 `pnpm outdated`，有更新提示；advisory 不阻断 |
-| 4 | peer 缺口/双实例 | 双实例 fatal | 声明了不存在的 peer；框架核心出现两份物理副本 |
+| 4 | peer 缺口/双实例 | 双实例 fatal | 声明了无法解析的 peer——且豁免可信/合法的缺失：client bundle 的 shell 模块（`react`/`react-dom`）、`peerDependenciesMeta.optional` 标记的 peer、桌面 profile 上的官方包（在打包 asar 内），以及定位不到安装锚点时的官方 peer；框架核心出现两份物理副本仍为 fatal |
 | 5 | patch 行解析（合并语义） | fatal/info | insert 行引用的包不可解析即中止启动（必需 entry / 版本语义）；扁平行是配置补丁（其 `name` 仅为匹配断言），无可见层引入其 id 时报 info"不生效"；同 id 以最后一条 insert 为生效行（对照 0.1.7-rc.2 与 0.2.1-alpha.1 源码 + `--dump-config` 实测） |
 | 6 | 故障记忆 | info/warn | 自上次成功启动后变化的包清单（归因基础） |
 | 7 | 结构完整性 | fatal/warn | 缺默认入口 / CJS 入口（Loader 需 ESM 命名导出）/ 缺 types/client |
 | 8 | 插件版本兼容性 | fatal / info（已豁免） | `@deepseek-ai/dsh*` peer 范围拒绝当前 dsh 版本——dsh 0.1.7-rc.1+ 会跳过该 bundle，功能静默缺失，除非授予 exact-version 豁免 |
 | 9 | 嫩包豁免条目卫生 | warn | `minimumReleaseAgeExclude` 中同一包出现两条带版本条目会让 pnpm 11 的锁文件豁免失效，此后该 profile 的每次安装都失败（`ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION`，已在 pnpm 11.7 复现）；推荐改写为裸包名 |
 
-解析跟随启动器的运行时 generation（0.1.6+）：profile 自身依赖树原生优先，其次是从安装清单与所选 bundle 重建的包表——冻结的磁盘镜像不再参与判定。
+解析跟随启动器的运行时 generation（0.1.6+）：profile 自身依赖树原生优先，其次是从安装清单与所选 bundle 重建的包表——冻结的磁盘镜像不再参与判定。Node 解析只沿锚点的物理祖先链；环境注入路径（NODE_PATH、全局路径、加载器链）一律不参与，与启动器自身的包表一致。
 
 真实生态验证：peer 声明悬空（作者引用官方未发布的包）已在多个第三方插件上检出。
 
@@ -62,14 +63,14 @@ dsh-ops selftest               # 自检：内置故障样本跑全规则
 | `check` | 全 profile 一键体检（默认无网络），人类与模型双友好 |
 | `scan` | 单 profile 深扫：规则 1-9 + 可选更新检查；`--version-view all\|latest` 选择版本口径（all 默认：全版本并集并标注版本区间；latest 仅最新语义；严重度始终锚定实际安装版本） |
 | `fix` | 自动可修集：磁盘↔lockfile 对齐（`pnpm install --frozen-lockfile --force`）；plan→确认→执行→备份 |
-| `gate` | 先阻断分级处置：fatal 先拦（自动修→放行；复杂→醒目指引；`--bypass` 逃生舱记录不静默）；dsh 启动秒退 → 读取官方启动诊断（`$DSH_HOME/logs/startup-*.log`）→ 归因差异包与启动器报告的失败插件 → 交互禁用重试；headless 一次性 profile 退出码透传不归因 |
+| `gate` | 先阻断分级处置：fatal 先拦（自动修→放行；复杂→醒目指引；`--bypass` 逃生舱记录不静默）；dsh 启动秒退 → 读取官方启动诊断（`$DSH_HOME/logs/startup-*.log`）→ 归因差异包与启动器报告的失败插件 → 交互禁用重试（**先在 profile 的隔离副本中复验**：web 用临时 DSH home 启动副本，桌面用复用沙箱并从最新 crash report 归因；只有复验启动存活才写入真实 profile，沙箱不可用时如实降级为直接应用）；headless 一次性 profile 退出码透传不归因 |
 | `serve` | 本地 Web 面板：健康卡/结果列表/修复执行/**插件行管理**（健康徽标、致命/警告/正常筛选、每页 10 行分页、官方行保护、启停开关）/故障时间线/**诊断对话（带增强检索 RAG 开关）**——排障经验沉淀为 Markdown，开启后自动检索命中条目注入对话（BM25 + 可选向量重排），zh/en 切换 |
 | `selftest` | 引擎自检（6 内置故障样本），验证安装健康 |
-| `verify` | 面向插件作者的发布前校验：支持本地目录或 **npm 包名**（`dsh-ops verify <name\|@scope/name\|name@version>`，从 registry 下载发布物校验）；检查 bundle patch 声明与解析、patch 行可解析性、依赖协议（`file:`/`workspace:`）、peer 契约（peer 名必须是包名、range 必须是 semver）、**dsh peer 全版本覆盖**（声明了 `@deepseek-ai/dsh*` peer 时须覆盖全部已知版本边界，标注缺口版本——市场上架兼容性矩阵要求）、ESM 入口与导出、client 导出契约与产物形状、files 完整性（`--json`、CI 用 `--strict`）；**`--runtime`** 追加隔离启动验证——在独立 DSH home 中经官方命令安装并启动；**`--desktop`** 在隔离桌面沙箱中启动官方桌面端验证——临时 `DSH_HOME`（自带 desktop profile）+ 独立 Electron user-data-dir + 沙箱专属 webserver 端口，经桌面自带 CLI（0.2.0-rc.1+）安装，观察崩溃报告/进程/端口判定，只回收沙箱自己的进程树，不触碰真实实例与数据；**`--runtime` 与 `--desktop` 可同时给**，一次运行检查两端（JSON 输出 `runtimes: { web, desktop }` 矩阵） |
+| `verify` | 面向插件作者的发布前校验：支持本地目录或 **npm 包名**（`dsh-ops verify <name\|@scope/name\|name@version>`，从 registry 下载发布物校验）；检查 bundle patch 声明与解析、patch 行可解析性、依赖协议（`file:`/`workspace:`）、peer 契约（peer 名必须是包名、range 必须是 semver）、**dsh peer 全版本覆盖**（声明了 `@deepseek-ai/dsh*` peer 时须覆盖全部已知版本边界，标注缺口版本——市场上架兼容性矩阵要求）、ESM 入口与导出、client 导出契约与产物形状、files 完整性（`--json`、CI 用 `--strict`）；**`--runtime`** 追加隔离启动验证——在独立 DSH home 中经官方命令安装并启动；**`--desktop`** 在隔离桌面沙箱中启动官方桌面端验证——临时 `DSH_HOME`（自带 desktop profile）+ 独立 Electron user-data-dir + 沙箱专属 webserver 端口，经桌面自带 CLI（0.2.0-rc.1+）安装，观察崩溃报告/进程/端口判定，只回收沙箱自己的进程树，不触碰真实实例与数据；**`--runtime` 与 `--desktop` 可同时给**，一次运行检查两端（JSON 输出 `runtimes: { web, desktop }` 矩阵）；**`--report <file.md>`** 把本次运行写成市场风格兼容性矩阵（静态检查、dsh peer 声明对已知版本边界的覆盖、实测目标及版本、生命周期覆盖并明示未覆盖环节），`--json` 在 `matrix` 字段携带同一模型 |
 | `adapt` | 安装适配：对官方门禁因 `@deepseek-ai/dsh*` peer 范围拒绝的插件，诊断冲突的 peer、分级风险（窄范围 vs 跨 breaking 边界），**先在隔离 canary 启动中授予官方 exact-version 豁免**（web profile 用独立 DSH home；desktop profile 用真实隔离桌面沙箱），只有该启动存活才写入真实 profile；canary 或安装失败即回滚豁免；**desktop profile** 在应用自带 CLI（0.2.0-rc.1+，单测覆盖、待实机验证）可用时，完全退出应用后直接经它安装/卸载，无 CLI 时回退为只写豁免并指引到桌面端 Plugins 页；`--remove` 一步完成卸载 + 清理豁免 |
 | `sessions` | 会话容器修复：扫描 `$DSH_HOME/sessions` 中两类会阻断启动的损坏（首帧无法解码的产物；目录名与 header id 不匹配的会话目录）；`--repair-paths` 把被改名的目录移回其 header id，`--quarantine` 把不可读会话目录移入 `$DSH_HOME/cache/dsh-ops/quarantine`（永不删除）；默认只读计划，深层事件级诊断仍由 `@argszero/cordis-plugin-session-audit` 覆盖 |
 | `dev` | 单插件目录的开发监视器：每次变更后（防抖）跑静态检查（带序号、标注包名@版本），`--runtime` 在每次通过后追加隔离 DSH home 启动冒烟、静态仍有 error 时明确提示跳过；**`--desktop`** 在每次通过后追加隔离桌面沙箱启动冒烟（两者可同时给）；停止时打印检查/失败/耗时汇总；全程不触碰正在运行的 dsh |
-| 内嵌 bundle（`dsh-plugin-ops-bundle`） | 装进 profile 后在 dsh Web 设置页出现"dsh-ops"健康页（扫描/行管理/**安装适配**——经官方 `pluginManager` 服务的豁免安装，含豁免清单与撤销/卸载并清理/时间线/带 RAG 知识库的诊断对话）；host 半边与 `serve` 复用同一引擎与路由白名单，诊断对话优先走官方 `ctx.llm`、无 llm 时降级直连 |
+| 内嵌 bundle（`dsh-plugin-ops-bundle`） | 装进 profile 后在 dsh Web 设置页出现"dsh-ops"健康页（扫描/行管理/**安装适配**——经官方 `pluginManager` 服务的豁免安装，含豁免清单与撤销/卸载并清理/时间线/带 RAG 知识库的诊断对话），外加**沙箱控制台**：左栏底部入口打开右栏面板，在临时 home 中启动隔离的"2 号 dsh"，实时查看日志与官方启动诊断、扫描、保留现场重启、并执行禁行修复（以重启结果为准——`fix` 经运行安装的闭包解析行可见性，"无法解析"与"无此行"分开报告）；五个 AI 工具（`dsh_ops_sandbox_start`/`_stop`/`_status`/`_scan`/`_fix`）把同一面交给运行中的 agent。所有 `/dsh-ops` 路由经过官方 connection 准入（信任围栏 + launch-token/cookie 浏览器鉴权——与官方 API 同一道闸门，缺失时 fail-closed）。host 半边与 `serve` 复用同一引擎；诊断对话优先走官方 `ctx.llm`、无 llm 时降级直连 |
 
 退出码：`0` 通过（或 dsh 自身码）/ `1` 仍有 fatal / `2` 用法或 profile 缺失 / `3` gate 被需人工处置的 fatal 阻断 / `4-5` gate 归因相关。
 
@@ -91,7 +92,7 @@ ignorePackages:
 - **核心逻辑在 dsh 插件树之外**（独立 wrapper 进程 + 只读文件解析），dsh 崩溃不影响诊断，诊断失败不拦 dsh（fail-open 只适用于自身故障）。
 - **自包含构建**：core 与 CLI 发布物均为自包含打包（依赖全部内联，运行时零 node_modules）——没有依赖树就没有依赖树可漂；树内 bundle 的 host 半边因此不会把依赖缺口带进 dsh 插件树。
 - 规则消息单语英文（CLI/JSON/面板单一事实）；面板 UI 词典化中英切换。dsh-ops serve 面板含诊断对话（ModelChannel 通道：显式 DSH_OPS_LLM_API_KEY/_BASE_URL/_MODEL 覆盖，或探测 DEEPSEEK/ARK/DASHSCOPE/OPENAI 的 env/.env/.credentials.yaml 凭据；内嵌形态优先复用官方 ctx.llm seam，无 llm 服务时降级直连）。
-- 写操作白名单 + 同源校验 + 自动备份；故障注入测试有 temp 沙箱路径断言。
+- 写操作白名单 + 自动备份；故障注入测试有 temp 沙箱路径断言。内嵌面的每条路由都经过官方 connection 准入；沙箱管理器只从外部观察其子进程（文件、诊断、输出）。
 
 ## 权限与数据访问
 
@@ -103,7 +104,8 @@ dsh-ops 按设计会触达敏感面；下面说明具体触达什么、何时触
 | 补丁层 | 向 profile 用户补丁层 `cordis.patch.yml` 结构化写入 `disabled` 行 | 禁用导致启动失败的插件行 | plan→确认→备份→校验写入；删行即恢复；官方 `@deepseek-ai/*` 行拒绝禁用（403） |
 | 会话容器 | 读取 `$DSH_HOME/sessions` 目录树；`--repair-paths` 把会话目录改名为其 header id，`--quarantine` 把会话目录移入 dsh-ops 缓存 | `sessions` 修复命令 | 仅显式 flag；永不删除；先跑只读计划并报告每一步移动 |
 | 命令执行 | `pnpm install --frozen-lockfile --force`（固定参数）；`gate` 中传入的 `dsh` 命令；存在时调用 `session-audit` | lockfile 对齐；预检通过后启动 dsh；会话容器预检 | 绝不执行任意命令；仅在显式确认或用户自己输入的命令上执行 |
-| 本地 HTTP 服务 | 回环 `127.0.0.1:8912`（`serve` 面板）；内嵌 bundle 复用 dsh 自带 web 服务 | Web 面板 | 同源校验、仅回环、路由白名单 |
+| 沙箱进程 | 经**运行安装自带的 CLI 入口**在临时 DSH home 中启动第二个 `dsh`（cwd 为沙箱 home） | 沙箱控制台（面板与 `dsh_ops_sandbox_*` 工具） | 仅在显式操作时启动；以当前用户身份继承环境运行——面向插件配置的隔离，非安全边界（UI 中已明示）；停止即完全清理 |
+| 本地 HTTP 服务 | 回环 `127.0.0.1:8912`（`serve` 面板）；内嵌 bundle 复用 dsh 自带 web 服务 | Web 面板 | 仅回环、路由白名单；内嵌面额外经过官方 connection 浏览器准入（launch-token/cookie），无凭据请求一律拒绝 |
 | LLM 凭据 | `DSH_OPS_LLM_*`，或 env / `.env` / `.credentials.yaml` 中的 provider key | 仅可选的诊断对话 | 只在对话使用时读取；全部静态功能无 key 可用 |
 | 网络 | `pnpm outdated`（`--updates` 可选）；配置的 LLM API | 更新提示；诊断对话 | `check`/`fix`/`gate` 与默认 `scan` 完全离线 |
 
@@ -111,17 +113,17 @@ dsh-xray 给本项目的评级为 C3（衡量能力面而非意图）；上表�
 
 ## 后续方向
 
-- **官方桌面端适配（0.12.0）**：官方桌面端（0.2.0+）将 dsh 打包进自身 `app.asar`、无 CLI 启动点。`scan`/`fix`/`check` 已识别 desktop profile、读取其发布版本，并信任打包运行时自带的官方 bundle/行；`gate --profile desktop` 只预检不启动，并读取桌面端 crash report（`crash-*.log`）做归因。
-- **安装适配（0.13.0–0.15.0）**：`dsh-ops adapt` 与面板内的安装适配卡补上官方门禁"变更时拒绝"之后的一环——诊断插件被拒原因、分级风险、授予官方 exact-version 豁免（CLI 版在隔离 canary 启动通过后生效；面板版经官方插件管理器原地完成），卸载时一并清理豁免；desktop profile 在应用自带 CLI（0.2.0-rc.1+）可用时，完全退出应用后直接经它安装/卸载。这是从"诊断"迈向"修复闭环"的第一步；真正对小兼容问题做源码级修改（并展示改动说明）仍是后续方向。
-- **多端测试沙箱（面向插件开发者）**：`verify --desktop`（0.16.0）已实现第一目标——临时 `DSH_HOME`（自带 desktop profile）+ 独立 Electron `user-data-dir` + 沙箱专属 webserver 端口，经桌面自带 CLI 安装官方桌面端并在隔离端口上观察就绪；与已在运行的真实实例并存、不触碰真实数据（0.2.0-rc.2 实测 BOOTED、无残留）。逐端适配矩阵（static + web runtime + desktop runtime 结果汇总）与常驻沙箱是后续方向（按需收敛）。
-- **面向插件作者的一致性验证**：`dsh-ops verify` 已支持本地目录与 npm 包名两种输入，覆盖 bundle patch 声明与解析、patch 行可解析性、依赖协议、peer 契约、ESM 入口与导出、client 导出契约与产物形状、files 完整性九项检查；并已用 30 个真实生态插件（热门/普通两档）校准误报（28 个零 findings）。`verify --runtime` 在独立 DSH home 中经官方安装与启动命令做隔离启动验证，报告能否存活。
+- **桌面端沙箱控制台（0.19.1）**：0.19.0 的控制台面向 web 宿主；桌面宿主紧随其后——同一面板经应用自带 CLI 配合 `--user-data-dir` 隔离驱动第二个桌面实例，让有风险的插件工作留在无法触碰真实应用的一个窗口里。
+- **程序化装插件进沙箱（0.19.2）**：从面板或 agent 直接把插件装进 2 号 dsh（`dsh_ops_sandbox_install` 工具），让"安全试插件"成为一步操作；当前沙箱靠手动或官方 `dsh plugin add` 对其 home 操作。
+- **常驻沙箱与终端端（更晚）**：跨重启保留的沙箱，以及终端类 profile（`tui`/`headless`/`acp`）的验证目标——等插件工作流需要时再加。
+- **对接市场门禁（按需）**：`verify --report` 已能输出兼容性矩阵；与具体市场上架格式对齐，等该格式出现后进行。
 - **一体化插件管理（v2）**：把生态"变更时防护"（canary 试运行、启停、更新检查、市场）按自有架构吸收进启动生命周期防护，以启动门为统一入口。
 
 ## 开发
 
 ```sh
 pnpm install && pnpm run build
-pnpm run typecheck && pnpm run test      # 255 单测（core 204 + bundle 26 + cli 25）
+pnpm run typecheck && pnpm run test      # 275 单测（core 221 + bundle 27 + cli 33；Windows 跳过 1 个 POSIX 专属用例）
 node packages/cli/lib/index.js selftest  # 引擎自检
 node scripts/e2e/scan-fix.e2e.mjs        # 离线 E2E（真实 pnpm 修复）
 node scripts/e2e/gate.e2e.mjs            # gate 场景（放行/阻断/旁路/归因/headless）
@@ -132,7 +134,7 @@ node scripts/e2e/real-plugins.e2e.mjs    # 真实第三方插件沙箱（需网�
 
 ## 生态定位
 
-不是第 N 个市场/管理器，而是启动生命周期防护：补全生态"变更时防护"缺失的**每次启动**环；后续版本将按自有架构吸收市场/启停/升级防护等功能，收敛为一体化插件管理增强。
+不是第 N 个市场/管理器，而是启动生命周期防护：补全生态"变更时防护"缺失的**每次启动**环；沙箱控制台把同一理念延伸到有风险的插件工作——一个完全从外部驱动的隔离 2 号 dsh，面板与运行中的 agent 共享同一观测面。后续版本将按自有架构吸收市场/启停/升级防护等功能，收敛为一体化插件管理增强。
 
 互补面：存储的会话容器由 [@argszero/cordis-plugin-session-audit](https://github.com/argszero/cordis-plugin-session-audit) 审计——面向 `$DSH_HOME/sessions` 目录树的启动前检查，带可供启动门消费的退出码；当启动失败来自 workspace 注册表而非插件树时，`gate` 会指向它。
 
