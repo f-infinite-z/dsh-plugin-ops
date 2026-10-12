@@ -4,6 +4,7 @@ import type { Lang } from './i18n.js'
 export interface SandboxDict {
   title: string
   subtitle: string
+  subtitleDesktop: string
   start: string
   stop: string
   restart: string
@@ -22,6 +23,7 @@ export interface SandboxDict {
   findings: string
   noFindings: string
   errorLines: string
+  crashReport: string
   fixTitle: string
   fixHint: string
   fixPlaceholder: string
@@ -42,6 +44,7 @@ export const SANDBOX_DICTS: Record<Lang, SandboxDict> = {
   zh: {
     title: '沙箱实例',
     subtitle: '隔离实例：用于插件配置的测试与修复。注意：它继承你的环境与文件权限，请勿用于不可信代码',
+    subtitleDesktop: '隔离的第二个桌面窗口：独立 user-data 与 DSH home，用于插件配置的测试与修复。注意：它继承你的环境与文件权限，请勿用于不可信代码',
     start: '启动沙箱',
     stop: '停止并清理',
     restart: '重启（保留现场）',
@@ -60,6 +63,7 @@ export const SANDBOX_DICTS: Record<Lang, SandboxDict> = {
     findings: '扫描发现',
     noFindings: '未发现问题',
     errorLines: '错误输出',
+    crashReport: '崩溃报告',
     fixTitle: '修复（禁用行并重启验证）',
     fixHint: '输入要禁用的 loader 行 id（通常即包名）；沙箱会重启以证明修复有效',
     fixPlaceholder: '行 id，例如 dsh-some-plugin（多个用逗号分隔）',
@@ -78,6 +82,7 @@ export const SANDBOX_DICTS: Record<Lang, SandboxDict> = {
   en: {
     title: 'Sandbox instance',
     subtitle: 'Isolated instance for plugin configuration work. Note: it inherits your environment and file-system access — not for untrusted code',
+    subtitleDesktop: 'Isolated second desktop window: its own user-data directory and DSH home, for plugin configuration work. Note: it inherits your environment and file-system access — not for untrusted code',
     start: 'Start sandbox',
     stop: 'Stop and clean up',
     restart: 'Restart (keep state)',
@@ -96,6 +101,7 @@ export const SANDBOX_DICTS: Record<Lang, SandboxDict> = {
     findings: 'Scan findings',
     noFindings: 'no findings',
     errorLines: 'Error output',
+    crashReport: 'Crash report',
     fixTitle: 'Repair (disable rows and restart to prove it)',
     fixHint: 'Enter loader row ids to disable (usually the package name); the sandbox restarts so the repair is proven',
     fixPlaceholder: 'row id, e.g. dsh-some-plugin (comma-separated for several)',

@@ -16,6 +16,7 @@ const MAX_LOG_LINES = 400
 const STYLE_ID = 'dsh-ops-sandbox-style'
 
 interface SandboxStatus {
+  kind: 'web' | 'desktop'
   state: 'stopped' | 'starting' | 'running' | 'stopping'
   url: string | null
   home: string | null
@@ -91,6 +92,7 @@ export function SandboxPanel(): ReactNode {
   const [findings, setFindings] = useState<Finding[] | null>(null)
   const [scanNote, setScanNote] = useState<string | null>(null)
   const [errorLines, setErrorLines] = useState<string[] | null>(null)
+  const [crashFile, setCrashFile] = useState<string | null>(null)
   const [fixInput, setFixInput] = useState('')
   const [message, setMessage] = useState<string | null>(null)
   const seqRef = useRef(0)
@@ -158,8 +160,9 @@ export function SandboxPanel(): ReactNode {
   const runDiagnose = useCallback(async (): Promise<void> => {
     setBusy('diagnose')
     try {
-      const data = await api<{ diagnosis: { errorLines: string[] } }>('/api/sandbox/diagnose')
+      const data = await api<{ diagnosis: { errorLines: string[]; crash: { file: string } | null } }>('/api/sandbox/diagnose')
       setErrorLines(data.diagnosis.errorLines)
+      setCrashFile(data.diagnosis.crash?.file ?? null)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error))
     } finally {
@@ -195,7 +198,7 @@ export function SandboxPanel(): ReactNode {
         <span className="sb-section">{t.title}</span>
         <span className={`sb-badge ${badgeClass}`}>{stateLabel}</span>
       </div>
-      <div className="sb-dim">{t.subtitle}</div>
+      <div className="sb-dim">{status?.kind === 'desktop' ? t.subtitleDesktop : t.subtitle}</div>
 
       <div className="dshops-sb-actions">
         <button disabled={busy !== null || notStopped} onClick={() => { void act('start', '/api/sandbox/start') }}>{t.start}</button>
@@ -246,6 +249,7 @@ export function SandboxPanel(): ReactNode {
       {errorLines !== null ? (
         <div>
           <div className="sb-section">{t.errorLines}</div>
+          {crashFile !== null ? <div className="sb-dim">{t.crashReport}: {crashFile}</div> : null}
           {errorLines.length === 0 ? <div className="sb-dim">{t.noFindings}</div> : <pre className="sb-log">{errorLines.join('\n')}</pre>}
         </div>
       ) : null}

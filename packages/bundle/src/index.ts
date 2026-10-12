@@ -11,6 +11,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import {
   OpenAiCompatibleChannel,
+  isDesktopProfile,
   readOpsConfig,
   resolveDshPaths,
   resolveModelConfig,
@@ -60,7 +61,10 @@ function registerPanel(ctx: HostContext): void {
   if (!read.ok) {
     console.error(`[dsh-ops] ignoring unreadable config: ${read.problem ?? 'unknown problem'}`)
   }
-  const sandbox = new SandboxManager()
+  // The sandbox shape follows the host: the desktop profile implies a second
+  // desktop window (driven through --user-data-dir), every other profile a
+  // second CLI-hosted instance.
+  const sandbox = new SandboxManager({ kind: isDesktopProfile(profile) ? 'desktop' : 'web' })
   ctx.effect(() => () => { sandbox.dispose() }, 'dsh-ops-bundle: sandbox teardown')
   const handler = createHostHandler({
     home: paths.home,

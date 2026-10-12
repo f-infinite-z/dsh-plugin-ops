@@ -53,7 +53,9 @@ function statusLine(status: SandboxStatus): string {
 function startTool(manager: SandboxManager): SandboxTool {
   return {
     name: 'dsh_ops_sandbox_start',
-    description: 'Start the isolated DeepSeek Harness sandbox (a temporary DSH home used for plugin configuration work). Returns the sandbox state and address. Installing or repairing plugins there cannot affect this instance. This is configuration-level isolation, not a security boundary: the sandbox inherits this process environment and your file-system access — do not use it to run untrusted plugin code.',
+    description: manager.kind === 'desktop'
+      ? 'Start the isolated DeepSeek Harness desktop sandbox: a second desktop window of this installation, isolated through its own user-data directory and temporary DSH home. Installing or repairing plugins there cannot affect this instance. This is configuration-level isolation, not a security boundary: the sandbox inherits this process environment and your file-system access — do not use it to run untrusted plugin code.'
+      : 'Start the isolated DeepSeek Harness sandbox (a temporary DSH home used for plugin configuration work). Returns the sandbox state and address. Installing or repairing plugins there cannot affect this instance. This is configuration-level isolation, not a security boundary: the sandbox inherits this process environment and your file-system access — do not use it to run untrusted plugin code.',
     parameters: { type: 'object', properties: {}, additionalProperties: false },
     output: {
       schema: { type: 'object' },
@@ -114,7 +116,10 @@ function statusTool(manager: SandboxManager): SandboxTool {
       const diagnosis = manager.diagnose()
       return {
         status: manager.status(),
-        inactiveEntries: diagnosis.startup?.entries ?? [],
+        // The web shape reports failures through the startup diagnostics; the
+        // desktop shape through its crash report — either way the failed
+        // loader entries end up in the same field.
+        inactiveEntries: diagnosis.startup?.entries ?? diagnosis.crash?.entries ?? [],
         errorLines: diagnosis.errorLines,
         logTail: includeLogs ? manager.logsAfter(0).lines.slice(-40).map((entry) => entry.line) : [],
       }

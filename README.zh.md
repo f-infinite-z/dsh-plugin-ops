@@ -7,7 +7,7 @@
 
 > DeepSeek Harness 插件运维（Plugin Operations）：启动前体检与拦截、失败归因与恢复、依赖治理、安装适配、作者发布前验证——让插件生态保持可加载。
 
-**状态：v0.19.0 — 沙箱控制台：左栏入口 + 右栏面板启动隔离的 2 号 dsh，实时查看日志与启动诊断、扫描并修复（含 AI 工具）；所有 `/dsh-ops` 路由与官方 API 同一道浏览器鉴权（由外部安全评审发现并修复）。0.18.1 含 peer-gap 现场修复与 0.18.0 的 gate 沙箱复验 + `verify --report` 兼容性矩阵。拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
+**状态：v0.19.1 — 沙箱控制台覆盖双端宿主：web 宿主启动隔离的 2 号 dsh，桌面宿主经应用自带的 `--user-data-dir` 机制 + 临时 DSH home 启动第二个桌面窗口；左栏入口 + 右栏面板实时查看日志与启动诊断、扫描并修复（含 AI 工具）；所有 `/dsh-ops` 路由与官方 API 同一道浏览器鉴权。拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
 
 ## 命名
 
@@ -70,7 +70,7 @@ dsh-ops selftest               # 自检：内置故障样本跑全规则
 | `adapt` | 安装适配：对官方门禁因 `@deepseek-ai/dsh*` peer 范围拒绝的插件，诊断冲突的 peer、分级风险（窄范围 vs 跨 breaking 边界），**先在隔离 canary 启动中授予官方 exact-version 豁免**（web profile 用独立 DSH home；desktop profile 用真实隔离桌面沙箱），只有该启动存活才写入真实 profile；canary 或安装失败即回滚豁免；**desktop profile** 在应用自带 CLI（0.2.0-rc.1+，单测覆盖、待实机验证）可用时，完全退出应用后直接经它安装/卸载，无 CLI 时回退为只写豁免并指引到桌面端 Plugins 页；`--remove` 一步完成卸载 + 清理豁免 |
 | `sessions` | 会话容器修复：扫描 `$DSH_HOME/sessions` 中两类会阻断启动的损坏（首帧无法解码的产物；目录名与 header id 不匹配的会话目录）；`--repair-paths` 把被改名的目录移回其 header id，`--quarantine` 把不可读会话目录移入 `$DSH_HOME/cache/dsh-ops/quarantine`（永不删除）；默认只读计划，深层事件级诊断仍由 `@argszero/cordis-plugin-session-audit` 覆盖 |
 | `dev` | 单插件目录的开发监视器：每次变更后（防抖）跑静态检查（带序号、标注包名@版本），`--runtime` 在每次通过后追加隔离 DSH home 启动冒烟、静态仍有 error 时明确提示跳过；**`--desktop`** 在每次通过后追加隔离桌面沙箱启动冒烟（两者可同时给）；停止时打印检查/失败/耗时汇总；全程不触碰正在运行的 dsh |
-| 内嵌 bundle（`dsh-plugin-ops-bundle`） | 装进 profile 后在 dsh Web 设置页出现"dsh-ops"健康页（扫描/行管理/**安装适配**——经官方 `pluginManager` 服务的豁免安装，含豁免清单与撤销/卸载并清理/时间线/带 RAG 知识库的诊断对话），外加**沙箱控制台**：左栏底部入口打开右栏面板，在临时 home 中启动隔离的"2 号 dsh"，实时查看日志与官方启动诊断、扫描、保留现场重启、并执行禁行修复（以重启结果为准——`fix` 经运行安装的闭包解析行可见性，"无法解析"与"无此行"分开报告）；五个 AI 工具（`dsh_ops_sandbox_start`/`_stop`/`_status`/`_scan`/`_fix`）把同一面交给运行中的 agent。所有 `/dsh-ops` 路由经过官方 connection 准入（信任围栏 + launch-token/cookie 浏览器鉴权——与官方 API 同一道闸门，缺失时 fail-closed）。host 半边与 `serve` 复用同一引擎；诊断对话优先走官方 `ctx.llm`、无 llm 时降级直连 |
+| 内嵌 bundle（`dsh-plugin-ops-bundle`） | 装进 profile 后在 dsh Web 设置页出现"dsh-ops"健康页（扫描/行管理/**安装适配**——经官方 `pluginManager` 服务的豁免安装，含豁免清单与撤销/卸载并清理/时间线/带 RAG 知识库的诊断对话），外加**沙箱控制台**：左栏底部入口打开右栏面板，启动隔离的"2 号 dsh"——web 宿主用临时 home，桌面宿主则是**第二个桌面窗口**（独立 `--user-data-dir` + 临时 DSH home，经已安装应用自身的可执行文件启动）——实时查看日志与官方启动诊断、扫描、保留现场重启、并执行禁行修复（以重启结果为准——`fix` 经运行安装的闭包解析行可见性，桌面形态下官方 bundle 位于打包 asar 内、其行被拒绝；"无法解析"与"无此行"分开报告）；五个 AI 工具（`dsh_ops_sandbox_start`/`_stop`/`_status`/`_scan`/`_fix`）把同一面交给运行中的 agent。所有 `/dsh-ops` 路由经过官方 connection 准入（信任围栏 + launch-token/cookie 浏览器鉴权——与官方 API 同一道闸门，缺失时 fail-closed）。host 半边与 `serve` 复用同一引擎；诊断对话优先走官方 `ctx.llm`、无 llm 时降级直连 |
 
 退出码：`0` 通过（或 dsh 自身码）/ `1` 仍有 fatal / `2` 用法或 profile 缺失 / `3` gate 被需人工处置的 fatal 阻断 / `4-5` gate 归因相关。
 
@@ -104,7 +104,7 @@ dsh-ops 按设计会触达敏感面；下面说明具体触达什么、何时触
 | 补丁层 | 向 profile 用户补丁层 `cordis.patch.yml` 结构化写入 `disabled` 行 | 禁用导致启动失败的插件行 | plan→确认→备份→校验写入；删行即恢复；官方 `@deepseek-ai/*` 行拒绝禁用（403） |
 | 会话容器 | 读取 `$DSH_HOME/sessions` 目录树；`--repair-paths` 把会话目录改名为其 header id，`--quarantine` 把会话目录移入 dsh-ops 缓存 | `sessions` 修复命令 | 仅显式 flag；永不删除；先跑只读计划并报告每一步移动 |
 | 命令执行 | `pnpm install --frozen-lockfile --force`（固定参数）；`gate` 中传入的 `dsh` 命令；存在时调用 `session-audit` | lockfile 对齐；预检通过后启动 dsh；会话容器预检 | 绝不执行任意命令；仅在显式确认或用户自己输入的命令上执行 |
-| 沙箱进程 | 经**运行安装自带的 CLI 入口**在临时 DSH home 中启动第二个 `dsh`（cwd 为沙箱 home） | 沙箱控制台（面板与 `dsh_ops_sandbox_*` 工具） | 仅在显式操作时启动；以当前用户身份继承环境运行——面向插件配置的隔离，非安全边界（UI 中已明示）；停止即完全清理 |
+| 沙箱进程 | 经**运行安装自带的 CLI 入口**在临时 DSH home 中启动第二个 `dsh`（cwd 为沙箱 home）；桌面宿主则启动已安装应用自身的第二个窗口（独立 `--user-data-dir` + 临时 home） | 沙箱控制台（面板与 `dsh_ops_sandbox_*` 工具） | 仅在显式操作时启动；以当前用户身份继承环境运行——面向插件配置的隔离，非安全边界（UI 中已明示）；停止即完全清理 |
 | 本地 HTTP 服务 | 回环 `127.0.0.1:8912`（`serve` 面板）；内嵌 bundle 复用 dsh 自带 web 服务 | Web 面板 | 仅回环、路由白名单；内嵌面额外经过官方 connection 浏览器准入（launch-token/cookie），无凭据请求一律拒绝 |
 | LLM 凭据 | `DSH_OPS_LLM_*`，或 env / `.env` / `.credentials.yaml` 中的 provider key | 仅可选的诊断对话 | 只在对话使用时读取；全部静态功能无 key 可用 |
 | 网络 | `pnpm outdated`（`--updates` 可选）；配置的 LLM API | 更新提示；诊断对话 | `check`/`fix`/`gate` 与默认 `scan` 完全离线 |
@@ -113,8 +113,7 @@ dsh-xray 给本项目的评级为 C3（衡量能力面而非意图）；上表�
 
 ## 后续方向
 
-- **桌面端沙箱控制台（0.19.1）**：0.19.0 的控制台面向 web 宿主；桌面宿主紧随其后——同一面板经应用自带 CLI 配合 `--user-data-dir` 隔离驱动第二个桌面实例，让有风险的插件工作留在无法触碰真实应用的一个窗口里。
-- **程序化装插件进沙箱（0.19.2）**：从面板或 agent 直接把插件装进 2 号 dsh（`dsh_ops_sandbox_install` 工具），让"安全试插件"成为一步操作；当前沙箱靠手动或官方 `dsh plugin add` 对其 home 操作。
+- **程序化装插件进沙箱（0.19.2）**：从面板或 agent 直接把插件装进 2 号 dsh（`dsh_ops_sandbox_install` 工具），让"安全试插件"成为一步操作；对沙箱 home 经官方 `dsh plugin add` 安装今天已可用（桌面形态用应用自带 CLI）。
 - **常驻沙箱与终端端（更晚）**：跨重启保留的沙箱，以及终端类 profile（`tui`/`headless`/`acp`）的验证目标——等插件工作流需要时再加。
 - **对接市场门禁（按需）**：`verify --report` 已能输出兼容性矩阵；与具体市场上架格式对齐，等该格式出现后进行。
 - **一体化插件管理（v2）**：把生态"变更时防护"（canary 试运行、启停、更新检查、市场）按自有架构吸收进启动生命周期防护，以启动门为统一入口。
@@ -123,7 +122,7 @@ dsh-xray 给本项目的评级为 C3（衡量能力面而非意图）；上表�
 
 ```sh
 pnpm install && pnpm run build
-pnpm run typecheck && pnpm run test      # 275 单测（core 221 + bundle 27 + cli 33；Windows 跳过 1 个 POSIX 专属用例）
+pnpm run typecheck && pnpm run test      # 289 单测（core 221 + bundle 35 + cli 33；Windows 跳过 1 个 POSIX 专属用例）
 node packages/cli/lib/index.js selftest  # 引擎自检
 node scripts/e2e/scan-fix.e2e.mjs        # 离线 E2E（真实 pnpm 修复）
 node scripts/e2e/gate.e2e.mjs            # gate 场景（放行/阻断/旁路/归因/headless）

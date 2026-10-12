@@ -2,6 +2,40 @@
 
 All notable changes are tracked here.
 
+## 0.19.1 — 2026-10-12
+
+### Desktop sandbox console: the second window
+
+- **The sandbox console now covers the desktop host.** The shape follows the
+  host profile: a `desktop` profile drives a **second desktop window** of the
+  installed app through the verified desktop-sandbox recipe — a scaffolded
+  desktop profile under a temporary DSH home, an isolated `--user-data-dir`,
+  and an isolated webserver port pin for the fixed-port releases. The scaffold
+  boots with no install step (~5s to its Web UI line, which the desktop host
+  forwards on stdout exactly like the web shape).
+- **Electron child environments are cleaned before the second window
+  starts.** The host half itself runs inside an Electron child process whose
+  environment carries `ELECTRON_RUN_AS_NODE`; inherited, it made the second
+  executable start as a Node script and die on `--user-data-dir` (exit 9).
+  The desktop spawn strips the Electron-injected variables.
+- **Desktop-shape repair semantics.** `scan` judges the desktop profile with
+  the official packages trusted inside the packaged asar; `fix` resolves
+  visible rows without the official bundles (their patch files are unreadable
+  inside the asar), so official rows are refused as "no visible row" while
+  third-party rows and the user patch layer keep working; `diagnose` reads the
+  newest crash report from the sandbox user-data logs (macOS degrades
+  gracefully: the shared log directory is never read) alongside the
+  error-looking output lines.
+- **Shape-aware surfaces**: status and panel carry the shape (`kind`), the
+  panel names the second window and shows the crash-report file, and the
+  `dsh_ops_sandbox_start` tool describes the desktop shape.
+- 289 tests (core 221 + bundle 35 + cli 33; one POSIX-only test skipped on
+  Windows). The end-to-end desktop smoke passes on the real app: an isolated
+  desktop number-1 installs the bundle through the app's own CLI, boots the
+  second window, installs a bad plugin into it, scans it, refuses an official
+  row, disables the bad row, restarts to prove the repair, and stops with
+  full cleanup — never touching the real desktop profile or instance.
+
 ## 0.19.0 — 2026-10-11
 
 ### Sandbox console: drive an isolated number-2 dsh from the panel, behind an authenticated API
