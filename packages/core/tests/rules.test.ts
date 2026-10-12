@@ -188,6 +188,40 @@ describe('rule 2: dependency drift', () => {
     }
   })
 
+  it('notes an installed bundle that is missing from the activation list', async () => {
+    const fixture = makeHome()
+    try {
+      writeProfile(fixture.paths, { dependencies: { 'half-plug': '^1.0.0' } })
+      writeInstalledPackages(fixture.paths, [{ name: 'half-plug', version: '1.0.0', dshBundlePatch: 'cordis.patch.yml' }])
+      const report = await scanProfile({ paths: fixture.paths, profileName: 'web' })
+      const finding = report.findings.find((f) => f.ruleId === 'dependency-drift' && f.packageName === 'half-plug')
+      expect(finding?.severity).toBe('info')
+      expect(finding?.message).toContain('dsh.profile.bundles')
+      expect(finding?.detail).toContain('remove it and add it again')
+    } finally {
+      fixture.dispose()
+    }
+  })
+
+  it('does not note an activated bundle nor a plain library missing from the list', async () => {
+    const fixture = makeHome()
+    try {
+      writeProfile(fixture.paths, {
+        dependencies: { 'active-plug': '^1.0.0', 'lib-plug': '^1.0.0' },
+        bundles: ['active-plug'],
+      })
+      writeInstalledPackages(fixture.paths, [
+        { name: 'active-plug', version: '1.0.0', dshBundlePatch: 'cordis.patch.yml' },
+        { name: 'lib-plug', version: '1.0.0' },
+      ])
+      const report = await scanProfile({ paths: fixture.paths, profileName: 'web' })
+      expect(report.findings.some((f) => f.ruleId === 'dependency-drift' && f.packageName === 'active-plug')).toBe(false)
+      expect(report.findings.some((f) => f.ruleId === 'dependency-drift' && f.packageName === 'lib-plug')).toBe(false)
+    } finally {
+      fixture.dispose()
+    }
+  })
+
   it('keeps comparing versions for a future lockfile version number', async () => {
     // @pnpm/lockfile-file accepts any declared version number and gates on
     // the YAML structure instead; a future minor version must not degrade the

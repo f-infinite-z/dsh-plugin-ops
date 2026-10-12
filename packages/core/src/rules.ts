@@ -5,6 +5,7 @@ import type { Finding, PackageSnapshot } from './types.js'
 import type { DshPaths } from './paths.js'
 import {
   resolveBundles,
+  profileBundles,
   type ProfileManifest,
   type ResolvedBundle,
   registryDependencies,
@@ -202,6 +203,29 @@ export function ruleDependencyDrift(ctx: RuleContext, resolved: ResolvedBundle[]
         ? 'pnpm-lock.yaml could not be parsed (the file looks damaged or truncated); lockfile comparison degraded'
         : `pnpm-lock.yaml uses an unsupported format version${found}; lockfile comparison degraded`,
       detail: 're-run pnpm install with the profile package manager to regenerate the lockfile, then retry',
+      fix: { kind: 'none' },
+    })
+  }
+
+  // A dependency that ships a bundle patch but is absent from the profile's
+  // activation list: the launcher never loads it. Two situations look alike —
+  // the user disabled it on purpose, or a failed install/remove left it
+  // half-registered (the official reconcile then treats the residue as a user
+  // choice, and re-running `add` alone does not recover it). Static state
+  // cannot tell them apart, so this stays an info naming both readings.
+  const activated = new Set(profileBundles(ctx.manifest))
+  for (const name of Object.keys(registryDependencies(ctx.manifest))) {
+    if (activated.has(name)) continue
+    const dir = resolvePackageDir(ctx.generation, ctx.paths, name)?.dir ?? null
+    if (dir === null) continue
+    const installed = readPackageManifest(dir)
+    if (installed?.dsh?.bundle?.patch === undefined) continue
+    findings.push({
+      ruleId: 'dependency-drift',
+      severity: 'info',
+      packageName: name,
+      message: 'package is installed but missing from dsh.profile.bundles; the launcher will not activate it',
+      detail: 'if you did not disable it yourself, this is likely a failed install/remove residue: remove it and add it again to recover (re-running add alone does not re-register it)',
       fix: { kind: 'none' },
     })
   }
