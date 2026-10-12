@@ -47,6 +47,20 @@ function hasClientHalf(manifest: { dsh?: { client?: unknown } }): boolean {
 }
 
 /**
+ * The client-side modules the bundle's browser half declares through
+ * `dsh.client.inject`. The client module table seeds them on the browser
+ * side (react/react-dom arrive the same way without listing), so a host-side
+ * resolution of anything named here is never expected.
+ */
+function clientInjectedModules(manifest: { dsh?: { client?: unknown } }): Set<string> {
+  const client = manifest.dsh?.client
+  if (typeof client !== 'object' || client === null) return new Set()
+  const inject = (client as { inject?: unknown }).inject
+  if (!Array.isArray(inject)) return new Set()
+  return new Set(inject.filter((name): name is string => typeof name === 'string'))
+}
+
+/**
  * Whether npm/pnpm mark this peer optional (`peerDependenciesMeta[name].optional`).
  * An absent optional peer is legal by package-manager semantics, so it is
  * never a gap.
@@ -65,12 +79,14 @@ function isOptionalPeer(manifest: { peerDependenciesMeta?: Record<string, unknow
  * import failure only surfaces at load time, so the static signal is advisory
  * unless the peer is a duplicate).
  *
- * Three resolution realities suppress the gap judgment: a bundle's
- * shell-seeded client modules (react/react-dom) reach the browser half through
- * the client module table; the desktop profile's official packages live inside
- * the packaged asar and are trusted (rule 1/5's policy); and without a located
- * installation the closure half of the resolution is unknown, so official
- * peers judged against it would be phantom gaps.
+ * Resolution realities suppress the gap judgment: a bundle's shell-seeded
+ * client modules (react/react-dom) and the modules the bundle itself lists in
+ * `dsh.client.inject` reach the browser half through the client module table,
+ * so a host-side resolution of them is never expected; the desktop profile's
+ * official packages live inside the packaged asar and are trusted (rule 1/5's
+ * policy); and without a located installation the closure half of the
+ * resolution is unknown, so official peers judged against it would be phantom
+ * gaps.
  */
 export function rulePeerGap(ctx: RuleContext, resolved: ResolvedBundle[]): Finding[] {
   const findings: Finding[] = []
@@ -110,13 +126,14 @@ export function rulePeerGap(ctx: RuleContext, resolved: ResolvedBundle[]): Findi
       } else if (host === null && internal === null) {
         // Trusted absences and legal absences all keep this from being a gap:
         // an optional-marked peer is absent legally by package-manager
-        // semantics; a client bundle's shell-seeded modules arrive through
-        // the client module table; the desktop profile's official packages
-        // live inside the packaged asar; and without a located installation
-        // the remaining official peers may sit in an unreadable installation
-        // closure.
+        // semantics; a client bundle's shell-seeded modules and the modules
+        // it injects arrive through the client module table; the desktop
+        // profile's official packages live inside the packaged asar; and
+        // without a located installation the remaining official peers may
+        // sit in an unreadable installation closure.
         if (isOptionalPeer(bundle.manifest, peerName)) continue
         if (hasClientHalf(bundle.manifest) && CLIENT_SHELL_MODULES.has(peerName)) continue
+        if (clientInjectedModules(bundle.manifest).has(peerName)) continue
         if (peerName.startsWith('@deepseek-ai/') && (ctx.isDesktop || closureUnknown)) continue
         findings.push({
           ruleId: 'peer-gap',

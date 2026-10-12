@@ -75,6 +75,25 @@ describe('peer-gap trust and exemptions', () => {
     }
   })
 
+  it('exempts a peer the bundle itself injects into its client half, without exempting the rest', async () => {
+    const fixture = makeHome('web')
+    try {
+      writeProfile(fixture.paths, { dependencies: { 'inject-plug': '1.0.0' }, bundles: ['inject-plug'] })
+      writeBundle(
+        fixture.paths,
+        'inject-plug',
+        { '@deepseek-ai/dsh-client-runtime': '^0.1.0-rc.6', 'some-host-peer': '^1.0.0' },
+        { client: { platform: 'web', inject: ['@deepseek-ai/dsh-client-runtime'] } },
+      )
+      const report = await scanProfile({ paths: fixture.paths, profileName: 'web', updateCheck: false })
+      const gaps = report.findings.filter((f) => f.ruleId === 'peer-gap' && f.severity === 'warn')
+      expect(gaps.some((f) => f.message.includes('dsh-client-runtime'))).toBe(false)
+      expect(gaps.some((f) => f.message.includes('some-host-peer'))).toBe(true)
+    } finally {
+      fixture.dispose()
+    }
+  })
+
   it('exempts an absent peer marked optional in peerDependenciesMeta', async () => {
     const fixture = makeHome('web')
     try {

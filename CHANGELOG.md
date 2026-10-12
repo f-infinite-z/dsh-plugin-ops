@@ -26,10 +26,16 @@ All notable changes are tracked here.
   newest crash report from the sandbox user-data logs (macOS degrades
   gracefully: the shared log directory is never read) alongside the
   error-looking output lines.
+- **Peer-gap stops judging a bundle's own client-injected modules** (field
+  report): a browser half receives whatever it lists in `dsh.client.inject`
+  from the client module table, so a host-side resolution of those peers
+  (e.g. `@deepseek-ai/dsh-client-runtime`) is never expected — two
+  independent client plugins tripped the warning with no legal absence
+  marker of their own.
 - **Shape-aware surfaces**: status and panel carry the shape (`kind`), the
   panel names the second window and shows the crash-report file, and the
   `dsh_ops_sandbox_start` tool describes the desktop shape.
-- 289 tests (core 221 + bundle 35 + cli 33; one POSIX-only test skipped on
+- 290 tests (core 222 + bundle 35 + cli 33; one POSIX-only test skipped on
   Windows). The end-to-end desktop smoke passes on the real app: an isolated
   desktop number-1 installs the bundle through the app's own CLI, boots the
   second window, installs a bad plugin into it, scans it, refuses an official
