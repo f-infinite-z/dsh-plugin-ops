@@ -94,6 +94,17 @@ async function collectBody(req: IncomingMessage): Promise<string> {
   }
   return Buffer.concat(chunks).toString('utf8')
 }
+
+/** Parse a JSON object request body; null when the body is not a JSON object. */
+function parseJsonObject(body: string | undefined): Record<string, unknown> | null {
+  if (body === undefined || body === '') return {}
+  try {
+    const value: unknown = JSON.parse(body)
+    return typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : null
+  } catch {
+    return null
+  }
+}
 /**
  * Build the HTTP handler served under {@link ROUTE_PREFIX}. Panel API routes
  * are delegated to the shared engine; the chat route is answered here because
@@ -293,12 +304,49 @@ async function handleSandbox(
       json(res, 200, { ok: true, diagnosis: sandbox.diagnose() })
       return
     }
+    case '/api/sandbox/report': {
+      if (!allowGet()) return
+      json(res, 200, { ok: true, report: sandbox.lastReport() })
+      return
+    }
     case '/api/sandbox/scan': {
       if (!allowGet()) return
       const report = await sandbox.scan()
       json(res, 200, report === null
         ? { ok: false, code: 'no-home', message: 'no sandbox home exists; start the sandbox first' }
         : { ok: true, findings: report.findings })
+      return
+    }
+    case '/api/sandbox/install': {
+      if (!allowPost()) return
+      const parsed = parseJsonObject(body)
+      const spec = parsed === null ? '' : (typeof parsed.spec === 'string' ? parsed.spec.trim() : '')
+      if (spec === '') {
+        json(res, 400, { ok: false, code: 'invalid-spec', message: 'POST with a package spec is required' })
+        return
+      }
+      json(res, 200, { ...(await sandbox.install(spec)) })
+      return
+    }
+    case '/api/sandbox/uninstall': {
+      if (!allowPost()) return
+      const parsed = parseJsonObject(body)
+      const name = parsed === null ? '' : (typeof parsed.name === 'string' ? parsed.name.trim() : '')
+      if (name === '') {
+        json(res, 400, { ok: false, code: 'invalid-name', message: 'POST with a package name is required' })
+        return
+      }
+      json(res, 200, { ...(await sandbox.uninstall(name)) })
+      return
+    }
+    case '/api/sandbox/approve-builds': {
+      if (!allowPost()) return
+      const parsed = parseJsonObject(body) ?? {}
+      const allow = typeof parsed.allow === 'boolean' ? parsed.allow : undefined
+      const packages = Array.isArray(parsed.packages)
+        ? (parsed.packages as unknown[]).filter((p): p is string => typeof p === 'string' && p.trim() !== '').map((p) => p.trim())
+        : undefined
+      json(res, 200, { ...sandbox.approveBuilds({ packages, allow }) })
       return
     }
     case '/api/sandbox/fix': {

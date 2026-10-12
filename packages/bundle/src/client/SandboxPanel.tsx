@@ -94,6 +94,8 @@ export function SandboxPanel(): ReactNode {
   const [errorLines, setErrorLines] = useState<string[] | null>(null)
   const [crashFile, setCrashFile] = useState<string | null>(null)
   const [fixInput, setFixInput] = useState('')
+  const [installInput, setInstallInput] = useState('')
+  const [installMsg, setInstallMsg] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const seqRef = useRef(0)
   const logRef = useRef<HTMLPreElement | null>(null)
@@ -187,6 +189,28 @@ export function SandboxPanel(): ReactNode {
     setMessage(lines.join('\n'))
   }, [act, fixInput, t])
 
+  const applyInstall = useCallback(async (): Promise<void> => {
+    const spec = installInput.trim()
+    if (spec === '') return
+    const data = await act('install', '/api/sandbox/install', { spec })
+    if (data === null) return
+    const steps = Array.isArray(data.steps) ? (data.steps as { step: string; ok: boolean; detail: string }[]) : []
+    const lines = steps.map((step) => `${step.ok ? 'ok' : '!!'} ${step.step}: ${step.detail}`)
+    lines.push('')
+    lines.push(data.ok === true ? (data.recovered === true ? t.installRecovered : t.installOk) : t.installFail)
+    setInstallMsg(lines.join('\n'))
+  }, [act, installInput, t])
+
+  const approveBuilds = useCallback(async (): Promise<void> => {
+    const data = await act('approve-builds', '/api/sandbox/approve-builds', { allow: true })
+    if (data === null) return
+    const applied = Array.isArray(data.applied) ? (data.applied as { name: string; allow: boolean; ok: boolean }[]) : []
+    const lines = applied.map((entry) => `${entry.ok ? 'ok' : '!!'} ${entry.name} -> ${entry.allow ? 'allow' : 'deny'}`)
+    lines.push('')
+    lines.push(data.ok === true ? t.approveBuildsOk : t.approveBuildsFail)
+    setInstallMsg(lines.join('\n'))
+  }, [act, t])
+
   const stateKey = status?.state ?? 'stopped'
   const badgeClass = stateKey === 'running' ? 'sb-running' : stateKey === 'stopped' ? 'sb-stopped' : 'sb-pending'
   const stateLabel = stateKey === 'running' ? t.stateRunning : stateKey === 'starting' ? t.stateStarting : stateKey === 'stopping' ? t.stateStopping : t.stateStopped
@@ -253,6 +277,23 @@ export function SandboxPanel(): ReactNode {
           {errorLines.length === 0 ? <div className="sb-dim">{t.noFindings}</div> : <pre className="sb-log">{errorLines.join('\n')}</pre>}
         </div>
       ) : null}
+
+      <div>
+        <div className="sb-section">{t.installTitle}</div>
+        <div className="sb-dim">{t.installHint}</div>
+        <div className="sb-fixrow">
+          <input
+            value={installInput}
+            placeholder={t.installPlaceholder}
+            onChange={(event) => { setInstallInput(event.target.value) }}
+          />
+          <button disabled={busy !== null || installInput.trim() === '' || stateKey !== 'running'} onClick={() => { void applyInstall() }}>{t.installApply}</button>
+        </div>
+        {installMsg !== null ? <pre className="sb-log">{installMsg}</pre> : null}
+        {installMsg !== null && installMsg.includes('allowBuilds') ? (
+          <button disabled={busy !== null} onClick={() => { void approveBuilds() }}>{t.approveBuilds}</button>
+        ) : null}
+      </div>
 
       <div>
         <div className="sb-section">{t.fixTitle}</div>

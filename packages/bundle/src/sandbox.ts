@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import net from 'node:net'
@@ -11,14 +11,21 @@ import {
   desktopVerifyProfileFiles,
   detectDesktop,
   locateInstallAnchor,
+  MEMORY_DIR_NAME,
+  profileBundles,
+  readAllowBuildsState,
   readDesktopVersion,
   readLatestCrashReport,
   readLatestStartupReport,
+  readPackageManifest,
   readProfileManifest,
+  registryDependencies,
   resolveBundles,
   resolveDesktopAppExecutable,
+  resolveDesktopCliLauncher,
   resolveDshPaths,
   scanProfile,
+  setAllowBuilds,
   type CrashReport,
   type DshPaths,
   type ScanReport,
@@ -89,6 +96,71 @@ export interface SandboxFixResult {
   status: SandboxStatus
 }
 
+/** One step of a sandbox change operation (install / uninstall). */
+export interface SandboxChangeStep {
+  step: string
+  ok: boolean
+  detail: string
+}
+
+/**
+ * The outcome of one install or uninstall inside the sandbox. `ok` follows
+ * the ground truth read back from the profile — the package manager's exit
+ * code alone is not enough (a failed install can still leave the dependency
+ * declared, and a successful `add` of an already-installed version does not
+ * re-register the bundle).
+ */
+export interface SandboxChangeResult {
+  action: 'install' | 'uninstall'
+  /** The original request: the npm spec for install, the package name for uninstall. */
+  target: string
+  name: string
+  ok: boolean
+  /** Whether the automatic remove + add repair ran. */
+  recovered: boolean
+  steps: SandboxChangeStep[]
+  status: SandboxStatus
+}
+
+/** One build-gate decision applied to the sandbox profile. */
+export interface SandboxBuildGateEntry {
+  name: string
+  allow: boolean
+  ok: boolean
+}
+
+/** The outcome of resolving the pnpm build-script gate inside the sandbox. */
+export interface SandboxBuildGateResult {
+  ok: boolean
+  applied: SandboxBuildGateEntry[]
+  backup: string | null
+  problem: string | null
+  status: SandboxStatus
+}
+
+/** One recorded sandbox action. */
+export interface SandboxReportEvent {
+  ts: string
+  action: string
+  detail: string
+}
+
+/**
+ * The persisted conclusion of one sandbox session: what got installed (with
+ * versions), every change action taken, and how the run ended. Written under
+ * the host home so the result survives the sandbox home's cleanup — the
+ * "what did I verify in there?" answer.
+ */
+export interface SandboxReport {
+  kind: SandboxKind
+  startedAt: string | null
+  endedAt: string | null
+  home: string | null
+  url: string | null
+  events: SandboxReportEvent[]
+  packages: { name: string; version: string | null }[]
+}
+
 const START_TIMEOUT_MS = 45_000
 const MAX_LOG_LINES = 400
 
@@ -142,6 +214,8 @@ export interface DesktopDriver {
   executable: string
   /** The installed desktop release version, or null when unknown. */
   version: string | null
+  /** The desktop installation directory (management commands go through its bundled CLI). */
+  installDir: string
 }
 
 /**
@@ -172,7 +246,7 @@ function resolveDesktopDriver(): { driver: DesktopDriver } | { error: string } {
   const fromHost = desktopInstallFromEntry(process.argv[1])
   if (fromHost !== null) {
     const executable = resolveDesktopAppExecutable(fromHost)
-    if (executable !== null) return { driver: { executable, version: readDesktopVersion(fromHost) } }
+    if (executable !== null) return { driver: { executable, version: readDesktopVersion(fromHost), installDir: fromHost } }
   }
   const detected = detectDesktop()
   if (detected.installDir === null) {
@@ -182,7 +256,7 @@ function resolveDesktopDriver(): { driver: DesktopDriver } | { error: string } {
   if (executable === null) {
     return { error: 'the desktop installation is missing its application executable' }
   }
-  return { driver: { executable, version: detected.version } }
+  return { driver: { executable, version: detected.version, installDir: detected.installDir } }
 }
 
 /** Quote one argument for a `cmd.exe` command string. */
@@ -231,6 +305,36 @@ export function redactToken(text: string): string {
 }
 
 /**
+ * The bare package name inside an npm spec (`name`, `name@range`,
+ * `@scope/name`, `@scope/name@range`). Path-like and protocol targets return
+ * null: the sandbox change tools accept registry specs only, and guessing a
+ * name for a tarball or a file: reference cannot be verified against the
+ * profile afterwards.
+ */
+export function packageNameFromSpec(spec: string): string | null {
+  const s = spec.trim()
+  if (s === '') return null
+  if (/^(file:|link:|git\+|https?:|\.{0,2}[\\/])/i.test(s) || /\.(tgz|tar\.gz|tar)$/i.test(s)) return null
+  if (s.includes('\\')) return null
+  if (s.startsWith('@')) {
+    const slash = s.indexOf('/')
+    if (slash <= 1) return null
+    const at = s.indexOf('@', slash)
+    const name = at === -1 ? s : s.slice(0, at)
+    return name.length > slash + 1 ? name : null
+  }
+  const at = s.indexOf('@')
+  const name = at === -1 ? s : s.slice(0, at)
+  return name.length > 0 ? name : null
+}
+
+/** Collapse one command output into a bounded single-line tail for step details. */
+function outputTail(text: string, max = 240): string {
+  const collapsed = text.replace(/\s+/g, ' ').trim()
+  return collapsed.length <= max ? collapsed : collapsed.slice(collapsed.length - max)
+}
+
+/**
  * One temporary sandbox instance with an outside observability surface:
  * status, incremental logs, startup diagnostics, profile scans, and
  * disable-row fixes that restart the instance to prove the repair.
@@ -268,9 +372,105 @@ export class SandboxManager {
   })()
   /** A kill that outlived SIGTERM and the SIGKILL sweep keeps the home for diagnosis. */
   private killTimedOut = false
+  /** The configured npm registry for sandbox installs; null when unset. */
+  private readonly configuredRegistry: string | null
+  /** Where session reports are persisted (the host home's cache); null when the host provided no home. */
+  private readonly reportDir: string | null
+  private readonly reportEvents: SandboxReportEvent[] = []
+  private reportStartedAt: string | null = null
+  private readonly reportPackages: { name: string; version: string | null }[] = []
 
-  constructor(options: { kind?: SandboxKind } = {}) {
+  constructor(options: { kind?: SandboxKind; registry?: string | undefined; home?: string | undefined } = {}) {
     this.kind = options.kind ?? 'web'
+    const registry = (options.registry ?? '').trim()
+    this.configuredRegistry = registry === '' ? null : registry
+    this.reportDir = options.home === undefined || options.home === ''
+      ? null
+      : join(options.home, 'cache', MEMORY_DIR_NAME, 'sandbox-reports')
+  }
+
+  /** Reset the in-memory report for a fresh session (the persisted archive keeps the past). */
+  private resetReport(): void {
+    this.reportEvents.length = 0
+    this.reportPackages.length = 0
+    this.reportStartedAt = null
+  }
+
+  /**
+   * Record one session action and persist the report. Persistence is best
+   * effort: reporting must never disturb the sandbox.
+   */
+  private recordEvent(action: string, detail: string): void {
+    this.reportEvents.push({ ts: new Date().toISOString(), action, detail })
+    this.persistReport()
+  }
+
+  /** Track one installed package with the version read back from the sandbox profile. */
+  private recordPackage(name: string): void {
+    const paths = this.paths()
+    const manifest = paths === null ? null : readPackageManifest(join(paths.profileDir, 'node_modules', ...name.split('/')))
+    const version = manifest === null ? null : manifest.version === undefined ? null : String(manifest.version)
+    const index = this.reportPackages.findIndex((pkg) => pkg.name === name)
+    if (index === -1) this.reportPackages.push({ name, version })
+    else this.reportPackages[index] = { name, version }
+  }
+
+  private forgetPackage(name: string): void {
+    const index = this.reportPackages.findIndex((pkg) => pkg.name === name)
+    if (index !== -1) this.reportPackages.splice(index, 1)
+  }
+
+  /**
+   * Persist the session report under the host home (so the conclusion
+   * survives the sandbox home's cleanup) and keep the newest 20 archives.
+   */
+  private persistReport(endedAt: string | null = null): void {
+    const dir = this.reportDir
+    if (dir === null) return
+    try {
+      mkdirSync(dir, { recursive: true })
+      const report: SandboxReport = {
+        kind: this.kind,
+        startedAt: this.reportStartedAt,
+        endedAt,
+        home: this.home,
+        url: this.url === null ? null : redactToken(this.url),
+        events: this.reportEvents.slice(-200),
+        packages: this.reportPackages,
+      }
+      const body = `${JSON.stringify(report, null, 2)}\n`
+      writeFileSync(join(dir, 'latest.json'), body, 'utf8')
+      writeFileSync(join(dir, `${new Date().toISOString().replace(/[:.]/g, '-')}.json`), body, 'utf8')
+      try {
+        const archives = readdirSync(dir).filter((name) => name.endsWith('.json') && name !== 'latest.json').sort()
+        for (const name of archives.slice(0, Math.max(0, archives.length - 20))) {
+          try { unlinkSync(join(dir, name)) } catch { /* raced */ }
+        }
+      } catch { /* the newest writes stand */ }
+    } catch { /* best effort */ }
+  }
+
+  /** The latest persisted session report, read back from disk. */
+  lastReport(): SandboxReport | null {
+    const dir = this.reportDir
+    if (dir === null) return null
+    try {
+      const value: unknown = JSON.parse(readFileSync(join(dir, 'latest.json'), 'utf8'))
+      return typeof value === 'object' && value !== null ? value as SandboxReport : null
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * The registry override for sandbox management commands and the desktop
+   * profile scaffold: the dsh-ops config value wins, the environment is the
+   * fallback, and neither means the package manager default.
+   */
+  private registryValue(): string | null {
+    if (this.configuredRegistry !== null) return this.configuredRegistry
+    const env = (process.env.npm_config_registry ?? process.env.NPM_CONFIG_REGISTRY ?? '').trim()
+    return env === '' ? null : env
   }
 
   /** The sandbox profile name (the shape's official profile). */
@@ -315,7 +515,10 @@ export class SandboxManager {
    */
   async start(reuseHome = false): Promise<SandboxStatus> {
     if (this.state === 'starting' || this.state === 'running') return this.status()
-    if (!reuseHome) this.cleanup()
+    if (!reuseHome) {
+      this.cleanup()
+      this.resetReport()
+    }
     this.state = 'starting'
     this.problem = null
     this.url = null
@@ -412,6 +615,8 @@ export class SandboxManager {
     this.startedAt = new Date().toISOString()
     this.startedMs = startMs
     this.appendLog('# sandbox is up')
+    this.reportStartedAt = this.reportStartedAt ?? this.startedAt
+    this.recordEvent('start', `${this.kind} sandbox is up`)
     return this.status()
   }
 
@@ -458,10 +663,10 @@ export class SandboxManager {
         writeFileSync(join(profileDir, rel), content, 'utf8')
       }
       // The sandbox's bundled pnpm reads the profile-level npm config; carry
-      // over the registry the host environment selected (a mirror on
-      // networks that cannot reach the default one).
-      const registry = (process.env.npm_config_registry ?? process.env.NPM_CONFIG_REGISTRY ?? '').trim()
-      if (registry !== '') writeFileSync(join(profileDir, '.npmrc'), `registry=${registry}\n`, 'utf8')
+      // over the registry the host selected (config first, environment
+      // second) so networks that cannot reach the default registry work.
+      const registry = this.registryValue()
+      if (registry !== null) writeFileSync(join(profileDir, '.npmrc'), `registry=${registry}\n`, 'utf8')
       if (desktopNeedsPortPatch(resolved.driver.version)) {
         const port = await freePort()
         if (port === null) {
@@ -524,9 +729,12 @@ export class SandboxManager {
     await this.killOnly()
     if (this.killTimedOut) {
       this.appendLog('# sandbox process did not exit; home kept for diagnosis')
+      this.persistReport(new Date().toISOString())
       return this.status()
     }
     this.appendLog('# sandbox stopped; temporary home removed')
+    this.recordEvent('stop', 'sandbox stopped; temporary home removed')
+    this.persistReport(new Date().toISOString())
     this.cleanup()
     return this.status()
   }
@@ -550,6 +758,8 @@ export class SandboxManager {
   dispose(): void {
     const child = this.child
     if (child !== null && child.exitCode === null) killTree(child.pid)
+    this.recordEvent('dispose', 'plugin teardown')
+    this.persistReport(new Date().toISOString())
     this.cleanup()
   }
 
@@ -669,6 +879,205 @@ export class SandboxManager {
     }
     this.appendLog(`# restarting with these rows disabled: ${disabled.join(', ')}`)
     const restart = await this.start(true)
+    this.recordEvent('fix', `disabled rows: ${disabled.join(', ')}; restarted: ${restart.state === 'running'}`)
     return { applied, restarted: true, status: restart }
+  }
+
+  /**
+   * The driver for plugin-management commands against the sandbox home: the
+   * running CLI for the web shape; the desktop installation's own bundled CLI
+   * for the desktop shape (an npm-installed dsh refuses the desktop profile).
+   */
+  private managementDriver(): DshDriver | string {
+    if (this.kind !== 'desktop') return this.driver
+    const resolved = resolveDesktopDriver()
+    if ('error' in resolved) return resolved.error
+    const launcher = resolveDesktopCliLauncher(resolved.driver.installDir)
+    if (launcher === null) return 'the desktop installation carries no bundled CLI; update the desktop app'
+    return { kind: 'command', name: launcher }
+  }
+
+  /** One plugin-management invocation for the sandbox profile, registry carried over when set. */
+  private pluginArgs(action: 'add' | 'remove', target: string): string[] {
+    const args = ['plugin', '--profile', this.profileName(), action, target]
+    // `remove` is a local operation and rejects --registry ("Unknown option:
+    // 'registry'" in the field); only `add` takes the registry.
+    if (action === 'add') {
+      const registry = this.registryValue()
+      if (registry !== null) args.push(`--registry=${registry}`)
+    }
+    return args
+  }
+
+  /**
+   * Run one sandbox management command to completion (bounded) and return its
+   * exit code plus output. The command runs with the sandbox home as DSH_HOME;
+   * a timeout kills its tree.
+   */
+  private runSandboxCommand(args: string[], timeoutMs = 300_000): Promise<{ code: number | null; output: string }> {
+    const home = this.home
+    if (home === null) return Promise.resolve({ code: null, output: 'no sandbox home' })
+    const driver = this.managementDriver()
+    if (typeof driver === 'string') return Promise.resolve({ code: null, output: driver })
+    return new Promise((resolvePromise) => {
+      this.appendLog(`$ ${args.join(' ')}`)
+      const child = spawnSandbox(driver, args, { ...process.env, DSH_HOME: home }, home)
+      const timer = setTimeout(() => killTree(child.pid), timeoutMs)
+      let output = ''
+      child.stdout?.on('data', (chunk: Buffer) => { output += chunk.toString() })
+      child.stderr?.on('data', (chunk: Buffer) => { output += chunk.toString() })
+      child.on('error', (error) => {
+        clearTimeout(timer)
+        resolvePromise({ code: 127, output: `${output}${String(error)}` })
+      })
+      child.on('close', (code) => {
+        clearTimeout(timer)
+        for (const line of output.split(/\r?\n/).slice(-8)) {
+          if (line.trim() !== '') this.appendLog(line)
+        }
+        resolvePromise({ code, output })
+      })
+    })
+  }
+
+  /** The profile's current registration state for one package, read back from disk. */
+  private registrationState(paths: DshPaths, name: string): { registered: boolean; inDeps: boolean; detail: string } {
+    const manifest = readProfileManifest(paths.profileManifest)
+    if (manifest === null) {
+      return { registered: false, inDeps: false, detail: 'the sandbox profile manifest is unreadable' }
+    }
+    const registered = profileBundles(manifest).includes(name)
+    const inDeps = Object.prototype.hasOwnProperty.call(registryDependencies(manifest), name)
+    const detail = registered
+      ? 'registered in dsh.profile.bundles'
+      : inDeps
+        ? 'declared in dependencies but missing from dsh.profile.bundles (half-registered)'
+        : 'not declared in the profile'
+    return { registered, inDeps, detail }
+  }
+
+  /**
+   * The allowBuilds placeholder detail for the sandbox profile, or null when
+   * nothing blocks a build. dsh's bundled pnpm gates dependency build scripts
+   * on this map and a failed install leaves placeholder values behind; the
+   * interactive `pnpm approve-builds` recovery is not available here.
+   */
+  private allowBuildsBlockers(paths: DshPaths): string | null {
+    const state = readAllowBuildsState(paths.profileDir)
+    if (state.placeholders.length === 0) return null
+    return `pnpm-workspace.yaml allowBuilds still carries placeholder entries (${state.placeholders.join(', ')}); they need true or false before an install can succeed`
+  }
+
+  /**
+   * Install one registry package into the sandbox and verify the bundle got
+   * registered, repairing a half-registered residue (remove + add) when the
+   * dependency is present but activation is not. The desktop shape hot-loads
+   * a new bundle in a few seconds; no restart is needed.
+   */
+  async install(spec: string): Promise<SandboxChangeResult> {
+    const steps: SandboxChangeStep[] = []
+    const name = packageNameFromSpec(spec)
+    const finish = (ok: boolean, recovered: boolean): SandboxChangeResult => {
+      this.recordEvent('install', `${spec} → ${ok ? 'installed and registered' : 'failed'}${recovered ? ' (recovered with remove + add)' : ''}`)
+      if (ok && name !== null) this.recordPackage(name)
+      return { action: 'install', target: spec, name: name ?? spec, ok, recovered, steps, status: this.status() }
+    }
+    if (name === null) {
+      steps.push({ step: 'spec', ok: false, detail: 'only registry specs can be installed and verified (name, name@version, or a scoped name); tarball and file: targets are not supported here' })
+      return finish(false, false)
+    }
+    const paths = this.paths()
+    if (this.state !== 'running' || paths === null) {
+      steps.push({ step: 'state', ok: false, detail: 'the sandbox is not running; start it first' })
+      return finish(false, false)
+    }
+    const add = await this.runSandboxCommand(this.pluginArgs('add', spec))
+    steps.push({
+      step: 'add', ok: add.code === 0,
+      detail: add.code === 0 ? 'the package manager finished' : `exited ${add.code ?? 'timeout or spawn failure'} — ${outputTail(add.output)}`,
+    })
+    if (/IGNORED_BUILDS/i.test(add.output)) {
+      steps.push({ step: 'build-scripts', ok: false, detail: 'the install reported ignored build scripts (ERR_PNPM_IGNORED_BUILDS): the dependency build gate needs a decision before the install can complete' })
+    }
+    let state = this.registrationState(paths, name)
+    steps.push({ step: 'verify', ok: state.registered, detail: state.detail })
+    if (state.registered) return finish(true, false)
+    const blockers = this.allowBuildsBlockers(paths)
+    if (blockers !== null) {
+      steps.push({ step: 'allowBuilds', ok: false, detail: blockers })
+      return finish(false, false)
+    }
+    if (add.code !== 0 && !state.inDeps) {
+      steps.push({ step: 'repair', ok: false, detail: 'the install failed before touching the profile; nothing to repair — resolve the cause and retry' })
+      return finish(false, false)
+    }
+    const remove = await this.runSandboxCommand(this.pluginArgs('remove', name))
+    steps.push({ step: 'repair-remove', ok: remove.code === 0, detail: remove.code === 0 ? 'residue cleared' : `exited ${remove.code ?? 'timeout'} — ${outputTail(remove.output)}` })
+    const readd = await this.runSandboxCommand(this.pluginArgs('add', spec))
+    steps.push({ step: 'repair-add', ok: readd.code === 0, detail: readd.code === 0 ? 're-installed' : `exited ${readd.code ?? 'timeout'} — ${outputTail(readd.output)}` })
+    state = this.registrationState(paths, name)
+    steps.push({ step: 'verify-after-repair', ok: state.registered, detail: state.detail })
+    return finish(state.registered, true)
+  }
+
+  /** Remove one package from the sandbox and verify the profile no longer declares or activates it. */
+  async uninstall(name: string): Promise<SandboxChangeResult> {
+    const steps: SandboxChangeStep[] = []
+    const finish = (ok: boolean): SandboxChangeResult => {
+      this.recordEvent('uninstall', `${name} → ${ok ? 'removed and cleaned' : 'not fully removed'}`)
+      if (ok) this.forgetPackage(name)
+      return { action: 'uninstall', target: name, name, ok, recovered: false, steps, status: this.status() }
+    }
+    const paths = this.paths()
+    if (this.state !== 'running' || paths === null) {
+      steps.push({ step: 'state', ok: false, detail: 'the sandbox is not running; start it first' })
+      return finish(false)
+    }
+    const remove = await this.runSandboxCommand(this.pluginArgs('remove', name))
+    steps.push({
+      step: 'remove', ok: remove.code === 0,
+      detail: remove.code === 0 ? 'the package manager finished' : `exited ${remove.code ?? 'timeout'} — ${outputTail(remove.output)}`,
+    })
+    const state = this.registrationState(paths, name)
+    const clean = !state.registered && !state.inDeps
+    steps.push({ step: 'verify', ok: clean, detail: clean ? 'no longer declared or activated' : state.detail })
+    if (clean && existsSync(join(paths.profileDir, 'node_modules', ...name.split('/')))) {
+      steps.push({ step: 'residue', ok: false, detail: 'a node_modules directory remains on disk (the launcher does not load it; a future reinstall may reuse it)' })
+    }
+    return finish(clean)
+  }
+
+  /**
+   * Resolve the pnpm build-script gate inside the sandbox: set the named
+   * placeholder entries (default: every placeholder) of the profile's
+   * `pnpm-workspace.yaml allowBuilds` to true (allow) or false (deny). The
+   * write is backed up and keeps the rest of the document intact; retrying
+   * the install stays an explicit caller action.
+   */
+  approveBuilds(options: { packages?: string[] | undefined; allow?: boolean | undefined } = {}): SandboxBuildGateResult {
+    const paths = this.paths()
+    const finish = (ok: boolean, applied: SandboxBuildGateEntry[], backup: string | null, problem: string | null): SandboxBuildGateResult => (
+      { ok, applied, backup, problem, status: this.status() }
+    )
+    if (paths === null) return finish(false, [], null, 'no sandbox home; start the sandbox first')
+    const state = readAllowBuildsState(paths.profileDir)
+    if (state.placeholders.includes('(the whole allowBuilds map)')) {
+      return finish(false, [], null, 'allowBuilds is a scalar placeholder; edit pnpm-workspace.yaml by hand first')
+    }
+    const allow = options.allow !== false
+    const targets = options.packages !== undefined && options.packages.length > 0
+      ? options.packages
+      : state.placeholders
+    if (targets.length === 0) {
+      return finish(false, [], null, 'no allowBuilds placeholders to resolve')
+    }
+    const updates: Record<string, boolean> = {}
+    for (const name of targets) updates[name] = allow
+    const write = setAllowBuilds(paths.profileDir, updates)
+    const applied = targets.map((name) => ({ name, allow, ok: write.ok }))
+    if (!write.ok) return finish(false, applied, write.backup, write.problem ?? 'unknown write error')
+    this.appendLog(`# build gate: allowBuilds ${targets.join(', ')} -> ${allow ? 'true' : 'false'}`)
+    this.recordEvent('approve-builds', `${targets.join(', ')} → ${allow ? 'allow' : 'deny'}`)
+    return finish(true, applied, write.backup, null)
   }
 }

@@ -24,6 +24,16 @@ export interface SandboxDict {
   noFindings: string
   errorLines: string
   crashReport: string
+  installTitle: string
+  installHint: string
+  installPlaceholder: string
+  installApply: string
+  installOk: string
+  installRecovered: string
+  installFail: string
+  approveBuilds: string
+  approveBuildsOk: string
+  approveBuildsFail: string
   fixTitle: string
   fixHint: string
   fixPlaceholder: string
@@ -64,6 +74,16 @@ export const SANDBOX_DICTS: Record<Lang, SandboxDict> = {
     noFindings: '未发现问题',
     errorLines: '错误输出',
     crashReport: '崩溃报告',
+    installTitle: '安装插件（进沙箱）',
+    installHint: '输入 npm 包名或 name@版本；装完自动回读校验注册，半注册残留自动 remove→add 修复；新装约 3 秒热加载',
+    installPlaceholder: '例如 dsh-whale-widget 或 @scope/name@0.4.2',
+    installApply: '安装到沙箱',
+    installOk: '已安装并注册',
+    installRecovered: '已安装并注册（经 remove→add 修复）',
+    installFail: '未安装/未注册——详见步骤',
+    approveBuilds: '批准构建脚本（之后重试安装）',
+    approveBuildsOk: '构建门已解决——请再次点击安装',
+    approveBuildsFail: '未能解决构建门',
     fixTitle: '修复（禁用行并重启验证）',
     fixHint: '输入要禁用的 loader 行 id（通常即包名）；沙箱会重启以证明修复有效',
     fixPlaceholder: '行 id，例如 dsh-some-plugin（多个用逗号分隔）',
@@ -102,6 +122,16 @@ export const SANDBOX_DICTS: Record<Lang, SandboxDict> = {
     noFindings: 'no findings',
     errorLines: 'Error output',
     crashReport: 'Crash report',
+    installTitle: 'Install a plugin (into the sandbox)',
+    installHint: 'npm spec (name or name@version); the install reads the profile back to verify registration and repairs a half-registered residue with remove + add; a new bundle hot-loads in ~3s',
+    installPlaceholder: 'e.g. dsh-whale-widget or @scope/name@0.4.2',
+    installApply: 'Install into sandbox',
+    installOk: 'installed and registered',
+    installRecovered: 'installed and registered (recovered with remove + add)',
+    installFail: 'not installed/registered — see the steps',
+    approveBuilds: 'Approve build scripts (then retry the install)',
+    approveBuildsOk: 'the build gate is resolved — click install again',
+    approveBuildsFail: 'could not resolve the build gate',
     fixTitle: 'Repair (disable rows and restart to prove it)',
     fixHint: 'Enter loader row ids to disable (usually the package name); the sandbox restarts so the repair is proven',
     fixPlaceholder: 'row id, e.g. dsh-some-plugin (comma-separated for several)',

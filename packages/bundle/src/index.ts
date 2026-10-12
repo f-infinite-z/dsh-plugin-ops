@@ -63,8 +63,13 @@ function registerPanel(ctx: HostContext): void {
   }
   // The sandbox shape follows the host: the desktop profile implies a second
   // desktop window (driven through --user-data-dir), every other profile a
-  // second CLI-hosted instance.
-  const sandbox = new SandboxManager({ kind: isDesktopProfile(profile) ? 'desktop' : 'web' })
+  // second CLI-hosted instance. The configured registry (dsh-ops.yml) is the
+  // reliable way to point sandbox installs at a mirror from a GUI launch.
+  const sandbox = new SandboxManager({
+    kind: isDesktopProfile(profile) ? 'desktop' : 'web',
+    registry: read.ok ? read.config.registry : undefined,
+    home: paths.home,
+  })
   ctx.effect(() => () => { sandbox.dispose() }, 'dsh-ops-bundle: sandbox teardown')
   const handler = createHostHandler({
     home: paths.home,

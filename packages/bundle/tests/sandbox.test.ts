@@ -1,5 +1,25 @@
 import { describe, expect, it } from 'vitest'
-import { SandboxManager, desktopInstallFromEntry, redactToken } from '../src/sandbox.js'
+import { SandboxManager, desktopInstallFromEntry, packageNameFromSpec, redactToken } from '../src/sandbox.js'
+
+describe('packageNameFromSpec', () => {
+  it('extracts the bare name from registry specs', () => {
+    expect(packageNameFromSpec('dsh-whale-widget')).toBe('dsh-whale-widget')
+    expect(packageNameFromSpec('dsh-whale-widget@0.4.2')).toBe('dsh-whale-widget')
+    expect(packageNameFromSpec('@scope/name')).toBe('@scope/name')
+    expect(packageNameFromSpec('@scope/name@^1.0.0')).toBe('@scope/name')
+    expect(packageNameFromSpec('  @scope/name@1.0.0  ')).toBe('@scope/name')
+  })
+
+  it('rejects path-like and protocol targets that cannot be verified', () => {
+    expect(packageNameFromSpec('./pkg')).toBeNull()
+    expect(packageNameFromSpec('file:C:/x/pkg.tgz')).toBeNull()
+    expect(packageNameFromSpec('https://x.example/pkg.tgz')).toBeNull()
+    expect(packageNameFromSpec('C:\\x\\pkg')).toBeNull()
+    expect(packageNameFromSpec('some/pkg.tgz')).toBeNull()
+    expect(packageNameFromSpec('')).toBeNull()
+    expect(packageNameFromSpec('@scope')).toBeNull()
+  })
+})
 
 describe('redactToken', () => {
   it('masks the launch token while keeping the address readable', () => {
