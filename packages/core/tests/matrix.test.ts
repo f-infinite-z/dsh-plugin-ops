@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { buildVerifyMatrix, renderVerifyMatrix, dshPeersOf, type VerifyMatrixInput } from '../src/matrix.js'
 import type { VerifyFinding } from '../src/verify.js'
+import { KNOWN_VERSION_BOUNDARIES } from '../src/versions.js'
 
 function finding(severity: VerifyFinding['severity']): VerifyFinding {
   return { ruleId: 'esm-entry', severity, message: 'm' }
@@ -44,7 +45,7 @@ describe('buildVerifyMatrix', () => {
   it('marks each known release covered or uncovered from the peer ranges', () => {
     const matrix = buildVerifyMatrix(input({ dshPeers: { '@deepseek-ai/dsh': '>=0.1.7-rc.1 <0.2.0-rc.1' } }))
     expect(matrix.dshPeers.coveredVersions).toEqual(['0.1.7-rc.2'])
-    expect(matrix.dshPeers.uncoveredVersions).toEqual(['0.1.5-rc.2', '0.2.0-rc.2', '0.2.1-alpha.1'])
+    expect(matrix.dshPeers.uncoveredVersions).toEqual(KNOWN_VERSION_BOUNDARIES.filter((v) => v !== '0.1.7-rc.2'))
   })
 
   it('leaves coverage empty when no dsh peers are declared', () => {

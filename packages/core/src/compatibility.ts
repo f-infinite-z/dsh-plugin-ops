@@ -7,6 +7,7 @@ import type { RuleContext } from './rules.js'
 import type { ResolvedBundle } from './profile.js'
 import type { PackageManifest } from './package-tree.js'
 import { boundariesFrom, LATEST_KNOWN_VERSION } from './versions.js'
+import { DESKTOP_CLI_MIN_VERSION } from './desktop.js'
 
 /**
  * dsh releases at or after this version check a bundle's `@deepseek-ai/dsh*`
@@ -95,15 +96,22 @@ function peerSummary(peers: Record<string, string>): string {
  * evolve with it, so a cross-release view does not evaluate them.
  */
 export function rulePluginCompatibility(ctx: RuleContext, resolved: ResolvedBundle[]): Finding[] {
+  // The desktop host only ever runs desktop releases (0.2.0-rc.1+), so a
+  // desktop profile never needs the pre-desktop boundaries evaluated — a
+  // rejection on 0.1.7-rc.2 is unobservable there.
+  const gateMin = ctx.isDesktop ? DESKTOP_CLI_MIN_VERSION : COMPATIBILITY_MIN_VERSION
   const evaluate: string[] = []
   if (ctx.versionView === 'all') {
-    evaluate.push(...boundariesFrom(COMPATIBILITY_MIN_VERSION))
+    evaluate.push(...boundariesFrom(gateMin))
   } else if (ctx.versionView === 'latest') {
-    if (semver.gte(LATEST_KNOWN_VERSION, COMPATIBILITY_MIN_VERSION)) evaluate.push(LATEST_KNOWN_VERSION)
-  } else if (ctx.dshVersion !== null && semver.valid(ctx.dshVersion) !== null && semver.gte(ctx.dshVersion, COMPATIBILITY_MIN_VERSION)) {
+    if (semver.gte(LATEST_KNOWN_VERSION, gateMin)) evaluate.push(LATEST_KNOWN_VERSION)
+  } else if (ctx.dshVersion !== null && semver.valid(ctx.dshVersion) !== null && semver.gte(ctx.dshVersion, gateMin)) {
     evaluate.push(ctx.dshVersion)
   }
   if (evaluate.length === 0) return []
+  const evaluatedRange = evaluate[0] === evaluate[evaluate.length - 1]
+    ? evaluate[0]!
+    : `${evaluate[0]}..${evaluate[evaluate.length - 1]}`
   const exemptions = readProfileVersionExemptions(ctx.paths.profileDir)
   const findings: Finding[] = []
   for (const bundle of resolved) {
@@ -123,7 +131,7 @@ export function rulePluginCompatibility(ctx: RuleContext, resolved: ResolvedBund
     // partial gap as a warning rather than a fatal.
     const actual = ctx.dshVersion
     const severityOnActual: 'fatal' | 'warn' = actual !== null && semver.valid(actual) !== null
-      ? (semver.gte(actual, COMPATIBILITY_MIN_VERSION) && incompatibleDshPeers(bundle.manifest, actual) !== null ? 'fatal' : 'warn')
+      ? (semver.gte(actual, gateMin) && incompatibleDshPeers(bundle.manifest, actual) !== null ? 'fatal' : 'warn')
       : (rejected.length === evaluate.length ? 'fatal' : 'warn')
     const summary = peerSummary(peers)
     findings.push({
@@ -136,11 +144,13 @@ export function rulePluginCompatibility(ctx: RuleContext, resolved: ResolvedBund
       detail: unexempted.length > 0
         ? 'update the plugin, or grant an exact-version exemption (dsh plugin allow-version) then restart dsh'
         : 'the exemption names this exact bundle@version and runtime; the bundle loads despite the mismatch',
+      ...(unexempted.length > 0 ? { nextAction: 'update-plugin-or-grant-exemption' } : {}),
+      versionContext: `evaluated: ${evaluatedRange}; running: ${actual ?? 'unknown'}`,
       ...(ctx.versionView === 'all'
         ? {
             versionNote: accepted.length > 0
               ? `rejected by ${rejectedList}; accepted by ${accepted.join(', ')}`
-              : `rejected by every known release at or after ${COMPATIBILITY_MIN_VERSION}`,
+              : `rejected by every known release at or after ${gateMin}`,
           }
         : {}),
       fix: { kind: 'none' },

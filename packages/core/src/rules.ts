@@ -190,6 +190,7 @@ export function ruleDependencyDrift(ctx: RuleContext, resolved: ResolvedBundle[]
         severity: 'warn',
         message: 'profile has no pnpm-lock.yaml; versions are not locked against drift',
         detail: 'run pnpm install in the profile directory (or dsh plugin --profile <name> install) to establish a lockfile',
+        nextAction: 'regenerate-lockfile',
         fix: { kind: 'none' },
       })
     }
@@ -203,6 +204,7 @@ export function ruleDependencyDrift(ctx: RuleContext, resolved: ResolvedBundle[]
         ? 'pnpm-lock.yaml could not be parsed (the file looks damaged or truncated); lockfile comparison degraded'
         : `pnpm-lock.yaml uses an unsupported format version${found}; lockfile comparison degraded`,
       detail: 're-run pnpm install with the profile package manager to regenerate the lockfile, then retry',
+      nextAction: 'regenerate-lockfile',
       fix: { kind: 'none' },
     })
   }
@@ -226,6 +228,7 @@ export function ruleDependencyDrift(ctx: RuleContext, resolved: ResolvedBundle[]
       packageName: name,
       message: 'package is installed but missing from dsh.profile.bundles; the launcher will not activate it',
       detail: 'if you did not disable it yourself, this is likely a failed install/remove residue: remove it and add it again to recover (re-running add alone does not re-register it)',
+      nextAction: 'remove-and-add',
       fix: { kind: 'none' },
     })
   }

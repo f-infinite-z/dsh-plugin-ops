@@ -80,6 +80,22 @@ describe('rule 8: plugin version compatibility', () => {
     }
   })
 
+  it('keeps pre-desktop boundaries on a web profile and carries the version context', async () => {
+    const fixture = setup('0.2.0-rc.2')
+    try {
+      writeProfile(fixture.paths, { dependencies: { 'pkg-a': '^1.0.0' }, bundles: ['pkg-a'] })
+      writeBundle(fixture, 'pkg-a', '1.0.1', '>=0.2.0-rc.1 <0.3.0')
+      writeLockfile(fixture.paths, { 'pkg-a': '1.0.1' })
+      const report = await scanProfile({ paths: fixture.paths, profileName: 'web', versionView: 'all' })
+      const finding = report.findings.find((f) => f.ruleId === 'plugin-compatibility')
+      expect(finding?.severity).toBe('warn')
+      expect(finding?.versionContext).toContain('running: 0.2.0-rc.2')
+      expect(finding?.nextAction).toBe('update-plugin-or-grant-exemption')
+    } finally {
+      fixture.dispose()
+    }
+  })
+
   it('is silent for a compatible prerelease range (includePrerelease semantics)', async () => {
     const fixture = setup('0.1.7-rc.2')
     try {

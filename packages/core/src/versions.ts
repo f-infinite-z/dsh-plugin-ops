@@ -18,6 +18,8 @@ export const KNOWN_VERSION_BOUNDARIES: readonly string[] = [
   '0.2.0-rc.2',
   // Retired-bundle era: the launcher drops retired bundle entries on load.
   '0.2.1-alpha.1',
+  // Newest alpha line; loading semantics unchanged from alpha.1 (bundles reshuffled).
+  '0.2.1-alpha.2',
 ]
 
 /** Newest known release; the `latest` reporting target. */
@@ -61,4 +63,68 @@ export function boundariesFrom(minVersion: string): string[] {
  */
 export function boundaryNote(boundaryVersion: string, strictText: string, tolerantText: string): string {
   return `dsh < ${boundaryVersion}: ${strictText}; dsh >= ${boundaryVersion}: ${tolerantText}`
+}
+
+/** Freshness of the known-release table against a registry's dist-tags. */
+export interface VersionFreshness {
+  /** The newest release the table knows. */
+  tableCovers: string
+  /** The newest release the registry reports (any dist-tag), or null when unreadable. */
+  registryNewest: string | null
+  /** Whether the table covers the registry's newest release; null when it could not be checked. */
+  fresh: boolean | null
+  /** Why the check could not run, when it could not. */
+  problem: string | null
+}
+
+/**
+ * Compare a registry's dist-tags against the known-release table. The newest
+ * tag value across all channels is the freshness target — an untracked release
+ * anywhere means version-sensitive judgments may under-report.
+ * @param tags - dist-tag name → version, as the registry reports them.
+ * @param tableLatest - the newest release the table knows (defaults to {@link LATEST_KNOWN_VERSION}).
+ */
+export function freshnessFromDistTags(tags: Record<string, string>, tableLatest: string = LATEST_KNOWN_VERSION): VersionFreshness {
+  let newest: string | null = null
+  for (const value of Object.values(tags)) {
+    if (typeof value !== 'string' || semver.valid(value) === null) continue
+    if (newest === null || semver.gt(value, newest)) newest = value
+  }
+  if (newest === null) {
+    return { tableCovers: tableLatest, registryNewest: null, fresh: null, problem: 'the registry reported no valid versions' }
+  }
+  return { tableCovers: tableLatest, registryNewest: newest, fresh: !semver.gt(newest, tableLatest), problem: null }
+}
+
+/**
+ * Check whether the known-release table covers the newest dsh release the
+ * registry carries. Network access is explicit: callers gate this behind a
+ * flag, and every failure degrades to a `problem` instead of throwing.
+ * @param options - registry override (config/environment mirror) and timeout.
+ */
+export async function checkVersionFreshness(options: { registry?: string | null; timeoutMs?: number } = {}): Promise<VersionFreshness> {
+  const registry = (options.registry ?? '').trim()
+  const base = registry === '' ? 'https://registry.npmjs.org' : registry.replace(/\/+$/, '')
+  try {
+    const res = await fetch(`${base}/@deepseek-ai%2Fdsh`, {
+      signal: AbortSignal.timeout(options.timeoutMs ?? 10_000),
+      headers: { accept: 'application/json' },
+    })
+    if (!res.ok) {
+      return { tableCovers: LATEST_KNOWN_VERSION, registryNewest: null, fresh: null, problem: `registry responded HTTP ${res.status}` }
+    }
+    const body = (await res.json()) as { 'dist-tags'?: Record<string, unknown> }
+    const tags: Record<string, string> = {}
+    for (const [name, value] of Object.entries(body['dist-tags'] ?? {})) {
+      if (typeof value === 'string') tags[name] = value
+    }
+    return freshnessFromDistTags(tags)
+  } catch (error) {
+    return {
+      tableCovers: LATEST_KNOWN_VERSION,
+      registryNewest: null,
+      fresh: null,
+      problem: error instanceof Error && error.name === 'TimeoutError' ? 'the registry did not respond in time' : String(error),
+    }
+  }
 }

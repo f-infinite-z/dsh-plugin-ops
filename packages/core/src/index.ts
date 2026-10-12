@@ -15,7 +15,7 @@ export { readLatestCrashReport, type CrashReport } from './crash-report.js'
 export { diagnoseIncompatibility, classifyPeerRisk, renderAdaptDiagnosis, type AdaptDiagnosis, type AdaptRisk } from './adapt.js'
 export { readGlobalDshVersion } from './dsh-version.js'
 export { RETIRED_BUNDLES, RETIRED_BUNDLES_MIN_VERSION, isRetiredBundle } from './retired.js'
-export { KNOWN_VERSION_BOUNDARIES, LATEST_KNOWN_VERSION, decisionVersion, boundariesFrom, boundaryNote, type VersionView } from './versions.js'
+export { KNOWN_VERSION_BOUNDARIES, LATEST_KNOWN_VERSION, decisionVersion, boundariesFrom, boundaryNote, checkVersionFreshness, freshnessFromDistTags, type VersionView, type VersionFreshness } from './versions.js'
 export { readLatestStartupReport, type StartupReport, type StartupReportEntry } from './startup-log.js'
 export {
   scanSessions,

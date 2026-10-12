@@ -15,7 +15,7 @@ import { helpRequested } from './args.js'
 const USAGE = `dsh-ops — DeepSeek Harness plugin operations
 
 usage:
-  dsh-ops check [--home <dir>] [--json] [--config <file>] [--updates] [--version-view all|latest]
+  dsh-ops check [--home <dir>] [--json] [--config <file>] [--updates] [--freshness] [--version-view all|latest]
   dsh-ops scan  [--profile <name>] [--home <dir>] [--json] [--config <file>] [--skip-update-check] [--version-view all|latest]
   dsh-ops fix   [--profile <name>] [--home <dir>] [--dry-run] [--yes] [--config <file>]
   dsh-ops gate  [--profile <name>] [--home <dir>] [--bypass] [--no-attribution]
@@ -71,6 +71,7 @@ const OPTIONS = {
   'skip-update-check': { type: 'boolean', default: false },
   'version-view': { type: 'string' },
   updates: { type: 'boolean', default: false },
+  freshness: { type: 'boolean', default: false },
   strict: { type: 'boolean', default: false },
   runtime: { type: 'boolean', default: false },
   desktop: { type: 'boolean', default: false },
@@ -83,7 +84,7 @@ const OPTIONS = {
   'boot-threshold-ms': { type: 'string' },
 } as const
 
-type Flags = { profile: string; home?: string; json?: boolean; 'dry-run'?: boolean; yes?: boolean; bypass?: boolean; 'no-attribution'?: boolean; remove?: boolean; config?: string; 'skip-update-check'?: boolean; updates?: boolean; strict?: boolean; runtime?: boolean; desktop?: boolean; 'runtime-timeout'?: string; report?: string; 'repair-paths'?: boolean; quarantine?: boolean; port?: string; host?: string; 'boot-threshold-ms'?: string; 'version-view'?: string }
+type Flags = { profile: string; home?: string; json?: boolean; 'dry-run'?: boolean; yes?: boolean; bypass?: boolean; 'no-attribution'?: boolean; remove?: boolean; config?: string; 'skip-update-check'?: boolean; updates?: boolean; strict?: boolean; runtime?: boolean; desktop?: boolean; 'runtime-timeout'?: string; report?: string; 'repair-paths'?: boolean; quarantine?: boolean; port?: string; host?: string; 'boot-threshold-ms'?: string; 'version-view'?: string; freshness?: boolean }
 
 function parse(rawArgs: string[]): { values: Flags; positionals: string[] } {
   const { values, positionals } = parseArgs({
@@ -171,7 +172,7 @@ async function main(): Promise<number> {
         process.stderr.write(`invalid --version-view ${JSON.stringify(versionView)}; use all or latest\n`)
         return 2
       }
-      return runCheckCommand({ paths, json: values.json ?? false, config, updates: values.updates ?? false, versionView })
+      return runCheckCommand({ paths, json: values.json ?? false, config, updates: values.updates ?? false, versionView, freshness: values.freshness ?? false })
     }
     case 'verify': {
       const { values, positionals } = parse(rest)

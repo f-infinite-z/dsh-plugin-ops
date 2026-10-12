@@ -17,6 +17,8 @@ export function renderHuman(report: ScanReport): string {
       lines.push(`  ${finding.severity.toUpperCase().padEnd(5)} ${finding.message}${pkg}`)
       if (finding.detail !== undefined) lines.push(`         ${finding.detail}`)
       if (finding.versionNote !== undefined) lines.push(`         version: ${finding.versionNote}`)
+      if (finding.versionContext !== undefined) lines.push(`         evaluated against: ${finding.versionContext}`)
+      if (finding.nextAction !== undefined) lines.push(`         next: ${finding.nextAction}`)
     }
   }
   const counts = countSeverities(report)

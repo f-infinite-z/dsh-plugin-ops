@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { scanProfile, verifyPluginPackage } from '../src/index.js'
+import { scanProfile, verifyPluginPackage, LATEST_KNOWN_VERSION } from '../src/index.js'
 import { makeHome, writeProfile, writeLockfile, writeJson } from './helpers.js'
 
 /** Write the dsh installation anchor (the shared closure's @deepseek-ai/dsh link). */
@@ -168,14 +168,14 @@ describe('version view: rule 8 compatibility', () => {
     try {
       writeProfile(fixture.paths, { dependencies: { 'pkg-a': '^1.0.0' }, bundles: ['pkg-a'] })
       // Exact newest release: accepted by latest, rejected by older boundaries.
-      writeBundle(fixture, 'pkg-a', '1.0.1', '0.2.1-alpha.1')
+      writeBundle(fixture, 'pkg-a', '1.0.1', LATEST_KNOWN_VERSION)
       writeLockfile(fixture.paths, { 'pkg-a': '1.0.1' })
       const report = await scanProfile({ paths: fixture.paths, profileName: 'web', updateCheck: false, versionView: 'latest', dshVersion: null })
       expect(report.findings.some((f) => f.ruleId === 'plugin-compatibility')).toBe(false)
       const all = await scanProfile({ paths: fixture.paths, profileName: 'web', updateCheck: false, versionView: 'all', dshVersion: null })
       const finding = all.findings.find((f) => f.ruleId === 'plugin-compatibility')
       expect(finding?.severity).toBe('warn')
-      expect(finding?.versionNote).toContain('accepted by 0.2.1-alpha.1')
+      expect(finding?.versionNote).toContain(`accepted by ${LATEST_KNOWN_VERSION}`)
     } finally {
       fixture.dispose()
     }

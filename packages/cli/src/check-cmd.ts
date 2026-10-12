@@ -1,7 +1,7 @@
 import { existsSync, readdirSync } from 'node:fs'
 import {
-  scanProfile, ScanError, reportOk, countSeverities, resolveDshPaths,
-  type OpsConfig, type ScanReport, type DshPaths, type Finding, type VersionView,
+  scanProfile, ScanError, reportOk, countSeverities, resolveDshPaths, checkVersionFreshness,
+  type OpsConfig, type ScanReport, type DshPaths, type Finding, type VersionView, type VersionFreshness,
 } from 'dsh-plugin-ops-core'
 
 export interface CheckCommandOptions {
@@ -10,6 +10,8 @@ export interface CheckCommandOptions {
   config: OpsConfig
   updates: boolean
   versionView?: VersionView
+  /** Compare the known-release table against the registry (network; off by default). */
+  freshness?: boolean
 }
 
 interface CheckProfile {
@@ -25,6 +27,8 @@ export interface CheckResult {
   checkedAt: string
   profiles: CheckProfile[]
   ok: boolean
+  /** Present only with `--freshness`: the known-release table vs the registry. */
+  freshness?: VersionFreshness
 }
 
 function listProfileNames(paths: DshPaths): string[] {
@@ -64,7 +68,14 @@ export async function runCheckCommand(options: CheckCommandOptions): Promise<num
       }
     }
   }
-  const result: CheckResult = { checkedAt, profiles, ok: profiles.every((p) => p.ok) }
+  const result: CheckResult = {
+    checkedAt,
+    profiles,
+    ok: profiles.every((p) => p.ok),
+    ...(options.freshness === true
+      ? { freshness: await checkVersionFreshness({ registry: process.env.npm_config_registry ?? process.env.NPM_CONFIG_REGISTRY ?? null }) }
+      : {}),
+  }
 
   if (options.json) {
     process.stdout.write(JSON.stringify(result, null, 2))
@@ -80,6 +91,13 @@ export async function runCheckCommand(options: CheckCommandOptions): Promise<num
   process.stdout.write(`dsh-ops check @ ${checkedAt}\nprofiles: ${profiles.length === 0 ? '(none found)' : profiles.map((p) => p.name).join(', ')}\n\n`)
   process.stdout.write(summary.join('\n'))
   process.stdout.write('\n')
+  if (result.freshness !== undefined) {
+    const fresh = result.freshness
+    const state = fresh.fresh === null
+      ? `unchecked (${fresh.problem ?? 'unknown problem'})`
+      : fresh.fresh ? 'fresh' : 'STALE — update KNOWN_VERSION_BOUNDARIES'
+    process.stdout.write(`\nversion table: covers <= ${fresh.tableCovers}; registry newest ${fresh.registryNewest ?? 'unknown'} — ${state}\n`)
+  }
   for (const profile of profiles) {
     if (profile.error !== undefined) continue
     const fatals = profile.findings.filter((f) => f.severity === 'fatal')

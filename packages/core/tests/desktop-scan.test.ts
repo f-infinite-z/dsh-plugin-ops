@@ -70,6 +70,31 @@ describe('desktop profile scan', () => {
     }
   })
 
+  it('does not evaluate pre-desktop boundaries on the desktop profile', async () => {
+    // The desktop host only ever runs 0.2.0-rc.1+ releases: a peer range that
+    // rejects 0.1.7-rc.2 but accepts every desktop release is not observable.
+    const fixture = makeHome('desktop')
+    try {
+      writeProfile(fixture.paths, { dependencies: { 'desktop-plug': '1.0.0' }, bundles: ['desktop-plug'] })
+      const dir = join(fixture.paths.profileDir, 'node_modules', 'desktop-plug')
+      writeJson(join(dir, 'package.json'), {
+        name: 'desktop-plug',
+        version: '1.0.0',
+        type: 'module',
+        main: 'lib/index.js',
+        peerDependencies: { '@deepseek-ai/dsh-client-runtime': '>=0.2.0-rc.1 <0.3.0' },
+        dsh: { bundle: { patch: 'cordis.patch.yml' } },
+      })
+      writeFileSync(join(dir, 'cordis.patch.yml'), '- id: probe\n', 'utf8')
+      mkdirSync(join(dir, 'lib'), { recursive: true })
+      writeFileSync(join(dir, 'lib', 'index.js'), 'export const name = "desktop-plug"\n', 'utf8')
+      const report = await scanProfile({ paths: fixture.paths, profileName: 'desktop', versionView: 'all' })
+      expect(report.findings.some((f) => f.ruleId === 'plugin-compatibility')).toBe(false)
+    } finally {
+      fixture.dispose()
+    }
+  })
+
   it('still reports an unresolvable third-party patch row on the desktop profile', async () => {
     const fixture = makeHome('desktop')
     try {
