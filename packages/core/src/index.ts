@@ -42,6 +42,7 @@ export {
   type ResolvedPackage,
 } from './generation.js'
 export { readLockedDirectDeps, type LockedDirectDeps } from './lockfile.js'
+export { readAllowBuildsState, setAllowBuilds, type AllowBuildsState, type AllowBuildsWrite } from './build-options.js'
 export { appendMemory, lastSuccessSnapshot, recentEvents, diffSnapshots, type MemoryEvent } from './memory.js'
 export { scanProfile, ScanError, type ScanInput } from './scan.js'
 export { renderHuman, renderJson, reportOk, countSeverities } from './report.js'

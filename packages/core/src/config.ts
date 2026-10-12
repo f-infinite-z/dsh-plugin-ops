@@ -37,6 +37,13 @@ export interface OpsConfig {
    * macOS). Used by `gate` to attribute a desktop boot failure.
    */
   desktopCrashReportDir?: string
+  /**
+   * npm registry for sandbox plugin installs and the desktop sandbox profile
+   * scaffold. A GUI-launched desktop host carries no `npm_config_registry`
+   * environment, so this config value is the reliable way to point installs
+   * at a mirror; the environment is consulted only when this is unset.
+   */
+  registry?: string
 }
 
 export interface ConfigRead {
