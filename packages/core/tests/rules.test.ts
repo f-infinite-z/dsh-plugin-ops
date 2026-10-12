@@ -161,6 +161,53 @@ describe('rule 2: dependency drift', () => {
     }
   })
 
+  it('does not warn about a missing lockfile for an empty dependency table', async () => {
+    const fixture = makeHome()
+    try {
+      writeProfile(fixture.paths, { dependencies: {} })
+      const report = await scanProfile({ paths: fixture.paths, profileName: 'web' })
+      expect(report.findings.some((f) => f.message.includes('no pnpm-lock.yaml'))).toBe(false)
+    } finally {
+      fixture.dispose()
+    }
+  })
+
+  it('reports a damaged lockfile as damaged, not as an unsupported version', async () => {
+    const fixture = makeHome()
+    try {
+      writeProfile(fixture.paths, { dependencies: { 'pkg-a': '^1.0.0' } })
+      writeInstalledPackages(fixture.paths, [{ name: 'pkg-a', version: '1.0.1' }])
+      // A partially written file: leading NUL bytes, no lockfileVersion.
+      writeFileSync(join(fixture.paths.profileDir, 'pnpm-lock.yaml'), Buffer.alloc(4096))
+      const report = await scanProfile({ paths: fixture.paths, profileName: 'web' })
+      const finding = report.findings.find((f) => f.ruleId === 'dependency-drift' && f.message.includes('pnpm-lock.yaml'))
+      expect(finding?.message).toContain('could not be parsed')
+      expect(finding?.message).not.toContain('unsupported format version')
+    } finally {
+      fixture.dispose()
+    }
+  })
+
+  it('keeps comparing versions for a future lockfile version number', async () => {
+    // @pnpm/lockfile-file accepts any declared version number and gates on
+    // the YAML structure instead; a future minor version must not degrade the
+    // comparison.
+    const fixture = makeHome()
+    try {
+      writeProfile(fixture.paths, { dependencies: { 'pkg-a': '^1.0.0' } })
+      writeInstalledPackages(fixture.paths, [{ name: 'pkg-a', version: '1.0.1' }])
+      writeFileSync(
+        join(fixture.paths.profileDir, 'pnpm-lock.yaml'),
+        "lockfileVersion: '999.0'\nsettings:\n  autoInstallPeers: false\nimporters:\n  .:\n    dependencies:\n      'pkg-a':\n        specifier: ^1.0.0\n        version: 1.0.1\n",
+        'utf8',
+      )
+      const report = await scanProfile({ paths: fixture.paths, profileName: 'web' })
+      expect(report.findings.some((f) => f.ruleId === 'dependency-drift')).toBe(false)
+    } finally {
+      fixture.dispose()
+    }
+  })
+
   it('warns on a declared-but-missing package when no lockfile exists', async () => {
     const fixture = makeHome()
     try {

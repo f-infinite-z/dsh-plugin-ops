@@ -32,10 +32,22 @@ All notable changes are tracked here.
   (e.g. `@deepseek-ai/dsh-client-runtime`) is never expected — two
   independent client plugins tripped the warning with no legal absence
   marker of their own.
+- **Empty-dependency profiles no longer warn about a missing lockfile**
+  (field report from a four-profile self-check): the waiver for a
+  dependency-free profile was scoped to the desktop profile, so the shipped
+  headless/tui/web templates (an empty dependency table, no lockfile by
+  design) tripped the "versions are not locked against drift" warning; the
+  waiver now follows the empty table itself, whatever the profile.
+- **A damaged lockfile is reported as damaged**: the unusable-lockfile
+  message claimed an "unsupported format version" even when the file could
+  not be parsed at all (the field case had its first 16 KiB filled with NUL
+  bytes after a partial write, with `lockfileVersion` gone entirely). The
+  reader now keeps the two apart and names the version it found when the
+  format really is the problem.
 - **Shape-aware surfaces**: status and panel carry the shape (`kind`), the
   panel names the second window and shows the crash-report file, and the
   `dsh_ops_sandbox_start` tool describes the desktop shape.
-- 290 tests (core 222 + bundle 35 + cli 33; one POSIX-only test skipped on
+- 293 tests (core 225 + bundle 35 + cli 33; one POSIX-only test skipped on
   Windows). The end-to-end desktop smoke passes on the real app: an isolated
   desktop number-1 installs the bundle through the app's own CLI, boots the
   second window, installs a bad plugin into it, scans it, refuses an official

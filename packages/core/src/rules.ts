@@ -178,11 +178,12 @@ export function ruleDependencyDrift(ctx: RuleContext, resolved: ResolvedBundle[]
   const sources = bundleSources(resolved)
 
   if (lockMissing) {
-    // A desktop profile with no third-party dependencies has no lockfile by
-    // design: the desktop app manages plugin installs and only writes a
-    // lockfile once a plugin is added. An empty dependency table is not drift.
+    // A profile with no third-party dependencies has no lockfile by design:
+    // the desktop app manages plugin installs and only writes a lockfile once
+    // a plugin is added, and the shipped web/tui/headless templates start
+    // with an empty table too. An empty dependency table is not drift.
     const noRegistryDeps = Object.keys(registryDependencies(ctx.manifest)).length === 0
-    if (!(ctx.isDesktop && noRegistryDeps)) {
+    if (!noRegistryDeps) {
       findings.push({
         ruleId: 'dependency-drift',
         severity: 'warn',
@@ -192,10 +193,14 @@ export function ruleDependencyDrift(ctx: RuleContext, resolved: ResolvedBundle[]
       })
     }
   } else if (lockIncompatible) {
+    const damaged = ctx.locked.incompatibleReason === 'damaged'
+    const found = ctx.locked.incompatibleVersion === null ? '' : ` (found ${ctx.locked.incompatibleVersion})`
     findings.push({
       ruleId: 'dependency-drift',
       severity: 'warn',
-      message: 'pnpm-lock.yaml uses an unsupported format version; lockfile comparison degraded',
+      message: damaged
+        ? 'pnpm-lock.yaml could not be parsed (the file looks damaged or truncated); lockfile comparison degraded'
+        : `pnpm-lock.yaml uses an unsupported format version${found}; lockfile comparison degraded`,
       detail: 're-run pnpm install with the profile package manager to regenerate the lockfile, then retry',
       fix: { kind: 'none' },
     })
