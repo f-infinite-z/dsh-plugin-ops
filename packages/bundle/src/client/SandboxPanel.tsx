@@ -96,6 +96,7 @@ export function SandboxPanel(): ReactNode {
   const [fixInput, setFixInput] = useState('')
   const [installInput, setInstallInput] = useState('')
   const [installMsg, setInstallMsg] = useState<string | null>(null)
+  const [lastSession, setLastSession] = useState<{ packages: { name: string; version: string | null }[]; endedAt: string | null } | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const seqRef = useRef(0)
   const logRef = useRef<HTMLPreElement | null>(null)
@@ -118,6 +119,19 @@ export function SandboxPanel(): ReactNode {
     const timer = setInterval(() => { void refresh() }, POLL_MS)
     return () => { clearInterval(timer) }
   }, [refresh])
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const data = await api<{ report: { packages?: { name: string; version: string | null }[]; endedAt?: string | null } | null }>('/api/sandbox/report')
+        if (data.report !== null && data.report !== undefined) {
+          setLastSession({ packages: data.report.packages ?? [], endedAt: data.report.endedAt ?? null })
+        }
+      } catch {
+        /* transient: the host half may be restarting */
+      }
+    })()
+  }, [])
 
   useEffect(() => {
     const el = logRef.current
@@ -246,6 +260,16 @@ export function SandboxPanel(): ReactNode {
             <div className="sb-kv"><span className="k">{t.home}</span><span className="sb-url">{status.home}</span></div>
           ) : null}
           {status.problem !== null ? <div className="sb-problem">{status.problem}</div> : null}
+        </div>
+      ) : null}
+
+      {lastSession !== null && lastSession.packages.length > 0 ? (
+        <div>
+          <div className="sb-section">{t.lastSession}</div>
+          <div className="sb-dim">
+            {lastSession.packages.map((pkg) => `${pkg.name}@${pkg.version ?? '?'}`).join(', ')}
+            {lastSession.endedAt !== null ? ` — ${lastSession.endedAt.slice(0, 19).replace('T', ' ')}` : ''}
+          </div>
         </div>
       ) : null}
 
