@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { SandboxManager, desktopInstallFromEntry } from '../src/sandbox.js'
+import { SandboxManager, desktopInstallFromEntry, redactToken } from '../src/sandbox.js'
+
+describe('redactToken', () => {
+  it('masks the launch token while keeping the address readable', () => {
+    expect(redactToken('dsh web: http://127.0.0.1:55984/?token=abcDEF-123_xyz&x=1'))
+      .toBe('dsh web: http://127.0.0.1:55984/?token=***&x=1')
+  })
+
+  it('masks a token when it is the last parameter and leaves clean text alone', () => {
+    expect(redactToken('http://127.0.0.1:1/?token=zzz')).toBe('http://127.0.0.1:1/?token=***')
+    expect(redactToken('boot line without credentials')).toBe('boot line without credentials')
+  })
+})
 
 describe('desktopInstallFromEntry', () => {
   it('rejects missing or unrelated entries', () => {

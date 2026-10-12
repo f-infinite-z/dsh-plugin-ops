@@ -122,7 +122,7 @@ dsh-xray rates this project C3 (a capability-surface rating, not intent); the ta
 
 ```sh
 pnpm install && pnpm run build
-pnpm run typecheck && pnpm run test      # 293 tests (core 225 + bundle 35 + cli 33; one POSIX-only test skipped on Windows)
+pnpm run typecheck && pnpm run test      # 295 tests (core 225 + bundle 37 + cli 33; one POSIX-only test skipped on Windows)
 node packages/cli/lib/index.js selftest  # engine self-check
 node scripts/e2e/scan-fix.e2e.mjs        # offline E2E (real pnpm repair)
 node scripts/e2e/gate.e2e.mjs            # gate scenarios (pass/block/bypass/attribution/headless)

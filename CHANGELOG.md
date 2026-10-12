@@ -44,10 +44,14 @@ All notable changes are tracked here.
   bytes after a partial write, with `lockfileVersion` gone entirely). The
   reader now keeps the two apart and names the version it found when the
   format really is the problem.
+- **Launch tokens never enter the log** (field report): the sandbox log ring
+  stored raw output lines, so the `token=` of the boot URL leaked into tool
+  output and session logs while the status URL was already masked; masking
+  now happens at storage time and covers every exit.
 - **Shape-aware surfaces**: status and panel carry the shape (`kind`), the
   panel names the second window and shows the crash-report file, and the
   `dsh_ops_sandbox_start` tool describes the desktop shape.
-- 293 tests (core 225 + bundle 35 + cli 33; one POSIX-only test skipped on
+- 295 tests (core 225 + bundle 37 + cli 33; one POSIX-only test skipped on
   Windows). The end-to-end desktop smoke passes on the real app: an isolated
   desktop number-1 installs the bundle through the app's own CLI, boots the
   second window, installs a bad plugin into it, scans it, refuses an official

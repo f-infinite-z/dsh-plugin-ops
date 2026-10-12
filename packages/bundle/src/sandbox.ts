@@ -220,6 +220,17 @@ function freePort(): Promise<number | null> {
 const URL_LINE = /dsh web: (http[^\s]+)/
 
 /**
+ * The launch URL carries its browser token; every line this module stores
+ * (the log ring) or renders (tool output) must mask it — the token is a
+ * local capability and must not leak into agent context, session logs, or
+ * shared screenshots. The status URL itself stays intact: the panel needs it
+ * to open the sandbox.
+ */
+export function redactToken(text: string): string {
+  return text.replace(/([?&]token=)[^&\s]*/gi, '$1***')
+}
+
+/**
  * One temporary sandbox instance with an outside observability surface:
  * status, incremental logs, startup diagnostics, profile scans, and
  * disable-row fixes that restart the instance to prove the repair.
@@ -274,7 +285,7 @@ export class SandboxManager {
 
   private appendLog(line: string): void {
     this.seq += 1
-    this.logs.push({ seq: this.seq, ts: new Date().toISOString(), line })
+    this.logs.push({ seq: this.seq, ts: new Date().toISOString(), line: redactToken(line) })
     if (this.logs.length > MAX_LOG_LINES) this.logs.splice(0, this.logs.length - MAX_LOG_LINES)
   }
 

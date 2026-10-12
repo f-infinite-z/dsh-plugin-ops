@@ -1,4 +1,4 @@
-import type { SandboxManager, SandboxStatus } from './sandbox.js'
+import { redactToken, type SandboxManager, type SandboxStatus } from './sandbox.js'
 
 /**
  * Agent tools over the sandbox manager: the "number 1 dsh controls the
@@ -33,11 +33,6 @@ interface SandboxTool {
 
 function text(value: string): ToolTextBlock[] {
   return [{ type: 'text', text: value }]
-}
-
-/** The sandbox URL carries its launch token; tool output (model context and session log) only needs the address. */
-function redactToken(url: string): string {
-  return url.replace(/([?&]token=)[^&]*/i, '$1***')
 }
 
 function statusLine(status: SandboxStatus): string {
