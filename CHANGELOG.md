@@ -2,6 +2,50 @@
 
 All notable changes are tracked here.
 
+## 0.19.2 — 2026-10-12
+
+### The change half lands: install, verify, approve, recover — inside the sandbox
+
+- **Install and uninstall tools**: `dsh_ops_sandbox_install` / `_uninstall`
+  (plus the panel's install box) drive the official plugin manager against
+  the sandbox profile — the desktop shape through the app's own bundled CLI,
+  the web shape through the running CLI. After every install the profile is
+  read back: the outcome follows `dsh.profile.bundles` registration, not the
+  exit code, and a half-registered residue (declared in dependencies, missing
+  from the activation list — the aftermath of a failed install that the
+  official reconcile keeps treating as a user choice) is repaired
+  automatically with remove + add.
+- **The pnpm build gate is resolvable in place**: installs blocked by
+  `ERR_PNPM_IGNORED_BUILDS` report the placeholder `allowBuilds` entries
+  (the field case named `@google/genai` and `protobufjs`), and
+  `dsh_ops_sandbox_approve_builds` sets them to true/false — a backed-up,
+  structure-preserving write — so the retry succeeds. Verified end to end
+  against a real plugin: block → detect → approve → retry → half-registered →
+  auto-repair → registered.
+- **The registry comes from config**: a GUI-launched desktop host carries no
+  `npm_config_registry`, so sandbox installs silently fell back to the default
+  registry; `dsh-ops.yml` gains a `registry` field (config, then environment,
+  then default) used by installs and the sandbox profile scaffold alike.
+- **Session reports**: every change action and installed package@version is
+  persisted under the host home (`cache/dsh-ops/sandbox-reports`, newest 20
+  kept), readable through `dsh_ops_sandbox_report` and shown in the panel —
+  the conclusion survives the sandbox home's cleanup, so "what did I verify
+  in there?" outlives the session.
+- **RESTART, exposed** as `dsh_ops_sandbox_restart` (the panel already had it).
+- **Field-reported polish**: the known-release table gains `0.2.1-alpha.2`
+  with a `check --freshness` registry comparison ("table covers ≤ x; newest
+  seen y"); the desktop profile no longer evaluates pre-desktop boundaries it
+  can never run; findings carry `nextAction` and `versionContext` (the
+  evaluated version set plus the running release); `remove` is never handed
+  `--registry` (the CLI rejects it); the isolation wording states plainly
+  that nothing outside the DSH home — the OS home directory included — is
+  isolated.
+
+310 tests (core 238 + bundle 39 + cli 33; one POSIX-only test skipped on
+Windows). The end-to-end desktop run covers the full change story against a
+real registry plugin: install → build gate → approval → auto-repair →
+uninstall → session report.
+
 ## 0.19.1 — 2026-10-12
 
 ### Desktop sandbox console: the second window

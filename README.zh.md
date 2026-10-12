@@ -7,7 +7,7 @@
 
 > DeepSeek Harness 插件运维（Plugin Operations）：启动前体检与拦截、失败归因与恢复、依赖治理、安装适配、作者发布前验证——让插件生态保持可加载。
 
-**状态：v0.19.1 — 沙箱控制台覆盖双端宿主：web 宿主启动隔离的 2 号 dsh，桌面宿主经应用自带的 `--user-data-dir` 机制 + 临时 DSH home 启动第二个桌面窗口；左栏入口 + 右栏面板实时查看日志与启动诊断、扫描并修复（含 AI 工具）；所有 `/dsh-ops` 路由与官方 API 同一道浏览器鉴权。拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
+**状态：v0.19.2 — 沙箱控制台的"动作"半边落地：在 2 号实例里直接安装/卸载插件（回读校验注册、半注册残留自动 remove→add 修复）、就地解决 pnpm 构建门（`allowBuilds` 占位符）、会话报告跨沙箱清理留存；0.19.1 已覆盖双端宿主（web 与桌面第二个窗口），所有 `/dsh-ops` 路由与官方 API 同一道浏览器鉴权。拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
 
 ## 命名
 
@@ -70,7 +70,7 @@ dsh-ops selftest               # 自检：内置故障样本跑全规则
 | `adapt` | 安装适配：对官方门禁因 `@deepseek-ai/dsh*` peer 范围拒绝的插件，诊断冲突的 peer、分级风险（窄范围 vs 跨 breaking 边界），**先在隔离 canary 启动中授予官方 exact-version 豁免**（web profile 用独立 DSH home；desktop profile 用真实隔离桌面沙箱），只有该启动存活才写入真实 profile；canary 或安装失败即回滚豁免；**desktop profile** 在应用自带 CLI（0.2.0-rc.1+，单测覆盖、待实机验证）可用时，完全退出应用后直接经它安装/卸载，无 CLI 时回退为只写豁免并指引到桌面端 Plugins 页；`--remove` 一步完成卸载 + 清理豁免 |
 | `sessions` | 会话容器修复：扫描 `$DSH_HOME/sessions` 中两类会阻断启动的损坏（首帧无法解码的产物；目录名与 header id 不匹配的会话目录）；`--repair-paths` 把被改名的目录移回其 header id，`--quarantine` 把不可读会话目录移入 `$DSH_HOME/cache/dsh-ops/quarantine`（永不删除）；默认只读计划，深层事件级诊断仍由 `@argszero/cordis-plugin-session-audit` 覆盖 |
 | `dev` | 单插件目录的开发监视器：每次变更后（防抖）跑静态检查（带序号、标注包名@版本），`--runtime` 在每次通过后追加隔离 DSH home 启动冒烟、静态仍有 error 时明确提示跳过；**`--desktop`** 在每次通过后追加隔离桌面沙箱启动冒烟（两者可同时给）；停止时打印检查/失败/耗时汇总；全程不触碰正在运行的 dsh |
-| 内嵌 bundle（`dsh-plugin-ops-bundle`） | 装进 profile 后在 dsh Web 设置页出现"dsh-ops"健康页（扫描/行管理/**安装适配**——经官方 `pluginManager` 服务的豁免安装，含豁免清单与撤销/卸载并清理/时间线/带 RAG 知识库的诊断对话），外加**沙箱控制台**：左栏底部入口打开右栏面板，启动隔离的"2 号 dsh"——web 宿主用临时 home，桌面宿主则是**第二个桌面窗口**（独立 `--user-data-dir` + 临时 DSH home，经已安装应用自身的可执行文件启动）——实时查看日志与官方启动诊断、扫描、保留现场重启、并执行禁行修复（以重启结果为准——`fix` 经运行安装的闭包解析行可见性，桌面形态下官方 bundle 位于打包 asar 内、其行被拒绝；"无法解析"与"无此行"分开报告）；五个 AI 工具（`dsh_ops_sandbox_start`/`_stop`/`_status`/`_scan`/`_fix`）把同一面交给运行中的 agent。所有 `/dsh-ops` 路由经过官方 connection 准入（信任围栏 + launch-token/cookie 浏览器鉴权——与官方 API 同一道闸门，缺失时 fail-closed）。host 半边与 `serve` 复用同一引擎；诊断对话优先走官方 `ctx.llm`、无 llm 时降级直连 |
+| 内嵌 bundle（`dsh-plugin-ops-bundle`） | 装进 profile 后在 dsh Web 设置页出现"dsh-ops"健康页（扫描/行管理/**安装适配**——经官方 `pluginManager` 服务的豁免安装，含豁免清单与撤销/卸载并清理/时间线/带 RAG 知识库的诊断对话），外加**沙箱控制台**：左栏底部入口打开右栏面板，启动隔离的"2 号 dsh"——web 宿主用临时 home，桌面宿主则是**第二个桌面窗口**（独立 `--user-data-dir` + 临时 DSH home，经已安装应用自身的可执行文件启动）——实时查看日志与官方启动诊断、扫描、**安装/卸载插件（回读校验注册，半注册残留自动 remove→add 修复）、就地解决构建门（`allowBuilds`）、留存会话报告**、保留现场重启、并执行禁行修复（以重启结果为准——`fix` 经运行安装的闭包解析行可见性，桌面形态下官方 bundle 位于打包 asar 内、其行被拒绝；"无法解析"与"无此行"分开报告）；十个 AI 工具（`dsh_ops_sandbox_start`/`_stop`/`_restart`/`_status`/`_scan`/`_install`/`_uninstall`/`_approve_builds`/`_report`/`_fix`）把同一面交给运行中的 agent。所有 `/dsh-ops` 路由经过官方 connection 准入（信任围栏 + launch-token/cookie 浏览器鉴权——与官方 API 同一道闸门，缺失时 fail-closed）。host 半边与 `serve` 复用同一引擎；诊断对话优先走官方 `ctx.llm`、无 llm 时降级直连 |
 
 退出码：`0` 通过（或 dsh 自身码）/ `1` 仍有 fatal / `2` 用法或 profile 缺失 / `3` gate 被需人工处置的 fatal 阻断 / `4-5` gate 归因相关。
 
@@ -113,7 +113,7 @@ dsh-xray 给本项目的评级为 C3（衡量能力面而非意图）；上表�
 
 ## 后续方向
 
-- **程序化装插件进沙箱（0.19.2）**：从面板或 agent 直接把插件装进 2 号 dsh（`dsh_ops_sandbox_install` 工具），让"安全试插件"成为一步操作；对沙箱 home 经官方 `dsh plugin add` 安装今天已可用（桌面形态用应用自带 CLI）。
+- **升级存活预演（0.20）**：把版本视角提升为整 profile 的升级预演——"升到 0.2.1-alpha.x 后，你的 12 个插件里有 3 个会被官方跳过——每个给出修法（更新/豁免/禁用）"；把 `verify --report` 的兼容性矩阵从单包报告提升为 profile 级决策。
 - **常驻沙箱与终端端（更晚）**：跨重启保留的沙箱，以及终端类 profile（`tui`/`headless`/`acp`）的验证目标——等插件工作流需要时再加。
 - **对接市场门禁（按需）**：`verify --report` 已能输出兼容性矩阵；与具体市场上架格式对齐，等该格式出现后进行。
 - **一体化插件管理（v2）**：把生态"变更时防护"（canary 试运行、启停、更新检查、市场）按自有架构吸收进启动生命周期防护，以启动门为统一入口。
@@ -122,7 +122,7 @@ dsh-xray 给本项目的评级为 C3（衡量能力面而非意图）；上表�
 
 ```sh
 pnpm install && pnpm run build
-pnpm run typecheck && pnpm run test      # 297 单测（core 227 + bundle 37 + cli 33；Windows 跳过 1 个 POSIX 专属用例）
+pnpm run typecheck && pnpm run test      # 310 单测（core 238 + bundle 39 + cli 33；Windows 跳过 1 个 POSIX 专属用例）
 node packages/cli/lib/index.js selftest  # 引擎自检
 node scripts/e2e/scan-fix.e2e.mjs        # 离线 E2E（真实 pnpm 修复）
 node scripts/e2e/gate.e2e.mjs            # gate 场景（放行/阻断/旁路/归因/headless）
