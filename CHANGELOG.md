@@ -2,6 +2,38 @@
 
 All notable changes are tracked here.
 
+## 0.20.0 — unreleased
+
+### Upgrade preview: rehearse the next release before committing to it
+
+- **New `dsh-ops preview`** rehearses a profile upgrade without touching it.
+  Against a target dsh release (`--target <version>`; the newest known release
+  by default; `--updates` resolves the newest registry release as the target
+  and asks the registry for each skipped plugin's newest release), it judges
+  every installed third-party bundle with the launcher's own compatibility
+  semantics — the same `incompatibleDshPeers` judgment rule 8 and the official
+  gate use — and reports which bundles that release would skip. Each skipped
+  bundle gets its fix as a runnable command: **update** to the newest release
+  when that release accepts the target, the official **exact-version
+  exemption** (`dsh plugin --profile <p> allow-version ... --accept-risk`,
+  naming the target release), or disable. Official bundles ship with the
+  installation and are never judged; retired entries are named as such;
+  bundles whose active exemption already covers the target are reported as
+  exempted. Read-only; nothing is written, and no new write channel exists.
+  Exit code 1 means "at least one plugin would be skipped", not a failure.
+- **`--report <file.md>`** writes the rehearsal as a profile-level Markdown
+  matrix — the companion to `verify --report`'s package-level one. `--json`
+  carries the same model.
+- **Both panels** (the serve panel and the embedded bundle's health section)
+  gain an upgrade-preview card: a target-version input, an optional registry
+  check, and the verdict list with copy-ready fix commands.
+
+327 tests (core 251 + bundle 39 + cli 37; one POSIX-only test skipped on
+Windows). The real-profile rehearsal matched the field observation: on the
+web profile the 0.2.1-alpha.2 gate would skip `dsh-lsp-actions@0.4.5` and
+`dsh-mcp-connector@0.2.37`, and the update check named their compatible
+successors (0.5.12 / 0.2.70).
+
 ## 0.19.2 — 2026-10-12
 
 ### The change half lands: install, verify, approve, recover — inside the sandbox

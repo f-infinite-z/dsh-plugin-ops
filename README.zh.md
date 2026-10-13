@@ -31,6 +31,7 @@ dsh-ops scan --profile web     # 单 profile 深扫（--json 机器可读；--ve
 dsh-ops fix --profile web      # 修复：lockfile 对齐（--dry-run 预览 / --yes 免确认）
 dsh-ops gate -- dsh web        # 启动门：预检通过才放行 dsh；失败自动归因
 dsh-ops adapt <pkg>            # 安装适配：官方门禁拒绝的插件（canary 验证 + 豁免）
+dsh-ops preview --profile web  # 升级预演：目标版本会跳过哪些插件 + 每项修法（--updates 查 registry）
 dsh-ops verify <pkg> --runtime # 作者门禁：静态检查 + 隔离启动（--report 输出兼容性矩阵）
 dsh-ops serve                  # 本地 Web 面板 http://127.0.0.1:8912（中英可切）
 dsh-ops selftest               # 自检：内置故障样本跑全规则
@@ -64,15 +65,16 @@ dsh-ops selftest               # 自检：内置故障样本跑全规则
 | `scan` | 单 profile 深扫：规则 1-9 + 可选更新检查；`--version-view all\|latest` 选择版本口径（all 默认：全版本并集并标注版本区间；latest 仅最新语义；严重度始终锚定实际安装版本） |
 | `fix` | 自动可修集：磁盘↔lockfile 对齐（`pnpm install --frozen-lockfile --force`）；plan→确认→执行→备份 |
 | `gate` | 先阻断分级处置：fatal 先拦（自动修→放行；复杂→醒目指引；`--bypass` 逃生舱记录不静默）；dsh 启动秒退 → 读取官方启动诊断（`$DSH_HOME/logs/startup-*.log`）→ 归因差异包与启动器报告的失败插件 → 交互禁用重试（**先在 profile 的隔离副本中复验**：web 用临时 DSH home 启动副本，桌面用复用沙箱并从最新 crash report 归因；只有复验启动存活才写入真实 profile，沙箱不可用时如实降级为直接应用）；headless 一次性 profile 退出码透传不归因 |
-| `serve` | 本地 Web 面板：健康卡/结果列表/修复执行/**插件行管理**（健康徽标、致命/警告/正常筛选、每页 10 行分页、官方行保护、启停开关）/故障时间线/**诊断对话（带增强检索 RAG 开关）**——排障经验沉淀为 Markdown，开启后自动检索命中条目注入对话（BM25 + 可选向量重排），zh/en 切换 |
+| `serve` | 本地 Web 面板：健康卡/结果列表/修复执行/**升级预演**（目标版本彩排 + 可复制修法命令）/**插件行管理**（健康徽标、致命/警告/正常筛选、每页 10 行分页、官方行保护、启停开关）/故障时间线/**诊断对话（带增强检索 RAG 开关）**——排障经验沉淀为 Markdown，开启后自动检索命中条目注入对话（BM25 + 可选向量重排），zh/en 切换 |
 | `selftest` | 引擎自检（6 内置故障样本），验证安装健康 |
 | `verify` | 面向插件作者的发布前校验：支持本地目录或 **npm 包名**（`dsh-ops verify <name\|@scope/name\|name@version>`，从 registry 下载发布物校验）；检查 bundle patch 声明与解析、patch 行可解析性、依赖协议（`file:`/`workspace:`）、peer 契约（peer 名必须是包名、range 必须是 semver）、**dsh peer 全版本覆盖**（声明了 `@deepseek-ai/dsh*` peer 时须覆盖全部已知版本边界，标注缺口版本——市场上架兼容性矩阵要求）、ESM 入口与导出、client 导出契约与产物形状、files 完整性（`--json`、CI 用 `--strict`）；**`--runtime`** 追加隔离启动验证——在独立 DSH home 中经官方命令安装并启动；**`--desktop`** 在隔离桌面沙箱中启动官方桌面端验证——临时 `DSH_HOME`（自带 desktop profile）+ 独立 Electron user-data-dir + 沙箱专属 webserver 端口，经桌面自带 CLI（0.2.0-rc.1+）安装，观察崩溃报告/进程/端口判定，只回收沙箱自己的进程树，不触碰真实实例与数据；**`--runtime` 与 `--desktop` 可同时给**，一次运行检查两端（JSON 输出 `runtimes: { web, desktop }` 矩阵）；**`--report <file.md>`** 把本次运行写成市场风格兼容性矩阵（静态检查、dsh peer 声明对已知版本边界的覆盖、实测目标及版本、生命周期覆盖并明示未覆盖环节），`--json` 在 `matrix` 字段携带同一模型 |
 | `adapt` | 安装适配：对官方门禁因 `@deepseek-ai/dsh*` peer 范围拒绝的插件，诊断冲突的 peer、分级风险（窄范围 vs 跨 breaking 边界），**先在隔离 canary 启动中授予官方 exact-version 豁免**（web profile 用独立 DSH home；desktop profile 用真实隔离桌面沙箱），只有该启动存活才写入真实 profile；canary 或安装失败即回滚豁免；**desktop profile** 在应用自带 CLI（0.2.0-rc.1+，单测覆盖、待实机验证）可用时，完全退出应用后直接经它安装/卸载，无 CLI 时回退为只写豁免并指引到桌面端 Plugins 页；`--remove` 一步完成卸载 + 清理豁免 |
+| `preview` | **升级存活预演**：对目标 dsh 版本（`--target <version>`，默认最新已知；`--updates` 从 registry 解析最新版为目标并逐插件查其最新发布），用启动器同款兼容语义判定每个已装第三方 bundle 是否会被跳过，并为每个被跳过项给出**可直接执行的修法命令**——更新（`dsh plugin --profile <p> add <name>@<新版>`，仅当新版接受目标版本）、官方 exact-version 豁免（`dsh plugin --profile <p> allow-version ... --accept-risk`）或禁用；官方 bundle 与 retired 条目只记录不判定；只读；`--json`；`--report <file.md>` 输出 profile 级 Markdown 矩阵（与 `verify --report` 配套）；退出码 1 = 至少一个插件会被跳过（非失败） |
 | `sessions` | 会话容器修复：扫描 `$DSH_HOME/sessions` 中两类会阻断启动的损坏（首帧无法解码的产物；目录名与 header id 不匹配的会话目录）；`--repair-paths` 把被改名的目录移回其 header id，`--quarantine` 把不可读会话目录移入 `$DSH_HOME/cache/dsh-ops/quarantine`（永不删除）；默认只读计划，深层事件级诊断仍由 `@argszero/cordis-plugin-session-audit` 覆盖 |
 | `dev` | 单插件目录的开发监视器：每次变更后（防抖）跑静态检查（带序号、标注包名@版本），`--runtime` 在每次通过后追加隔离 DSH home 启动冒烟、静态仍有 error 时明确提示跳过；**`--desktop`** 在每次通过后追加隔离桌面沙箱启动冒烟（两者可同时给）；停止时打印检查/失败/耗时汇总；全程不触碰正在运行的 dsh |
-| 内嵌 bundle（`dsh-plugin-ops-bundle`） | 装进 profile 后在 dsh Web 设置页出现"dsh-ops"健康页（扫描/行管理/**安装适配**——经官方 `pluginManager` 服务的豁免安装，含豁免清单与撤销/卸载并清理/时间线/带 RAG 知识库的诊断对话），外加**沙箱控制台**：左栏底部入口打开右栏面板，启动隔离的"2 号 dsh"——web 宿主用临时 home，桌面宿主则是**第二个桌面窗口**（独立 `--user-data-dir` + 临时 DSH home，经已安装应用自身的可执行文件启动）——实时查看日志与官方启动诊断、扫描、**安装/卸载插件（回读校验注册，半注册残留自动 remove→add 修复）、就地解决构建门（`allowBuilds`）、留存会话报告**、保留现场重启、并执行禁行修复（以重启结果为准——`fix` 经运行安装的闭包解析行可见性，桌面形态下官方 bundle 位于打包 asar 内、其行被拒绝；"无法解析"与"无此行"分开报告）；十个 AI 工具（`dsh_ops_sandbox_start`/`_stop`/`_restart`/`_status`/`_scan`/`_install`/`_uninstall`/`_approve_builds`/`_report`/`_fix`）把同一面交给运行中的 agent。所有 `/dsh-ops` 路由经过官方 connection 准入（信任围栏 + launch-token/cookie 浏览器鉴权——与官方 API 同一道闸门，缺失时 fail-closed）。host 半边与 `serve` 复用同一引擎；诊断对话优先走官方 `ctx.llm`、无 llm 时降级直连 |
+| 内嵌 bundle（`dsh-plugin-ops-bundle`） | 装进 profile 后在 dsh Web 设置页出现"dsh-ops"健康页（扫描/行管理/**升级预演**/安装适配——经官方 `pluginManager` 服务的豁免安装，含豁免清单与撤销/卸载并清理/时间线/带 RAG 知识库的诊断对话），外加**沙箱控制台**：左栏底部入口打开右栏面板，启动隔离的"2 号 dsh"——web 宿主用临时 home，桌面宿主则是**第二个桌面窗口**（独立 `--user-data-dir` + 临时 DSH home，经已安装应用自身的可执行文件启动）——实时查看日志与官方启动诊断、扫描、**安装/卸载插件（回读校验注册，半注册残留自动 remove→add 修复）、就地解决构建门（`allowBuilds`）、留存会话报告**、保留现场重启、并执行禁行修复（以重启结果为准——`fix` 经运行安装的闭包解析行可见性，桌面形态下官方 bundle 位于打包 asar 内、其行被拒绝；"无法解析"与"无此行"分开报告）；十个 AI 工具（`dsh_ops_sandbox_start`/`_stop`/`_restart`/`_status`/`_scan`/`_install`/`_uninstall`/`_approve_builds`/`_report`/`_fix`）把同一面交给运行中的 agent。所有 `/dsh-ops` 路由经过官方 connection 准入（信任围栏 + launch-token/cookie 浏览器鉴权——与官方 API 同一道闸门，缺失时 fail-closed）。host 半边与 `serve` 复用同一引擎；诊断对话优先走官方 `ctx.llm`、无 llm 时降级直连 |
 
-退出码：`0` 通过（或 dsh 自身码）/ `1` 仍有 fatal / `2` 用法或 profile 缺失 / `3` gate 被需人工处置的 fatal 阻断 / `4-5` gate 归因相关。
+退出码：`0` 通过（或 dsh 自身码）/ `1` 仍有 fatal（`preview`：至少一个插件会被跳过）/ `2` 用法或 profile 缺失 / `3` gate 被需人工处置的 fatal 阻断 / `4-5` gate 归因相关。
 
 ## 配置（`$DSH_HOME/dsh-ops.yml`）
 
@@ -113,7 +115,6 @@ dsh-xray 给本项目的评级为 C3（衡量能力面而非意图）；上表�
 
 ## 后续方向
 
-- **升级存活预演（0.20）**：把版本视角提升为整 profile 的升级预演——"升到 0.2.1-alpha.x 后，你的 12 个插件里有 3 个会被官方跳过——每个给出修法（更新/豁免/禁用）"；把 `verify --report` 的兼容性矩阵从单包报告提升为 profile 级决策。
 - **常驻沙箱与终端端（更晚）**：跨重启保留的沙箱，以及终端类 profile（`tui`/`headless`/`acp`）的验证目标——等插件工作流需要时再加。
 - **对接市场门禁（按需）**：`verify --report` 已能输出兼容性矩阵；与具体市场上架格式对齐，等该格式出现后进行。
 - **一体化插件管理（v2）**：把生态"变更时防护"（canary 试运行、启停、更新检查、市场）按自有架构吸收进启动生命周期防护，以启动门为统一入口。
@@ -122,7 +123,7 @@ dsh-xray 给本项目的评级为 C3（衡量能力面而非意图）；上表�
 
 ```sh
 pnpm install && pnpm run build
-pnpm run typecheck && pnpm run test      # 310 单测（core 238 + bundle 39 + cli 33；Windows 跳过 1 个 POSIX 专属用例）
+pnpm run typecheck && pnpm run test      # 327 单测（core 251 + bundle 39 + cli 37；Windows 跳过 1 个 POSIX 专属用例）
 node packages/cli/lib/index.js selftest  # 引擎自检
 node scripts/e2e/scan-fix.e2e.mjs        # 离线 E2E（真实 pnpm 修复）
 node scripts/e2e/gate.e2e.mjs            # gate 场景（放行/阻断/旁路/归因/headless）

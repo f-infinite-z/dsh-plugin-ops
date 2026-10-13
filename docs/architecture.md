@@ -96,3 +96,11 @@ attempt → success(版本快照) | failure(详情) | bypass | fix(动作)
 - 它自身 crash/超时 → gate **放行 dsh 原样启动** + 显著警告（fail-open 仅适用于 dsh-ops 自身故障；scan 判定的插件 fatal 是产品功能，按先阻断处置）。
 - 发布物为 tsup 单文件，运行时零 node_modules——没有依赖树就没有依赖树可漂。
 - 测试注入有 temp 沙箱路径断言 + 原子替换（pnpm `.pnpm` 与全局 store 是 hardlink，截断写会污染 store）。
+
+## 8. 升级预演（preview）：升级前彩排
+
+- **判定同源**：`incompatibleDshPeers`（`core/src/compatibility.ts`）与官方 `evaluatePluginCompatibility` 同语义——只查 `@deepseek-ai/dsh` / `@deepseek-ai/dsh-*` 的 peer；`workspace:^`/`~`/`*` 视为当前运行时；用 **dsh 主版本**对 peer 范围做 `includePrerelease` satisfies。一个 bundle 是否会被目标版本跳过 = 同一函数对该版本的结果，与 rule 8、官方门禁完全一致，不维护第二套判定。
+- **目标版本**：`--target` 显式指定；否则默认最新已知版本；`--updates` 时先从 registry 的 dist-tags 解析最新发布作为目标（并逐插件查其最新版是否为兼容更新——registry 文档用 abbreviated metadata 头，镜像不支持时退回完整文档，失败一律降级不抛）。
+- **修法推理**：被跳过项 → 最新版接受目标版本则给 `dsh plugin add <pkg>@<新版>`；否则给官方豁免命令（`allow-version <pkg>@<已装版本> --dsh-version <目标版本> --accept-risk`）；bundle 无版本号时只能建议禁用（无命令形态）。`compatibility.json` 中已覆盖目标版本的豁免报告为 exempted。
+- **只读承诺**：preview 不写任何文件、不引入新写通道；修法仍走官方 CLI / `adapt` / 面板已有的白名单通道。官方 `@deepseek-ai/*` bundle 随安装演进不判定；retired 条目只点名（启动器会自动摘除）。
+- **渲染**：CLI 文本 / `--json` / `--report` Markdown 矩阵（profile 级，与 `verify --report` 的单包矩阵配套）；serve 与内嵌面板各有一张预演卡片（目标输入 + 可选 registry 检查 + 可复制命令），复用同一 `buildPreviewReport` 与 `/api/preview` 路由。
