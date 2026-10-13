@@ -71,8 +71,8 @@ export interface SandboxStatus {
   startedAt: string | null
   /** Why the last start failed, or the last run's outcome note; null when none. */
   problem: string | null
-  /** The last process exit (any run). */
-  lastExit: { code: number | null; at: string } | null
+  /** The last process exit (any run). `terminated` marks a managed stop/restart kill — not a failure. */
+  lastExit: { code: number | null; at: string; terminated?: boolean } | null
 }
 
 export interface SandboxDiagnosis {
@@ -331,7 +331,31 @@ export function packageNameFromSpec(spec: string): string | null {
 /** Collapse one command output into a bounded single-line tail for step details. */
 function outputTail(text: string, max = 240): string {
   const collapsed = text.replace(/\s+/g, ' ').trim()
-  return collapsed.length <= max ? collapsed : collapsed.slice(collapsed.length - max)
+  if (collapsed.length <= max) return collapsed
+  // Resume at a word boundary and mark the elision: a tail cut mid-word reads
+  // like garbage in step details.
+  const slice = collapsed.slice(collapsed.length - max)
+  const boundary = slice.indexOf(' ')
+  return `… ${boundary === -1 ? slice : slice.slice(boundary + 1)}`
+}
+
+/**
+ * Classify an install failure from its collected steps, for the session
+ * report: "failed" alone loses the one line a reader wants later.
+ */
+function classifyInstallFailure(steps: SandboxChangeStep[]): string {
+  const failed = (step: string): boolean => steps.some((entry) => entry.step === step && !entry.ok)
+  if (failed('build-scripts') || failed('allowBuilds')) return 'build gate (ignored build scripts)'
+  if (failed('spec')) return 'unsupported spec'
+  if (failed('state')) return 'sandbox not running'
+  const add = steps.find((entry) => entry.step === 'add')
+  if (add !== undefined && !add.ok) {
+    if (/ENOTFOUND|ETIMEDOUT|ECONNREFUSED|EAI_AGAIN|network|fetch/i.test(add.detail)) return 'network'
+    if (/NO_MATCHING_VERSION|not found|E404/i.test(add.detail)) return 'not in the registry'
+    if (/ERR_PNPM_/.test(add.detail)) return 'package manager rejected the install'
+    return 'package manager failure'
+  }
+  return 'not registered after install'
 }
 
 /**
@@ -355,7 +379,7 @@ export class SandboxManager {
   /** Launch epoch for crash-report filtering (desktop shape). */
   private startedMs: number | null = null
   private problem: string | null = null
-  private lastExit: { code: number | null; at: string } | null = null
+  private lastExit: { code: number | null; at: string; terminated?: boolean } | null = null
   private readonly logs: SandboxLogLine[] = []
   private seq = 0
   private readonly driver: DshDriver = resolveDshDriver()
@@ -716,7 +740,7 @@ export class SandboxManager {
         this.killTimedOut = true
         this.problem = 'the sandbox process did not exit; its home is kept for diagnosis'
       }
-      this.lastExit = { code: child.exitCode, at: new Date().toISOString() }
+      this.lastExit = { code: child.exitCode, at: new Date().toISOString(), terminated: true }
     }
     this.child = null
     this.url = null
@@ -800,10 +824,17 @@ export class SandboxManager {
     const paths = this.paths()
     const startup = paths === null ? null : readLatestStartupReport(paths, sinceMs ?? 0)
     const crash = this.currentCrashReport(sinceMs ?? this.startedMs ?? 0)
+    // A decided allowBuilds map resolves the historical build-gate errors:
+    // mark those lines so a solved problem does not read as a standing one.
+    const buildGateDecided = paths !== null && (() => {
+      const state = readAllowBuildsState(paths.profileDir)
+      return state.value !== null && state.placeholders.length === 0
+    })()
     const errorLines = this.logs
       .map((entry) => entry.line)
       .filter((line) => /did not activate|failed to import|Error:|error|fatal|ERR_/i.test(line))
       .slice(-40)
+      .map((line) => buildGateDecided && /IGNORED_BUILDS|allowBuilds/i.test(line) ? `[resolved] ${line}` : line)
     return { startup, crash, errorLines }
   }
 
@@ -978,7 +1009,8 @@ export class SandboxManager {
     const steps: SandboxChangeStep[] = []
     const name = packageNameFromSpec(spec)
     const finish = (ok: boolean, recovered: boolean): SandboxChangeResult => {
-      this.recordEvent('install', `${spec} → ${ok ? 'installed and registered' : 'failed'}${recovered ? ' (recovered with remove + add)' : ''}`)
+      const reason = ok ? '' : ` (reason: ${classifyInstallFailure(steps)})`
+      this.recordEvent('install', `${spec} → ${ok ? 'installed and registered' : `failed${reason}`}${recovered ? ' (recovered with remove + add)' : ''}`)
       if (ok && name !== null) this.recordPackage(name)
       return { action: 'install', target: spec, name: name ?? spec, ok, recovered, steps, status: this.status() }
     }

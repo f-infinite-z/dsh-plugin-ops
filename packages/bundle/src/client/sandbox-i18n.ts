@@ -54,8 +54,8 @@ export interface SandboxDict {
 export const SANDBOX_DICTS: Record<Lang, SandboxDict> = {
   zh: {
     title: '沙箱实例',
-    subtitle: '隔离实例：用于插件配置的测试与修复。注意：它继承你的环境与文件权限，请勿用于不可信代码',
-    subtitleDesktop: '隔离的第二个桌面窗口：独立 user-data 与 DSH home，用于插件配置的测试与修复。注意：它继承你的环境与文件权限（DSH_HOME 之外不隔离——插件可读写整个用户目录），请勿用于不可信代码',
+    subtitle: '隔离实例：用于插件配置的测试与修复。注意：它继承你的环境与文件权限（用户级 npm 凭据 ~/.npmrc、git 凭据同样可在沙箱内读到），请勿用于不可信代码',
+    subtitleDesktop: '隔离的第二个桌面窗口：独立 user-data 与 DSH home，用于插件配置的测试与修复。注意：它继承你的环境与文件权限（DSH_HOME 之外不隔离——插件可读写整个用户目录，用户级 npm 凭据 ~/.npmrc、git 凭据同样可在沙箱内读到），请勿用于不可信代码',
     start: '启动沙箱',
     stop: '停止并清理',
     restart: '重启（保留现场）',
@@ -103,8 +103,8 @@ export const SANDBOX_DICTS: Record<Lang, SandboxDict> = {
   },
   en: {
     title: 'Sandbox instance',
-    subtitle: 'Isolated instance for plugin configuration work. Note: it inherits your environment and file-system access — not for untrusted code',
-    subtitleDesktop: 'Isolated second desktop window: its own user-data directory and DSH home, for plugin configuration work. Note: it inherits your environment and file-system access (nothing outside DSH_HOME is isolated — plugins can read/write your whole user directory) — not for untrusted code',
+    subtitle: 'Isolated instance for plugin configuration work. Note: it inherits your environment and file-system access (user-level npm credentials in ~/.npmrc and git credentials are readable from the sandbox too) — not for untrusted code',
+    subtitleDesktop: 'Isolated second desktop window: its own user-data directory and DSH home, for plugin configuration work. Note: it inherits your environment and file-system access (nothing outside DSH_HOME is isolated — plugins can read/write your whole user directory, including user-level npm credentials in ~/.npmrc and git credentials) — not for untrusted code',
     start: 'Start sandbox',
     stop: 'Stop and clean up',
     restart: 'Restart (keep state)',
