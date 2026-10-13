@@ -10,6 +10,7 @@ import { runVerifyCommand } from './verify-cmd.js'
 import { runSessionsCommand } from './sessions-cmd.js'
 import { runDevCommand } from './dev-cmd.js'
 import { runAdaptCommand } from './adapt-cmd.js'
+import { runPreviewCommand } from './preview-cmd.js'
 import { helpRequested } from './args.js'
 
 const USAGE = `dsh-ops — DeepSeek Harness plugin operations
@@ -23,6 +24,7 @@ usage:
   dsh-ops serve [--home <dir>] [--port <n>] [--host <addr>] [--config <file>]
   dsh-ops verify [<dir>|<npm-package>] [--json] [--strict] [--runtime] [--desktop] [--runtime-timeout <s>] [--report <file.md>]
   dsh-ops adapt  <npm-package> [--profile <name>] [--home <dir>] [--yes] [--remove] [--runtime-timeout <s>] [--config <file>]
+  dsh-ops preview [--profile <name>] [--target <version>] [--updates] [--json] [--report <file.md>] [--home <dir>] [--config <file>]
   dsh-ops sessions [--home <dir>] [--json] [--repair-paths] [--quarantine]
   dsh-ops dev   <plugin-dir> [--runtime] [--desktop] [--runtime-timeout <s>]
   dsh-ops selftest
@@ -49,6 +51,14 @@ dev watches one plugin directory: static checks after every change, plus an
   --desktop after each clean pass (both flags may be combined); the desktop
   sandbox needs the desktop app 0.2.0-rc.1+.
 
+preview rehearses a profile upgrade: it judges every installed third-party
+  bundle against the target dsh release's compatibility gate (--target, or the
+  newest known release; --updates resolves the newest registry release and
+  checks each plugin's newest release for a compatible update) and prints each
+  skipped bundle's fix — update, exact-version exemption, or disable — as
+  runnable commands. Read-only; exit code 1 means at least one plugin would be
+  skipped by the upgrade, not a command failure.
+
 exit codes:
   0  ok (or dsh's own exit code after a gate pass)
   1  findings are fatal after the action taken
@@ -71,6 +81,7 @@ const OPTIONS = {
   'skip-update-check': { type: 'boolean', default: false },
   'version-view': { type: 'string' },
   updates: { type: 'boolean', default: false },
+  target: { type: 'string' },
   freshness: { type: 'boolean', default: false },
   strict: { type: 'boolean', default: false },
   runtime: { type: 'boolean', default: false },
@@ -84,7 +95,7 @@ const OPTIONS = {
   'boot-threshold-ms': { type: 'string' },
 } as const
 
-type Flags = { profile: string; home?: string; json?: boolean; 'dry-run'?: boolean; yes?: boolean; bypass?: boolean; 'no-attribution'?: boolean; remove?: boolean; config?: string; 'skip-update-check'?: boolean; updates?: boolean; strict?: boolean; runtime?: boolean; desktop?: boolean; 'runtime-timeout'?: string; report?: string; 'repair-paths'?: boolean; quarantine?: boolean; port?: string; host?: string; 'boot-threshold-ms'?: string; 'version-view'?: string; freshness?: boolean }
+type Flags = { profile: string; home?: string; json?: boolean; 'dry-run'?: boolean; yes?: boolean; bypass?: boolean; 'no-attribution'?: boolean; remove?: boolean; config?: string; 'skip-update-check'?: boolean; updates?: boolean; target?: string; strict?: boolean; runtime?: boolean; desktop?: boolean; 'runtime-timeout'?: string; report?: string; 'repair-paths'?: boolean; quarantine?: boolean; port?: string; host?: string; 'boot-threshold-ms'?: string; 'version-view'?: string; freshness?: boolean }
 
 function parse(rawArgs: string[]): { values: Flags; positionals: string[] } {
   const { values, positionals } = parseArgs({
@@ -214,6 +225,23 @@ async function main(): Promise<number> {
         paths, profileName: values.profile, config, spec,
         timeoutSec: runtimeTimeoutSec, yes: values.yes ?? false,
         remove: values.remove ?? false,
+      })
+    }
+    case 'preview': {
+      const { values } = parse(rest)
+      if (!/^[\w.-]+$/.test(values.profile)) {
+        process.stderr.write(`invalid --profile ${JSON.stringify(values.profile)}\n`)
+        return 2
+      }
+      const paths = resolveDshPaths(values.profile, values.home)
+      const config = loadConfig(values.config, paths.configFile)
+      if (config === null) return 2
+      return await runPreviewCommand({
+        paths, profileName: values.profile, config,
+        json: values.json ?? false,
+        updates: values.updates ?? false,
+        ...(values.target === undefined ? {} : { target: values.target }),
+        ...(values.report === undefined ? {} : { report: values.report }),
       })
     }
     case 'sessions': {

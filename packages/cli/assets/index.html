@@ -86,6 +86,18 @@
     </div>
   </div>
 
+  <div class="panel">
+    <h2 data-i18n="panelPreview">升级预演（目标版本彩排）</h2>
+    <div style="color:var(--dim);font-size:12px;margin-bottom:8px" data-i18n="previewHint">升级 dsh 前的彩排：目标版本会跳过哪些第三方插件，以及每个插件的修法（更新 / 豁免 / 禁用）。只读，不改动任何文件。</div>
+    <div class="row" style="margin-bottom:8px">
+      <input id="previewTarget" type="text" style="width:200px;background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:7px 12px;font-size:13px" data-i18n-placeholder="previewTargetPlaceholder">
+      <label style="font-size:12px;color:var(--dim)"><input type="checkbox" id="previewUpdates" style="vertical-align:middle"> <span data-i18n="previewUpdates">含 registry 检查（慢）</span></label>
+      <button id="btnPreviewRun" class="primary" data-i18n="btnPreviewRun">运行预演</button>
+      <span id="previewState" style="color:var(--dim);font-size:12px"></span>
+    </div>
+    <div id="previewBody"></div>
+  </div>
+
   <div class="split">
     <div class="panel col-plugins">
       <h2><span data-i18n="panelPlugins">插件行管理（第三方，可启用/禁用）</span> <span id="pluginsCount" style="float:right;font-weight:400"></span></h2>
@@ -147,7 +159,7 @@
 
 <script>
 const $ = (id) => document.getElementById(id)
-const state = { profiles: [], scan: null, lang: 'zh', chatHistory: [], pluginRows: [], pluginPage: 0, pluginFilter: 'all', rag: false, knowledge: [], opsVersion: 'unknown' }
+const state = { profiles: [], scan: null, lang: 'zh', chatHistory: [], pluginRows: [], pluginPage: 0, pluginFilter: 'all', rag: false, knowledge: [], opsVersion: 'unknown', preview: null }
 const PLUGIN_PAGE_SIZE = 10
 
 const I18N = {
@@ -158,6 +170,15 @@ const I18N = {
     panelFindings: '扫描结果', panelFix: '可自动修复（lockfile 对齐）', panelTimeline: '故障记忆时间线（最近 12 条）',
     fixPlanHint: '先扫描以生成修复计划…', btnPreview: '预览计划', btnRun: '执行修复',
     noProfiles: '未发现 profile', scanning: '扫描中…', noFindings: '无任何发现',
+    panelPreview: '升级预演（目标版本彩排）',
+    previewHint: '升级 dsh 前的彩排：目标版本会跳过哪些第三方插件，以及每个插件的修法（更新 / 豁免 / 禁用）。只读，不改动任何文件。',
+    previewTargetPlaceholder: '目标版本（留空 = 最新已知，如 0.2.1-alpha.2）', previewUpdates: '含 registry 检查（慢）',
+    btnPreviewRun: '运行预演', previewRunning: '预演中', previewFail: '预演失败：',
+    previewTargetLabel: '目标版本', previewRunningVersion: '当前运行',
+    previewNoSkip: '该目标下没有被跳过的插件', previewSkipped: '{n} 个插件会被跳过',
+    previewUpdatable: '个可更新', previewNeedExempt: '个需豁免', previewCopy: '复制', previewCopied: '已复制',
+    previewVerdict: { skipped: '跳过', exempted: '已豁免', compatible: '兼容', retired: '退役', unresolved: '未解析' },
+    previewFixUpdate: '修法：升级插件', previewFixExempt: '修法：授予精确版本豁免', previewFixDisable: '修法：禁用该行',
     scanFail: '扫描失败：', fixPreviewEmpty: '当前无致命漂移，无需修复', fixPreviewOk: '计划动作：',
     fixConfirm: '将按 lockfile 对齐磁盘安装状态（pnpm install --frozen-lockfile --force）。继续？',
     fixRunning: '执行中…', fixDone: '修复完成，重新扫描验证', fixFail: '修复失败：', fixPreviewOnly: '预览仅计算，未改动任何文件',
@@ -194,6 +215,15 @@ const I18N = {
     panelFindings: 'Findings', panelFix: 'Auto-fixable (lockfile realign)', panelTimeline: 'Fault memory timeline (last 12)',
     fixPlanHint: 'Run a scan to build a fix plan…', btnPreview: 'Preview plan', btnRun: 'Run fix',
     noProfiles: 'No profiles found', scanning: 'Scanning…', noFindings: 'No findings',
+    panelPreview: 'Upgrade preview (target rehearsal)',
+    previewHint: 'Rehearse an upgrade: which third-party plugins the target dsh release would skip, and each fix (update / exempt / disable). Read-only; nothing is written.',
+    previewTargetPlaceholder: 'Target version (empty = newest known, e.g. 0.2.1-alpha.2)', previewUpdates: 'Include registry check (slow)',
+    btnPreviewRun: 'Run preview', previewRunning: 'Rehearsing', previewFail: 'Preview failed: ',
+    previewTargetLabel: 'target', previewRunningVersion: 'running',
+    previewNoSkip: 'No plugin would be skipped by this target', previewSkipped: '{n} plugin(s) would be skipped',
+    previewUpdatable: 'updatable', previewNeedExempt: 'need exemption', previewCopy: 'Copy', previewCopied: 'Copied',
+    previewVerdict: { skipped: 'skipped', exempted: 'exempted', compatible: 'compatible', retired: 'retired', unresolved: 'unresolved' },
+    previewFixUpdate: 'fix: update the plugin', previewFixExempt: 'fix: grant the exact-version exemption', previewFixDisable: 'fix: disable the row',
     scanFail: 'Scan failed: ', fixPreviewEmpty: 'Nothing fatal to realign', fixPreviewOk: 'Plan: ',
     fixConfirm: 'Realign the installed tree to the lockfile (pnpm install --frozen-lockfile --force). Continue?',
     fixRunning: 'Running…', fixDone: 'Fix complete; re-scanning to verify', fixFail: 'Fix failed: ', fixPreviewOnly: 'Preview only; nothing was changed',
@@ -243,6 +273,7 @@ function applyI18n() {
     if (key) el.setAttribute('placeholder', t(key))
   }
   if (state.scan) renderReport(state.scan)
+  if (state.preview) renderPreview(state.preview)
   loadMemory()
   loadPlugins()
 }
@@ -275,7 +306,7 @@ async function loadProfiles() {
   if (state.profiles.length === 0) { $('scanState').textContent = t('noProfiles'); return }
   const saved = localStorage.getItem('dshops-profile')
   if (saved && state.profiles.some(p => p.name === saved)) sel.value = saved
-  sel.onchange = () => { localStorage.setItem('dshops-profile', sel.value); loadMemory(); loadPlugins() }
+  sel.onchange = () => { localStorage.setItem('dshops-profile', sel.value); state.preview = null; $('previewBody').innerHTML = ''; loadMemory(); loadPlugins() }
   loadMemory()
   loadPlugins()
 }
@@ -358,6 +389,68 @@ async function runFix() {
     toast(t('fixFail') + err.message, 8000)
   } finally {
     $('btnFixRun').disabled = false
+  }
+}
+
+async function runPreview() {
+  const profile = $('profile').value
+  if (!profile) return
+  const target = $('previewTarget').value.trim()
+  $('previewState').textContent = t('previewRunning') + '…'
+  $('btnPreviewRun').disabled = true
+  try {
+    const q = new URLSearchParams({ profile })
+    if (target) q.set('target', target)
+    if ($('previewUpdates').checked) q.set('updates', 'true')
+    const report = await api('/api/preview?' + q.toString())
+    state.preview = report
+    renderPreview(report)
+    $('previewState').textContent = ''
+  } catch (err) {
+    $('previewState').textContent = ''
+    toast(t('previewFail') + err.message, 6000)
+  } finally {
+    $('btnPreviewRun').disabled = false
+  }
+}
+
+function renderPreview(report) {
+  const box = $('previewBody')
+  box.innerHTML = ''
+  const head = document.createElement('div')
+  head.style.cssText = 'font-size:12px;color:var(--dim);margin-bottom:6px'
+  head.textContent = `${t('previewTargetLabel')}: ${report.target.version} · ${t('previewRunningVersion')}: ${report.runningVersion || '?'}`
+  box.appendChild(head)
+  const c = report.counts
+  const summary = document.createElement('div')
+  summary.style.marginBottom = '6px'
+  summary.innerHTML = c.skipped > 0
+    ? `<span class="badge b-warn">${esc(t('previewSkipped').replace('{n}', String(c.skipped)))}</span>
+       <span style="color:var(--dim);font-size:12px;margin-left:8px">${c.updatable} ${esc(t('previewUpdatable'))} · ${c.exempt} ${esc(t('previewNeedExempt'))}</span>`
+    : `<span class="badge b-ok">${esc(t('previewNoSkip'))}</span>`
+  box.appendChild(summary)
+  const verdicts = t('previewVerdict') || {}
+  const fixes = { update: t('previewFixUpdate'), exempt: t('previewFixExempt'), disable: t('previewFixDisable') }
+  for (const entry of report.entries) {
+    const d = document.createElement('div')
+    d.className = 'finding'
+    d.style.flexWrap = 'wrap'
+    const tone = entry.verdict === 'skipped' ? 'warn' : entry.verdict === 'compatible' ? 'ok' : 'info'
+    d.innerHTML = `<span class="badge b-${tone}">${esc(verdicts[entry.verdict] || entry.verdict)}</span>
+      <div class="msg"><span class="mono">${esc(entry.name)}@${esc(entry.version || '?')}</span>
+        <div class="det">${esc(entry.detail)}</div>
+        ${fixes[entry.fix] ? `<div class="meta">${esc(fixes[entry.fix])}</div>` : ''}</div>`
+    for (const command of entry.commands || []) {
+      const line = document.createElement('div')
+      line.style.cssText = 'display:flex;gap:6px;align-items:center;width:100%;margin-top:4px'
+      line.innerHTML = `<code class="mono" style="font-size:11px;background:var(--card2);padding:4px 8px;border-radius:6px;overflow:auto">${esc(command)}</code>
+        <button style="font-size:11px;padding:2px 8px">${esc(t('previewCopy'))}</button>`
+      line.querySelector('button').onclick = () => {
+        navigator.clipboard.writeText(command).then(() => toast(t('previewCopied'), 1500)).catch(() => {})
+      }
+      d.appendChild(line)
+    }
+    box.appendChild(d)
   }
 }
 
@@ -601,6 +694,7 @@ function openFeedback() {
 }
 
 $('btnScan').onclick = doScan
+$('btnPreviewRun').onclick = runPreview
 $('btnFixPreview').onclick = previewFix
 $('btnFixRun').onclick = runFix
 $('btnChat').onclick = sendChat

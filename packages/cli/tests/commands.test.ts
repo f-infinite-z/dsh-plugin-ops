@@ -18,6 +18,7 @@ import { runFixCommand } from '../src/fix-cmd.js'
 import { runGateCommand } from '../src/gate-cmd.js'
 import { runVerifyCommand } from '../src/verify-cmd.js'
 import { runDevCommand, renderDevStatic, renderDevDesktop, packageIdentity } from '../src/dev-cmd.js'
+import { runPreviewCommand } from '../src/preview-cmd.js'
 import { helpRequested } from '../src/args.js'
 import type { ScanReport, Finding, VerifyReport } from 'dsh-plugin-ops-core'
 
@@ -435,6 +436,92 @@ describe('dev command', () => {
       expect(packageIdentity(dir)).toBe(dir)
     } finally {
       rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('preview command', () => {
+  function writeProfileWithBundle(paths: core.DshPaths, name: string, version: string, peerRange: string): void {
+    mkdirSync(paths.profileDir, { recursive: true })
+    writeFileSync(paths.profileManifest, JSON.stringify({
+      name: 'dsh-profile-web',
+      private: true,
+      dependencies: { [name]: '^1.0.0' },
+      dsh: { profile: { bundles: [name] } },
+    }), 'utf8')
+    const dir = join(paths.profileDir, 'node_modules', name)
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({
+      name,
+      version,
+      peerDependencies: { '@deepseek-ai/dsh': peerRange },
+      dsh: { bundle: { patch: 'cordis.patch.yml' } },
+    }), 'utf8')
+    writeFileSync(join(dir, 'cordis.patch.yml'), `- insert:\n    - id: probe\n      name: ${name}\n`, 'utf8')
+  }
+
+  it('prints the rehearsal and exits 1 when a plugin would be skipped', async () => {
+    const fixture = makeHome()
+    const chunks: string[] = []
+    const write = vi.spyOn(process.stdout, 'write').mockImplementation((chunk: unknown) => {
+      chunks.push(String(chunk))
+      return true
+    })
+    try {
+      writeProfileWithBundle(fixture.paths, 'pkg-a', '1.0.1', '^0.1.5')
+      const code = await runPreviewCommand({
+        paths: fixture.paths, profileName: 'web', config: {}, json: false, updates: false, dshVersion: null,
+      })
+      write.mockRestore()
+      expect(code).toBe(1)
+      const output = chunks.join('')
+      expect(output).toContain('1 plugin(s) would be skipped')
+      expect(output).toContain('allow-version pkg-a@1.0.1')
+    } finally {
+      write.mockRestore()
+      fixture.dispose()
+    }
+  })
+
+  it('exits 0 when no plugin would be skipped', async () => {
+    const fixture = makeHome()
+    try {
+      writeProfileWithBundle(fixture.paths, 'pkg-a', '1.0.1', '>=0.1.5-rc.2')
+      const code = await runPreviewCommand({
+        paths: fixture.paths, profileName: 'web', config: {}, json: true, updates: false, dshVersion: null,
+      })
+      expect(code).toBe(0)
+    } finally {
+      fixture.dispose()
+    }
+  })
+
+  it('writes the markdown matrix report (--report)', async () => {
+    const fixture = makeHome()
+    const reportPath = join(fixture.home, 'preview.md')
+    try {
+      writeProfileWithBundle(fixture.paths, 'pkg-a', '1.0.1', '^0.1.5')
+      const code = await runPreviewCommand({
+        paths: fixture.paths, profileName: 'web', config: {}, json: true, updates: false, dshVersion: null, report: reportPath,
+      })
+      expect(code).toBe(1)
+      const text = readFileSync(reportPath, 'utf8')
+      expect(text).toContain('# Upgrade preview — profile `web`')
+      expect(text).toContain('| pkg-a | 1.0.1 | skipped |')
+    } finally {
+      fixture.dispose()
+    }
+  })
+
+  it('returns 2 when the profile has no readable manifest', async () => {
+    const fixture = makeHome()
+    try {
+      const code = await runPreviewCommand({
+        paths: fixture.paths, profileName: 'web', config: {}, json: false, updates: false, dshVersion: null,
+      })
+      expect(code).toBe(2)
+    } finally {
+      fixture.dispose()
     }
   })
 })
