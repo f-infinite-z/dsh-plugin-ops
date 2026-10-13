@@ -5,7 +5,17 @@
 [![dsh-xray](https://img.shields.io/endpoint?url=https%3A%2F%2Funstone.github.io%2Fdsh-xray%2Fbadge%2Ff-infinite-z__dsh-plugin-ops.json)](https://unstone.github.io/dsh-xray/registry.html#f-infinite-z__dsh-plugin-ops)
 [![awesome-dsh-plugin](https://img.shields.io/badge/awesome-dsh--plugin-listed-blue)](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)
 
-> DeepSeek Harness 插件运维（Plugin Operations）：启动前体检与拦截、失败归因与恢复、依赖治理、安装适配、作者发布前验证——让插件生态保持可加载。
+> **插件把 dsh profile 弄坏了？** `dsh-ops` 点名是哪一个、告诉你官方启动器会不会跳过它、并把修法给成一条可直接执行的命令——**在启动失败之前**，且不碰你正在运行的实例。
+
+## 三步，不猜
+
+1. **体检** —— `dsh-ops check` 秒级离线扫全部 profile。10 条静态规则跟随**启动器的运行时解析**而非磁盘布局，每条结果自带修法。
+2. **预演** —— `dsh-ops preview` 拿**下一个** dsh 版本对已装插件跑一遍，用启动器同款兼容语义给出：**哪些会被跳过**，以及每一项的修法。
+3. **隔离复验** —— 安装、修复、适配都**先在第二个隔离实例**里复验（独立 DSH home + user-data-dir），只有那一次启动存活才写入真实 profile。
+
+拿 dsh `0.2.1-alpha.2` 跑本项目自己的 web profile：`dsh-lsp-actions@0.4.5` 与 `dsh-mcp-connector@0.2.37` 会被跳过，能活下来的是 `dsh-lsp-actions@0.5.12` / `dsh-mcp-connector@0.2.70`。
+
+安装：桌面端 → **设置 → 插件 → `dsh-plugin-ops-bundle`**；web profile → `dsh plugin --profile web add dsh-plugin-ops-bundle`；终端 → `npm i -g dsh-plugin-ops`。
 
 **状态：v0.20.1 — 升级存活预演：对目标 dsh 版本预演每个已装插件的去向（"哪些会被跳过——每项修法都是可执行命令"），`--updates` 从 registry 解析最新发布；两个面板都加了预演卡片。新增规则 10 检测同一安装树内的同版本重复物理副本（现场案例：被 loader 吞掉的错误掩盖了 koffi 类型冲突）。拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
 

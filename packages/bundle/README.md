@@ -1,17 +1,30 @@
 # dsh-plugin-ops-bundle
 
-Embedded [dsh-plugin-ops](https://github.com/f-infinite-z/dsh-plugin-ops)
-bundle for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness):
-installs a **dsh-ops** health-check section into the harness Web settings page
-(scan, findings, plugin-row enable/disable, fault timeline, diagnosis chat).
+**The dsh-ops health panel, embedded in DeepSeek Harness.** This package installs the
+[dsh-plugin-ops](https://github.com/f-infinite-z/dsh-plugin-ops) engine into a profile and adds a
+**dsh-ops** section to Settings: health cards, findings with their fixes, plugin-row management, an
+upgrade-preview card, a fault timeline, and a diagnosis chat.
+
+> The same engine is available as a terminal CLI — `npm i -g dsh-plugin-ops` gives you
+> `dsh-ops check` / `preview` / `gate` / `serve` (and `verify` for plugin authors).
 
 ## Install
 
-```sh
-dsh plugin --profile web add dsh-plugin-ops-bundle
-```
+| You are | Install |
+|---|---|
+| Desktop app | Settings → Plugins → install `dsh-plugin-ops-bundle` (or just ask DSH to install it) |
+| Web / CLI profile | `dsh plugin --profile web add dsh-plugin-ops-bundle` |
 
-Then restart the dsh web process. The section appears in Settings.
+Restart the dsh process (desktop: reopen the app), then open **Settings → dsh-ops**.
+
+## What it shows
+
+- **Health** — one card per profile: fatal / warn / info counts from the 10 static rules.
+- **Findings** — each one with the fix it recommends; executable fixes write a backup first.
+- **Upgrade preview** — pick a target dsh release and see which installed plugins it would skip, each fix as a copy-ready command.
+- **Plugin rows** — health badges, severity filter, paging, official-row protection, enable/disable.
+- **Fault timeline** — what changed since the last successful boot (the attribution baseline).
+- **Diagnosis chat** — troubleshooting experience is deposited as Markdown and retrieved into the chat (BM25 + optional embedding re-rank), zh/en switch.
 
 ## How it works
 
