@@ -125,7 +125,7 @@ dsh-xray 给本项目的评级为 C3（衡量能力面而非意图）；上表�
 
 ```sh
 pnpm install && pnpm run build
-pnpm run typecheck && pnpm run test      # 327 单测（core 251 + bundle 39 + cli 37；Windows 跳过 1 个 POSIX 专属用例）
+pnpm run typecheck && pnpm run test      # 333 单测（core 257 + bundle 39 + cli 37；Windows 跳过 1 个 POSIX 专属用例）
 node packages/cli/lib/index.js selftest  # 引擎自检
 node scripts/e2e/scan-fix.e2e.mjs        # 离线 E2E（真实 pnpm 修复）
 node scripts/e2e/gate.e2e.mjs            # gate 场景（放行/阻断/旁路/归因/headless）
