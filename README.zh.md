@@ -87,6 +87,7 @@ rules:
 versionView: all            # 版本口径：all（默认，全版本并集+版本区间标注）/ latest（仅最新语义）
 ignorePackages:
   - some-noisy-plugin
+registry: https://registry.npmmirror.com   # 沙箱安装 / 桌面 scaffold / 预演 registry 检查；环境变量兜底；内嵌宿主激活时读取一次——改后需重启 dsh
 ```
 
 ## 架构与自保
@@ -106,7 +107,7 @@ dsh-ops 按设计会触达敏感面；下面说明具体触达什么、何时触
 | 补丁层 | 向 profile 用户补丁层 `cordis.patch.yml` 结构化写入 `disabled` 行 | 禁用导致启动失败的插件行 | plan→确认→备份→校验写入；删行即恢复；官方 `@deepseek-ai/*` 行拒绝禁用（403） |
 | 会话容器 | 读取 `$DSH_HOME/sessions` 目录树；`--repair-paths` 把会话目录改名为其 header id，`--quarantine` 把会话目录移入 dsh-ops 缓存 | `sessions` 修复命令 | 仅显式 flag；永不删除；先跑只读计划并报告每一步移动 |
 | 命令执行 | `pnpm install --frozen-lockfile --force`（固定参数）；`gate` 中传入的 `dsh` 命令；存在时调用 `session-audit` | lockfile 对齐；预检通过后启动 dsh；会话容器预检 | 绝不执行任意命令；仅在显式确认或用户自己输入的命令上执行 |
-| 沙箱进程 | 经**运行安装自带的 CLI 入口**在临时 DSH home 中启动第二个 `dsh`（cwd 为沙箱 home）；桌面宿主则启动已安装应用自身的第二个窗口（独立 `--user-data-dir` + 临时 home） | 沙箱控制台（面板与 `dsh_ops_sandbox_*` 工具） | 仅在显式操作时启动；以当前用户身份继承环境运行——面向插件配置的隔离，非安全边界（UI 中已明示）；停止即完全清理 |
+| 沙箱进程 | 经**运行安装自带的 CLI 入口**在临时 DSH home 中启动第二个 `dsh`（cwd 为沙箱 home）；桌面宿主则启动已安装应用自身的第二个窗口（独立 `--user-data-dir` + 临时 home） | 沙箱控制台（面板与 `dsh_ops_sandbox_*` 工具） | 仅在显式操作时启动；以当前用户身份继承环境运行——面向插件配置的隔离，非安全边界（UI 中已明示：用户级凭据如 `~/.npmrc` 的 auth token、git 凭据库在沙箱内可读）；停止即完全清理 |
 | 本地 HTTP 服务 | 回环 `127.0.0.1:8912`（`serve` 面板）；内嵌 bundle 复用 dsh 自带 web 服务 | Web 面板 | 仅回环、路由白名单；内嵌面额外经过官方 connection 浏览器准入（launch-token/cookie），无凭据请求一律拒绝 |
 | LLM 凭据 | `DSH_OPS_LLM_*`，或 env / `.env` / `.credentials.yaml` 中的 provider key | 仅可选的诊断对话 | 只在对话使用时读取；全部静态功能无 key 可用 |
 | 网络 | `pnpm outdated`（`--updates` 可选）；配置的 LLM API | 更新提示；诊断对话 | `check`/`fix`/`gate` 与默认 `scan` 完全离线 |

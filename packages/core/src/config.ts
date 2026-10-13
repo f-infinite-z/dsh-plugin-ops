@@ -41,7 +41,9 @@ export interface OpsConfig {
    * npm registry for sandbox plugin installs and the desktop sandbox profile
    * scaffold. A GUI-launched desktop host carries no `npm_config_registry`
    * environment, so this config value is the reliable way to point installs
-   * at a mirror; the environment is consulted only when this is unset.
+   * at a mirror; the environment is consulted only when this is unset. The
+   * embedded host reads the config once when it activates — restart dsh after
+   * changing this value (CLI commands re-read it on every run).
    */
   registry?: string
 }

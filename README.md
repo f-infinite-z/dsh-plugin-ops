@@ -87,6 +87,7 @@ rules:
 versionView: all            # version view: all (default: every known release + version-range notes) | latest
 ignorePackages:
   - some-noisy-plugin
+registry: https://registry.npmmirror.com   # sandbox installs / desktop scaffold / preview registry checks; environment fallback; the embedded host reads it once at activation — restart dsh after changing it
 ```
 
 ## Architecture and self-reliance
@@ -106,7 +107,7 @@ dsh-ops touches sensitive surfaces by design; here is exactly what, when, and un
 | Patch layer | structured write of `disabled` rows into the profile's user `cordis.patch.yml` | disable the plugin row that breaks boot | plan → confirm → backup → validated write; delete the row to revert; official `@deepseek-ai/*` rows are refused (403) |
 | Session containers | read the `$DSH_HOME/sessions` tree; `--repair-paths` renames a session directory to its header id, `--quarantine` moves a session directory into the dsh-ops cache | the `sessions` repair command | explicit flags only; nothing is ever deleted; the read-only plan runs first and reports every move |
 | Command execution | `pnpm install --frozen-lockfile --force` (fixed arguments); the `dsh` command passed to `gate`; `session-audit` when present | realign drift; launch dsh after a passed gate; session-container pre-check | never arbitrary commands; only on explicit confirmation or the exact command the user typed |
-| Sandbox process | a second `dsh` spawned in a temporary DSH home through the running installation's own CLI entry (the sandbox home as cwd), or a second desktop window of the installed app (isolated `--user-data-dir` plus a temporary home) for the desktop host | the sandbox console (panel and `dsh_ops_sandbox_*` tools) | started only on explicit action; runs as this user with the inherited environment — configuration isolation for plugin work, not a security boundary (stated in the UI); stopped with full cleanup |
+| Sandbox process | a second `dsh` spawned in a temporary DSH home through the running installation's own CLI entry (the sandbox home as cwd), or a second desktop window of the installed app (isolated `--user-data-dir` plus a temporary home) for the desktop host | the sandbox console (panel and `dsh_ops_sandbox_*` tools) | started only on explicit action; runs as this user with the inherited environment — configuration isolation for plugin work, not a security boundary (stated in the UI: user-level credentials such as the `~/.npmrc` auth token and git credential stores are readable from the sandbox); stopped with full cleanup |
 | Local HTTP server | loopback `127.0.0.1:8912` (`serve` panel); the embedded bundle reuses dsh's own web server | the web panel | loopback only, route whitelist; the embedded surface additionally passes the harness connection's browser admission (launch-token/cookie) and refuses requests without it |
 | LLM credentials | `DSH_OPS_LLM_*`, or provider keys from env / `.env` / `.credentials.yaml` | the optional diagnosis chat only | read only when chat is used; every static feature works with no key at all |
 | Network | `pnpm outdated` (opt-in via `--updates`); the configured LLM API | update advisories; diagnosis chat | `check`/`fix`/`gate` and default `scan` are fully offline |
