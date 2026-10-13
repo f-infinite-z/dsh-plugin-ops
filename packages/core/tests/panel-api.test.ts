@@ -50,3 +50,38 @@ describe('panel api: scan version view', () => {
     }
   })
 })
+
+describe('panel api: preview', () => {
+  it('returns a rehearsal report for the profile', async () => {
+    const fixture = makeHome()
+    try {
+      writeProfile(fixture.paths, { dependencies: { 'pkg-a': '^1.0.0' }, bundles: ['pkg-a'] })
+      writeBundle(fixture, 'pkg-a', '1.0.1', '^0.1.5')
+      writeLockfile(fixture.paths, { 'pkg-a': '1.0.1' })
+      const res = await handlePanelApi('GET', new URL('http://127.0.0.1:8912/api/preview?profile=web&target=0.2.1-alpha.2'), { paths: fixture.paths, config: {} })
+      expect(res.status).toBe(200)
+      const body = res.body as {
+        target: { version: string }
+        counts: { skipped: number }
+        entries: { name: string; fix: string; commands: string[] }[]
+      }
+      expect(body.target.version).toBe('0.2.1-alpha.2')
+      expect(body.counts.skipped).toBe(1)
+      expect(body.entries[0]).toMatchObject({ name: 'pkg-a', fix: 'exempt' })
+      expect(body.entries[0]!.commands[0]).toContain('allow-version pkg-a@1.0.1')
+    } finally {
+      fixture.dispose()
+    }
+  })
+
+  it('rejects an invalid target with 400', async () => {
+    const fixture = makeHome()
+    try {
+      writeProfile(fixture.paths, { dependencies: {}, bundles: [] })
+      await expect(handlePanelApi('GET', new URL('http://127.0.0.1:8912/api/preview?profile=web&target=not-a-version'), { paths: fixture.paths, config: {} }))
+        .rejects.toMatchObject({ status: 400 })
+    } finally {
+      fixture.dispose()
+    }
+  })
+})

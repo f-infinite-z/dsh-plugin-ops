@@ -75,6 +75,19 @@ export {
   type ExemptionWriteResult,
 } from './compatibility.js'
 export { verifyPluginPackage, verifyOk, type VerifyReport, type VerifyFinding, type VerifyRuleId } from './verify.js'
+export {
+  buildPreviewReport,
+  renderPreviewReport,
+  renderPreviewMatrix,
+  PreviewError,
+  type PreviewInput,
+  type PreviewReport,
+  type PreviewEntry,
+  type PreviewCounts,
+  type PreviewTarget,
+  type PreviewVerdict,
+  type PreviewFix,
+} from './preview.js'
 export { buildVerifyMatrix, renderVerifyMatrix, dshPeersOf, type VerifyMatrix, type VerifyMatrixInput, type VerifyMatrixLifecyclePhase, type MatrixRuntimeResult } from './matrix.js'
 export { fetchNpmPackage, packLocalPackage, type FetchedPackage, type PackedPackage } from './npm-fetch.js'
 export { runSelfTest, type SelfTestResult } from './selftest.js'

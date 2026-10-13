@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { resolveDshPaths } from './paths.js'
 import { readProfileManifest, profileBundles, resolveBundles, type ProfileManifest } from './profile.js'
 import { scanProfile } from './scan.js'
+import { buildPreviewReport, PreviewError } from './preview.js'
 import { recentEvents } from './memory.js'
 import { alignToLockfile } from './fix.js'
 import { appendMemory } from './memory.js'
@@ -129,6 +130,24 @@ export async function handlePanelApi(
     const counts = { fatal: 0, warn: 0, info: 0 }
     for (const finding of report.findings) counts[finding.severity]++
     return { status: 200, body: { ...report, counts, ok: reportOk(report) } }
+  }
+
+  if (method === 'GET' && pathname === '/api/preview') {
+    const paths = pathsFor(options, profile)
+    const target = (url.searchParams.get('target') ?? '').trim()
+    const registry = (options.config.registry ?? process.env.npm_config_registry ?? process.env.NPM_CONFIG_REGISTRY ?? '').trim()
+    try {
+      const report = await buildPreviewReport({
+        paths, profileName: profile, config: options.config,
+        target: target === '' ? null : target,
+        updateCheck: url.searchParams.get('updates') === 'true',
+        registry: registry === '' ? null : registry,
+      })
+      return { status: 200, body: report }
+    } catch (error) {
+      if (error instanceof PreviewError) throw new PanelApiError(error.message, 400)
+      throw error
+    }
   }
 
   if (method === 'GET' && pathname === '/api/memory') {
