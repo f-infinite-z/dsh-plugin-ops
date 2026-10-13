@@ -7,7 +7,7 @@
 
 > DeepSeek Harness 插件运维（Plugin Operations）：启动前体检与拦截、失败归因与恢复、依赖治理、安装适配、作者发布前验证——让插件生态保持可加载。
 
-**状态：v0.19.2 — 沙箱控制台的"动作"半边落地：在 2 号实例里直接安装/卸载插件（回读校验注册、半注册残留自动 remove→add 修复）、就地解决 pnpm 构建门（`allowBuilds` 占位符）、会话报告跨沙箱清理留存；0.19.1 已覆盖双端宿主（web 与桌面第二个窗口），所有 `/dsh-ops` 路由与官方 API 同一道浏览器鉴权。拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
+**状态：v0.20.1 — 升级存活预演：对目标 dsh 版本预演每个已装插件的去向（"哪些会被跳过——每项修法都是可执行命令"），`--updates` 从 registry 解析最新发布；两个面板都加了预演卡片。新增规则 10 检测同一安装树内的同版本重复物理副本（现场案例：被 loader 吞掉的错误掩盖了 koffi 类型冲突）。拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
 
 ## 命名
 

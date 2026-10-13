@@ -7,7 +7,7 @@ English | [中文](README.zh.md)
 
 > DeepSeek Harness plugin operations: pre-boot checks and a blocking gate, failure attribution and recovery, dependency governance, install adaptation, and publish-time verification for plugin authors — keeping the plugin ecosystem loadable.
 
-**Status: v0.19.2 — the sandbox console's change half: install/uninstall plugins inside the number-2 instance with read-back registration verification and automatic half-registered repair, resolve the pnpm build gate (`allowBuilds` placeholders) in place, and keep session reports that outlive the sandbox home; 0.19.1 brought both hosts (web and the desktop second window) behind the harness browser authentication. Interception, repair, and memory mechanics: [docs/architecture.md](docs/architecture.md).**
+**Status: v0.20.1 — upgrade preview: rehearse the next dsh release against every installed plugin ("which ones get skipped — and each one's fix as a runnable command"), with `--updates` resolving the newest registry release; both panels gained the preview card. New scan rule 10 detects same-version duplicate physical copies inside one install tree (the field case where a swallowed loader error hid a koffi type collision). Interception, repair, and memory mechanics: [docs/architecture.md](docs/architecture.md).**
 
 ## Names
 
