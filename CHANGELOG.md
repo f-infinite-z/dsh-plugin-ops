@@ -27,6 +27,18 @@ All notable changes are tracked here.
 - **Both panels** (the serve panel and the embedded bundle's health section)
   gain an upgrade-preview card: a target-version input, an optional registry
   check, and the verdict list with copy-ready fix commands.
+- **Field feedback from the round-trip sandbox test** (folded in before the
+  release): command-output tails resume at a word boundary and mark the
+  elision instead of cutting mid-word; a managed stop/restart kill records
+  `lastExit.terminated` so a Windows forced-exit code no longer reads like a
+  crash; once the `allowBuilds` map is fully decided, historical
+  `ERR_PNPM_IGNORED_BUILDS` lines carry a `[resolved]` prefix; a failed
+  install records its classified reason (build gate / network / registry /
+  package manager) in the session report; the sandbox isolation wording and
+  the permissions table name user-level npm (`~/.npmrc` auth token) and git
+  credentials as readable from the sandbox; the config docs state that the
+  embedded host reads `dsh-ops.yml` once at activation (restart dsh after
+  changing `registry`).
 
 327 tests (core 251 + bundle 39 + cli 37; one POSIX-only test skipped on
 Windows). The real-profile rehearsal matched the field observation: on the
