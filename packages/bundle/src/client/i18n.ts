@@ -72,6 +72,19 @@ export interface Dict {
   exemptionsEmpty: string
   revoke: string
   uninstallCleanup: string
+  preview: string
+  previewHint: string
+  previewTargetPlaceholder: string
+  previewUpdates: string
+  previewRun: string
+  previewRunning: string
+  previewNoSkip: string
+  previewSkipped: string
+  previewCopy: string
+  previewCopied: string
+  previewTargetLabel: string
+  previewRunningLabel: string
+  previewVerdict: Record<string, string>
 }
 
 export const DICTS: Record<Lang, Dict> = {
@@ -147,6 +160,19 @@ export const DICTS: Record<Lang, Dict> = {
     exemptionsEmpty: '暂无豁免',
     revoke: '撤销',
     uninstallCleanup: '卸载并清理',
+    preview: '升级预演',
+    previewHint: '目标版本会跳过哪些第三方插件，及每个的修法；只读',
+    previewTargetPlaceholder: '目标版本（留空 = 最新已知）',
+    previewUpdates: '含 registry 检查（慢）',
+    previewRun: '运行预演',
+    previewRunning: '预演中…',
+    previewNoSkip: '该目标下没有被跳过的插件',
+    previewSkipped: '{n} 个插件会被跳过',
+    previewCopy: '复制',
+    previewCopied: '已复制',
+    previewTargetLabel: '目标版本',
+    previewRunningLabel: '当前运行',
+    previewVerdict: { skipped: '跳过', exempted: '已豁免', compatible: '兼容', retired: '退役', unresolved: '未解析' },
   },
   en: {
     title: 'Health Check',
@@ -220,6 +246,19 @@ export const DICTS: Record<Lang, Dict> = {
     exemptionsEmpty: 'No exemptions',
     revoke: 'Revoke',
     uninstallCleanup: 'Uninstall & clean',
+    preview: 'Upgrade preview',
+    previewHint: 'which third-party plugins the target release skips, and each fix; read-only',
+    previewTargetPlaceholder: 'Target version (empty = newest known)',
+    previewUpdates: 'Include registry check (slow)',
+    previewRun: 'Run preview',
+    previewRunning: 'Rehearsing…',
+    previewNoSkip: 'No plugin would be skipped by this target',
+    previewSkipped: '{n} plugin(s) would be skipped',
+    previewCopy: 'Copy',
+    previewCopied: 'Copied',
+    previewTargetLabel: 'target',
+    previewRunningLabel: 'running',
+    previewVerdict: { skipped: 'skipped', exempted: 'exempted', compatible: 'compatible', retired: 'retired', unresolved: 'unresolved' },
   },
 }
 

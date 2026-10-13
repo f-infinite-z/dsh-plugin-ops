@@ -82,6 +82,34 @@ interface AdaptOutcome {
   removedExemptions?: number
 }
 
+interface PreviewEntry {
+  name: string
+  version: string | null
+  verdict: 'skipped' | 'exempted' | 'compatible' | 'retired' | 'unresolved'
+  fix: 'update' | 'exempt' | 'disable' | 'none'
+  commands: string[]
+  detail: string
+  latest?: string | null
+  latestCompatible?: boolean | null
+}
+
+interface PreviewReport {
+  profile: string
+  runningVersion: string | null
+  target: { version: string; source: string }
+  entries: PreviewEntry[]
+  counts: {
+    skipped: number
+    updatable: number
+    exempt: number
+    disable: number
+    exempted: number
+    compatible: number
+    retired: number
+    unresolved: number
+  }
+}
+
 /** Bare package name from an `name@version` exemption key. */
 function packageNameOf(key: string): string {
   const at = key.lastIndexOf('@')
@@ -192,6 +220,12 @@ export function HealthSection(): ReactNode {
   const [adaptError, setAdaptError] = useState('')
   const [adaptDetail, setAdaptDetail] = useState('')
   const [exemptions, setExemptions] = useState<Record<string, string[]>>({})
+  const [previewTarget, setPreviewTarget] = useState('')
+  const [previewUpdates, setPreviewUpdates] = useState(false)
+  const [preview, setPreview] = useState<PreviewReport | null>(null)
+  const [previewBusy, setPreviewBusy] = useState(false)
+  const [previewError, setPreviewError] = useState('')
+  const [previewNotice, setPreviewNotice] = useState('')
 
   const load = useCallback(async (name: string, scanOnly = false): Promise<void> => {
     setError('')
@@ -265,6 +299,8 @@ export function HealthSection(): ReactNode {
     setRows([])
     setEvents([])
     setChat([])
+    setPreview(null)
+    setPreviewError('')
     void load(name)
   }
 
@@ -390,6 +426,25 @@ export function HealthSection(): ReactNode {
       setChatState(`${t.depositFail}${e instanceof Error ? e.message : String(e)}`)
     } finally {
       setBusy('')
+    }
+  }
+
+  const runPreview = async (): Promise<void> => {
+    if (previewBusy || profile === '') return
+    setPreviewBusy(true)
+    setPreviewError('')
+    setPreviewNotice('')
+    try {
+      const params = new URLSearchParams({ profile })
+      const target = previewTarget.trim()
+      if (target !== '') params.set('target', target)
+      if (previewUpdates) params.set('updates', 'true')
+      const res = await api<PreviewReport>(`/api/preview?${params.toString()}`)
+      setPreview(res)
+    } catch (e) {
+      setPreviewError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setPreviewBusy(false)
     }
   }
 
@@ -597,6 +652,79 @@ export function HealthSection(): ReactNode {
             {t.next}
           </button>
         </div>
+      </div>
+
+      <div className="dshops-card">
+        <h3>
+          {t.preview} <span className="dshops-dim">{t.previewHint}</span>
+        </h3>
+        <div className="dshops-chatbar" style={{ marginTop: 0 }}>
+          <input
+            className="dshops-input"
+            value={previewTarget}
+            placeholder={t.previewTargetPlaceholder}
+            onChange={(e) => setPreviewTarget(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void runPreview()
+            }}
+          />
+          <label
+            className="dshops-dim"
+            style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}
+          >
+            <input type="checkbox" checked={previewUpdates} onChange={(e) => setPreviewUpdates(e.target.checked)} />
+            {t.previewUpdates}
+          </label>
+          <button className="dshops-btn dshops-btn-primary" disabled={previewBusy || profile === ''} onClick={() => void runPreview()}>
+            {previewBusy ? t.previewRunning : t.previewRun}
+          </button>
+        </div>
+        {previewError !== '' && <div className="dshops-err" style={{ marginTop: 6 }}>{previewError}</div>}
+        {preview !== null && (
+          <div style={{ marginTop: 8 }}>
+            <div className="dshops-dim" style={{ fontSize: 12, marginBottom: 6 }}>
+              {t.previewTargetLabel}: <span className="dshops-mono">{preview.target.version}</span> ·{' '}
+              {t.previewRunningLabel}: <span className="dshops-mono">{preview.runningVersion ?? '?'}</span>
+            </div>
+            <div style={{ marginBottom: 6 }}>
+              {preview.counts.skipped > 0 ? (
+                <span className="dshops-pill dshops-pill-warn">{format(t.previewSkipped, { n: preview.counts.skipped })}</span>
+              ) : (
+                <span className="dshops-pill dshops-pill-ok">{t.previewNoSkip}</span>
+              )}
+            </div>
+            <div className="dshops-list">
+              {preview.entries.map((entry) => (
+                <div key={entry.name} className={`dshops-item${entry.verdict === 'skipped' ? ' dshops-item-warn' : ''}`}>
+                  <div>
+                    <span
+                      className={`dshops-pill dshops-pill-${entry.verdict === 'skipped' ? 'warn' : entry.verdict === 'compatible' ? 'ok' : 'info'}`}
+                    >
+                      {t.previewVerdict[entry.verdict] ?? entry.verdict}
+                    </span>{' '}
+                    <span className="dshops-mono">{entry.name}@{entry.version ?? '?'}</span>
+                  </div>
+                  <div className="dshops-dim" style={{ fontSize: 12 }}>{entry.detail}</div>
+                  {entry.commands.map((command) => (
+                    <div key={command} style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4 }}>
+                      <code className="dshops-mono" style={{ fontSize: 11, wordBreak: 'break-all' }}>{command}</code>
+                      <button
+                        className="dshops-btn"
+                        style={{ fontSize: 11, padding: '1px 6px' }}
+                        onClick={() => {
+                          void navigator.clipboard.writeText(command).then(() => setPreviewNotice(t.previewCopied))
+                        }}
+                      >
+                        {t.previewCopy}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+            {previewNotice !== '' && <div className="dshops-dim" style={{ fontSize: 11, marginTop: 4 }}>{previewNotice}</div>}
+          </div>
+        )}
       </div>
 
       <div className="dshops-card">
