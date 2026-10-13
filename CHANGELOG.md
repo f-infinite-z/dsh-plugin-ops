@@ -2,7 +2,7 @@
 
 All notable changes are tracked here.
 
-## 0.20.0 — unreleased
+## 0.20.0 — 2026-10-13
 
 ### Upgrade preview: rehearse the next release before committing to it
 
