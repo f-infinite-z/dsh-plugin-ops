@@ -5,6 +5,7 @@ import { rulePeerGap, rulePeerDrift } from './peers.js'
 import { rulePatchResolution } from './patchres.js'
 import { ruleStructure } from './structure.js'
 import { rulePluginCompatibility } from './compatibility.js'
+import { ruleDuplicateCopies } from './duplicates.js'
 import { readPackageManifest } from './package-tree.js'
 import { buildResolutionGeneration, dshVersionOf, locateInstallAnchor } from './generation.js'
 import { detectDesktop, isDesktopProfile } from './desktop.js'
@@ -70,6 +71,9 @@ export async function scanProfile(input: ScanInput): Promise<ScanReport> {
   }
 
   const snapshot = collectSnapshot(ctx, resolved)
+  // The duplicate-copy walk traverses whole install trees; a config that
+  // disables the rule skips the walk, not just the findings.
+  const duplicateCheckEnabled = input.config?.rules?.['duplicate-copies']?.enabled !== false
   let findings: Finding[] = [
     ...ruleBundleDeclaration(ctx),
     ...ruleDependencyDrift(ctx, resolved),
@@ -77,6 +81,7 @@ export async function scanProfile(input: ScanInput): Promise<ScanReport> {
     ...rulePeerDrift(ctx, resolved),
     ...rulePatchResolution(ctx, resolved),
     ...rulePluginCompatibility(ctx, resolved),
+    ...(duplicateCheckEnabled ? ruleDuplicateCopies(ctx) : []),
     ...ruleReleaseAgeExclude(ctx),
     ...ruleStructure(resolved),
     ...ruleSessionMemory(ctx, snapshot),

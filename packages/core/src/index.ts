@@ -74,6 +74,8 @@ export {
   COMPATIBILITY_MIN_VERSION,
   type ExemptionWriteResult,
 } from './compatibility.js'
+export { ruleDuplicateCopies } from './duplicates.js'
+export { locateCliInstallAnchor, resetCliAnchorCache } from './cli-anchor.js'
 export { verifyPluginPackage, verifyOk, type VerifyReport, type VerifyFinding, type VerifyRuleId } from './verify.js'
 export {
   buildPreviewReport,

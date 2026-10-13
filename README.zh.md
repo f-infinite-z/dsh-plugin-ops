@@ -39,7 +39,7 @@ dsh-ops selftest               # 自检：内置故障样本跑全规则
 
 `check` 输出每个 profile 一行总评 + 逐条 fatal 修复提示；`--json` 适合交给对话里的模型解读。
 
-## 扫描规则（9 条，全部静态确定性）
+## 扫描规则（10 条，全部静态确定性）
 
 | # | 规则 | 严重度 | 作用 |
 |---|---|---|---|
@@ -52,6 +52,7 @@ dsh-ops selftest               # 自检：内置故障样本跑全规则
 | 7 | 结构完整性 | fatal/warn | 缺默认入口 / CJS 入口（Loader 需 ESM 命名导出）/ 缺 types/client |
 | 8 | 插件版本兼容性 | fatal / info（已豁免） | `@deepseek-ai/dsh*` peer 范围拒绝当前 dsh 版本——dsh 0.1.7-rc.1+ 会跳过该 bundle，功能静默缺失，除非授予 exact-version 豁免 |
 | 9 | 嫩包豁免条目卫生 | warn | `minimumReleaseAgeExclude` 中同一包出现两条带版本条目会让 pnpm 11 的锁文件豁免失效，此后该 profile 的每次安装都失败（`ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION`，已在 pnpm 11.7 复现）；推荐改写为裸包名 |
+| 10 | 重复物理副本 | fatal / warn | 同一安装树内 `@deepseek-ai/*` 与框架核心包出现**同版本**的多个物理副本（pnpm store 实体经符号链接只有一份物理路径，自动去重；不同版本的嵌套解析属 npm 常态，不报；0.1.5 遗留的共享闭包镜像树不扫——0.1.6+ 启动器不读它）。多次安装/升级会累积同版本残留，而模块求值期做进程级全局登记的包（原生绑定、koffi 类型）在第二份副本加载时失败、且错误被 loader 吞掉；官方静态闸可通过（2026-10-13 现场：四份 `@deepseek-ai/dsh-win32-process`，`Duplicate type name 'DSH_STARTUPINFOW'`） |
 
 解析跟随启动器的运行时 generation（0.1.6+）：profile 自身依赖树原生优先，其次是从安装清单与所选 bundle 重建的包表——冻结的磁盘镜像不再参与判定。Node 解析只沿锚点的物理祖先链；环境注入路径（NODE_PATH、全局路径、加载器链）一律不参与，与启动器自身的包表一致。
 

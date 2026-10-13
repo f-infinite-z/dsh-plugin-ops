@@ -10,6 +10,7 @@ export type RuleId =
   | 'structure'
   | 'plugin-compatibility'
   | 'release-age-exclude'
+  | 'duplicate-copies'
 
 export type Fix =
   | { kind: 'none' }

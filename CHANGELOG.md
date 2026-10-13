@@ -2,6 +2,28 @@
 
 All notable changes are tracked here.
 
+## 0.20.1 — 2026-10-13
+
+### Duplicate physical copies, detected before they break a boot
+
+- **New scan rule 10 (`duplicate-copies`)**: an installation tree can
+  accumulate several same-version physical copies of one package across
+  installs and upgrades. Packages that register process-global names at
+  module evaluation — native bindings, koffi types — fail on the second copy,
+  and the plugin loader swallows the reason: the boot only reports
+  "failed to import", while the official static gate (`--dump-config`)
+  passes. Field case (2026-10-13, reported by the session-audit author):
+  four copies of `@deepseek-ai/dsh-win32-process` made koffi throw
+  `Duplicate type name 'DSH_STARTUPINFOW'` at load. The rule reports
+  `@deepseek-ai/*` packages (warn) and framework-core packages (fatal)
+  carrying same-version copies inside one physical tree; pnpm store entities
+  behind symlinks count once, different-version nesting is ordinary npm
+  resolution and stays silent, and the legacy shared-closure mirror — which
+  no launcher since 0.1.6 reads — is excluded. Disabling the rule in config
+  skips the tree walk entirely.
+- Findings carry `nextAction: reinstall-tree`; a fresh install of the same
+  version carries exactly one copy.
+
 ## 0.20.0 — 2026-10-13
 
 ### Upgrade preview: rehearse the next release before committing to it

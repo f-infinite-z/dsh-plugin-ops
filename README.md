@@ -39,7 +39,7 @@ dsh-ops selftest               # run built-in fault samples through all rules
 
 `check` prints one summary line per profile plus per-finding fix hints; `--json` is model-friendly.
 
-## Scan rules (9, fully static and deterministic)
+## Scan rules (10, fully static and deterministic)
 
 | # | Rule | Severity | What it catches |
 |---|---|---|---|
@@ -52,6 +52,7 @@ dsh-ops selftest               # run built-in fault samples through all rules
 | 7 | Structure integrity | fatal/warn | missing default entry / CJS entry (the Loader needs ESM named exports) / missing types or client |
 | 8 | Plugin version compatibility | fatal / info (exempted) | `@deepseek-ai/dsh*` peer ranges that reject the running dsh version — dsh 0.1.7-rc.1+ skips such a bundle, silently dropping its features unless an exact-version exemption is granted |
 | 9 | Release-age exclusion hygiene | warn | `minimumReleaseAgeExclude` with two versioned entries for one package breaks pnpm 11's lockfile exemption, so every later install in the profile fails with `ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION` (reproduced against pnpm 11.7); the bare package name is the recommended fix |
+| 10 | Duplicate physical copies | fatal / warn | `@deepseek-ai/*` and framework-core packages existing as more than one **same-version** physical copy inside one installation tree (pnpm store entities behind symlinks dedupe to one physical copy; different-version nesting is ordinary npm resolution and stays silent; the legacy shared-closure mirror is excluded — no launcher since 0.1.6 reads it). Cumulative installs/upgrades leave same-version residues, and packages that register process-global names at module evaluation (native bindings, koffi types) fail on the second copy with the reason swallowed by the loader; the official static gate passes (field case 2026-10-13: four copies of `@deepseek-ai/dsh-win32-process`, `Duplicate type name 'DSH_STARTUPINFOW'`) |
 
 Resolution follows the launcher's runtime generation (0.1.6+): the profile's own tree wins natively, then the package table rebuilt from the installation manifest and the selected bundles — the frozen disk mirror no longer decides. The Node lookup follows the anchor's physical ancestor chain only; environment-injected paths (NODE_PATH, global paths, loader chains) are ignored, matching the launcher's own table.
 
