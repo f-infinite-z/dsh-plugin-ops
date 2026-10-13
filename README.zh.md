@@ -4,6 +4,8 @@
 
 [![dsh-xray](https://img.shields.io/endpoint?url=https%3A%2F%2Funstone.github.io%2Fdsh-xray%2Fbadge%2Ff-infinite-z__dsh-plugin-ops.json)](https://unstone.github.io/dsh-xray/registry.html#f-infinite-z__dsh-plugin-ops)
 [![awesome-dsh-plugin](https://img.shields.io/badge/awesome-dsh--plugin-listed-blue)](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)
+[![npm version](https://img.shields.io/npm/v/dsh-plugin-ops?label=npm)](https://www.npmjs.com/package/dsh-plugin-ops)
+[![npm downloads](https://img.shields.io/npm/dm/dsh-plugin-ops?label=downloads)](https://www.npmjs.com/package/dsh-plugin-ops)
 
 > **插件把 dsh profile 弄坏了？** `dsh-ops` 点名是哪一个、告诉你官方启动器会不会跳过它、并把修法给成一条可直接执行的命令——**在启动失败之前**，且不碰你正在运行的实例。
 
@@ -15,7 +17,7 @@
 
 拿 dsh `0.2.1-alpha.2` 跑本项目自己的 web profile：`dsh-lsp-actions@0.4.5` 与 `dsh-mcp-connector@0.2.37` 会被跳过，能活下来的是 `dsh-lsp-actions@0.5.12` / `dsh-mcp-connector@0.2.70`。
 
-安装：桌面端 → **设置 → 插件 → `dsh-plugin-ops-bundle`**；web profile → `dsh plugin --profile web add dsh-plugin-ops-bundle`；终端 → `npm i -g dsh-plugin-ops`。
+**安装：** 桌面端 → **设置 → 插件 → `dsh-plugin-ops-bundle`**。Web/CLI profile 与终端见[安装](#安装)。
 
 **状态：v0.20.1 — 升级存活预演：对目标 dsh 版本预演每个已装插件的去向（"哪些会被跳过——每项修法都是可执行命令"），`--updates` 从 registry 解析最新发布；两个面板都加了预演卡片。新增规则 10 检测同一安装树内的同版本重复物理副本（现场案例：被 loader 吞掉的错误掩盖了 koffi 类型冲突）。拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
 
@@ -32,10 +34,15 @@ DeepSeek Harness（dsh）插件生态自 2026-08 起爆发式增长，但 dsh �
 
 现有生态工具（多个市场/管理器）只做**变更时防护**（安装/更新时试运行）与运行期观测；**没有项目做每次启动前的整体预检、跟随启动器的运行时解析表、并在启动失败时读取官方诊断做归因**。dsh-plugin-ops 补上这环。
 
-## 快速开始
+## 安装
+
+| 你的形态 | 安装方式 |
+|---|---|
+| **桌面端** | 设置 → 插件 → 安装 `dsh-plugin-ops-bundle`（或直接让 DSH 自己装） |
+| **Web / CLI profile** | `dsh plugin --profile web add dsh-plugin-ops-bundle` |
+| **终端** | `npm i -g dsh-plugin-ops` |
 
 ```sh
-npm i -g dsh-plugin-ops
 dsh-ops check                  # 一条命令扫全部 profile（无网络，秒级）
 dsh-ops scan --profile web     # 单 profile 深扫（--json 机器可读；--version-view latest 只看最新语义）
 dsh-ops fix --profile web      # 修复：lockfile 对齐（--dry-run 预览 / --yes 免确认）

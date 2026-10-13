@@ -4,6 +4,8 @@ English | [中文](README.zh.md)
 
 [![dsh-xray](https://img.shields.io/endpoint?url=https%3A%2F%2Funstone.github.io%2Fdsh-xray%2Fbadge%2Ff-infinite-z__dsh-plugin-ops.json)](https://unstone.github.io/dsh-xray/registry.html#f-infinite-z__dsh-plugin-ops)
 [![awesome-dsh-plugin](https://img.shields.io/badge/awesome-dsh--plugin-listed-blue)](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)
+[![npm version](https://img.shields.io/npm/v/dsh-plugin-ops?label=npm)](https://www.npmjs.com/package/dsh-plugin-ops)
+[![npm downloads](https://img.shields.io/npm/dm/dsh-plugin-ops?label=downloads)](https://www.npmjs.com/package/dsh-plugin-ops)
 
 > **A plugin broke your dsh profile?** `dsh-ops` names the one that did it, tells you whether the official launcher would skip it, and hands you the fix as a runnable command — **before** the boot fails, and without touching your live instance.
 
@@ -15,7 +17,7 @@ English | [中文](README.zh.md)
 
 Against dsh `0.2.1-alpha.2` this project's own web profile reports that `dsh-lsp-actions@0.4.5` and `dsh-mcp-connector@0.2.37` would be skipped, and that `dsh-lsp-actions@0.5.12` / `dsh-mcp-connector@0.2.70` are the releases that survive.
 
-Install: desktop → **Settings → Plugins → `dsh-plugin-ops-bundle`**; web profile → `dsh plugin --profile web add dsh-plugin-ops-bundle`; terminal → `npm i -g dsh-plugin-ops`.
+**Install:** desktop → **Settings → Plugins → `dsh-plugin-ops-bundle`**. Web/CLI profiles and the terminal are in [Install](#install).
 
 **Status: v0.20.1 — upgrade preview: rehearse the next dsh release against every installed plugin ("which ones get skipped — and each one's fix as a runnable command"), with `--updates` resolving the newest registry release; both panels gained the preview card. New scan rule 10 detects same-version duplicate physical copies inside one install tree (the field case where a swallowed loader error hid a koffi type collision). Interception, repair, and memory mechanics: [docs/architecture.md](docs/architecture.md).**
 
@@ -32,10 +34,15 @@ The DeepSeek Harness (dsh) plugin ecosystem has grown explosively since August 2
 
 Existing ecosystem tools cover **change-time protection** (dry runs during install/update) and runtime observation; **none do whole-tree pre-boot checks, follow the launcher's runtime resolution table, and attribute a failed boot through the official diagnostics**. dsh-plugin-ops fills that gap.
 
-## Quick start
+## Install
+
+| You are | Install |
+|---|---|
+| **Desktop app** | Settings → Plugins → install `dsh-plugin-ops-bundle` (or just ask DSH to install it) |
+| **Web / CLI profile** | `dsh plugin --profile web add dsh-plugin-ops-bundle` |
+| **Terminal** | `npm i -g dsh-plugin-ops` |
 
 ```sh
-npm i -g dsh-plugin-ops
 dsh-ops check                  # scan every profile (offline, seconds)
 dsh-ops scan --profile web     # deep scan one profile (--json for machines; --version-view latest for newest-only)
 dsh-ops fix --profile web      # lockfile realign (--dry-run to preview)
