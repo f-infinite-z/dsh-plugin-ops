@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs'
 import { isAbsolute, join } from 'node:path'
+import semver from 'semver'
 import type { Finding } from './types.js'
 import type { RuleContext } from './rules.js'
 import type { ResolvedBundle } from './profile.js'
@@ -148,6 +149,18 @@ export function rulePatchResolution(ctx: RuleContext, resolved: ResolvedBundle[]
     const required = typeof row.id === 'string' && REQUIRED_ENTRY_IDS.has(row.id)
     const version = decisionVersion(ctx.versionView, ctx.dshVersion)
     const tolerant = !required && toleratesOptionalBundles(version)
+    // Severity and the narrative follow the actual install, mirroring rule 8:
+    // a cross-release view may evaluate a boundary the running release
+    // tolerates, and reporting that as a boot abort would contradict the
+    // note's own range. With the release unknown, the strictest boundary
+    // decides (the tolerant text cannot be claimed).
+    const actual = ctx.dshVersion
+    const tolerantNow = required
+      ? false
+      : actual !== null && semver.valid(actual) !== null ? toleratesOptionalBundles(actual) : tolerant
+    const skipText = actual !== null && semver.valid(actual) !== null
+      ? `dsh ${actual} skips this optional entry and continues the boot`
+      : `dsh ${version} skips this optional entry and continues the boot`
     const versionNote = ctx.versionView === 'all' && !required
       ? boundaryNote(OPTIONAL_TOLERANCE_MIN_VERSION, 'the boot aborts on this row', 'this optional entry is skipped with a warning')
       : undefined
@@ -156,10 +169,10 @@ export function rulePatchResolution(ctx: RuleContext, resolved: ResolvedBundle[]
       if (!existsSync(target)) {
         findings.push({
           ruleId: 'patch-resolution',
-          severity: tolerant ? 'warn' : 'fatal',
+          severity: tolerantNow ? 'warn' : 'fatal',
           ...(row.id !== undefined ? { packageName: row.id } : {}),
-          message: tolerant
-            ? `patch row ${JSON.stringify(row.id ?? name)} references a module path that does not exist: ${name}; dsh ${version} skips this optional entry and continues the boot`
+          message: tolerantNow
+            ? `patch row ${JSON.stringify(row.id ?? name)} references a module path that does not exist: ${name}; ${skipText}`
             : `patch row ${JSON.stringify(row.id ?? name)} references a module path that does not exist: ${name}; the boot aborts on this row`,
           detail: `declared in ${ref.source}`,
           ...(versionNote !== undefined ? { versionNote } : {}),
@@ -189,12 +202,12 @@ export function rulePatchResolution(ctx: RuleContext, resolved: ResolvedBundle[]
     const isOfficial = pkg.startsWith('@deepseek-ai/')
     findings.push({
       ruleId: 'patch-resolution',
-      severity: tolerant ? 'warn' : 'fatal',
+      severity: tolerantNow ? 'warn' : 'fatal',
       ...(row.id !== undefined ? { packageName: row.id } : {}),
       message: required
         ? `patch row ${JSON.stringify(row.id ?? name)} references package ${pkg} that does not resolve; the row id is a required startup entry, so the boot aborts`
-        : tolerant
-          ? `patch row ${JSON.stringify(row.id ?? name)} references package ${pkg} that does not resolve; dsh ${version} skips this optional entry and continues the boot`
+        : tolerantNow
+          ? `patch row ${JSON.stringify(row.id ?? name)} references package ${pkg} that does not resolve; ${skipText}`
           : `patch row ${JSON.stringify(row.id ?? name)} references package ${pkg} that does not resolve; the boot aborts on this row`,
       detail: isOfficial
         ? `declared in ${ref.source}. Official packages resolve from the running dsh installation's dependency closure; if the installation is intact, start dsh once so the runtime table covers it (then re-scan), otherwise reinstall dsh.`

@@ -61,6 +61,22 @@ describe('version view: rule severities', () => {
     }
   })
 
+  it('follows the actual install under all: a release that tolerates the row warns, not fatal', async () => {
+    const fixture = makeHome()
+    try {
+      writeDshInstall(fixture, '0.2.1-alpha.3')
+      writeProfile(fixture.paths, { dependencies: {}, bundles: [] })
+      writeGhostInsert(fixture)
+      const report = await scanProfile({ paths: fixture.paths, profileName: 'web', updateCheck: false, versionView: 'all' })
+      const finding = report.findings.find((f) => f.ruleId === 'patch-resolution')
+      expect(finding?.severity).toBe('warn')
+      expect(finding?.message).toContain('dsh 0.2.1-alpha.3 skips this optional entry')
+      expect(finding?.versionNote).toContain('0.1.7-alpha.1')
+    } finally {
+      fixture.dispose()
+    }
+  })
+
   it('keeps the actual install as the default view', async () => {
     const fixture = makeHome()
     try {
