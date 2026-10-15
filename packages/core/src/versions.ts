@@ -18,8 +18,12 @@ export const KNOWN_VERSION_BOUNDARIES: readonly string[] = [
   '0.2.0-rc.2',
   // Retired-bundle era: the launcher drops retired bundle entries on load.
   '0.2.1-alpha.1',
-  // Newest alpha line; loading semantics unchanged from alpha.1 (bundles reshuffled).
+  // Alpha line; loading semantics unchanged from alpha.1 (bundles reshuffled).
   '0.2.1-alpha.2',
+  // Newest alpha line; boot-time loading semantics unchanged from alpha.2
+  // (runtime recomposition, HMR package reload, and stored-credential
+  // precedence changed; the static pre-boot checks judge boot semantics).
+  '0.2.1-alpha.3',
 ]
 
 /** Newest known release; the `latest` reporting target. */
