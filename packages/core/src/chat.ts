@@ -67,25 +67,24 @@ function credentialsRefs(home: string): Record<string, unknown> | null {
 }
 
 /**
- * Resolve one secret by name: inherited process environment, the gitignored
- * `$DSH_HOME/.env`, then the harness credentials file (`.credentials.yaml`
- * refs — the same store the harness itself reads).
+ * Resolve one secret by name, in the harness's precedence since
+ * dsh 0.2.1-alpha.3: the harness credentials file (`.credentials.yaml` refs —
+ * the same store the harness itself reads, where an entry the user saved in
+ * the product wins), then the inherited process environment, then the
+ * gitignored `$DSH_HOME/.env`.
  */
 export function lookupSecret(name: string, home: string): string | null {
-  const env = process.env[name]
-  if (env !== undefined && env !== '') return env
-  const dot = secretFromEnvOrDotEnv(name, home)
-  if (dot !== null) return dot
   const ref = credentialsRefs(home)?.[name]
-  return typeof ref === 'string' && ref !== '' ? ref : null
+  if (typeof ref === 'string' && ref !== '') return ref
+  return secretFromEnvOrDotEnv(name, home)
 }
 
 /**
  * Resolve the model configuration for the direct (non-harness) channel. Probe
  * order: an explicit override (`DSH_OPS_LLM_API_KEY` / `_BASE_URL` /
- * `_MODEL`), then the first provider key found in the environment, the
- * gitignored `$DSH_HOME/.env`, or the harness credentials file
- * (`.credentials.yaml` refs — the same store the harness itself reads).
+ * `_MODEL`), then the first provider key found in the harness credentials
+ * file, the inherited environment, or the gitignored `$DSH_HOME/.env`
+ * (stored credentials win, matching the harness since 0.2.1-alpha.3).
  * Base URL and model default to that provider's OpenAI-compatible endpoint.
  */
 export function resolveModelConfig(home: string): ResolvedModelConfig | null {

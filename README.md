@@ -112,7 +112,7 @@ registry: https://registry.npmmirror.com   # sandbox installs / desktop scaffold
 
 - **Core logic lives outside the dsh plugin tree** (a standalone wrapper process reading files): a crashing dsh does not affect diagnosis, and a failing diagnosis does not block dsh (fail-open applies only to dsh-ops' own faults).
 - **Self-contained builds**: core and CLI ship as single files with every dependency inlined (zero runtime node_modules) — no dependency tree to drift; the in-tree bundle host half therefore carries no dependency-gap risk into the plugin tree.
-- Engine messages are English-only (one fact source for CLI/JSON/panel); the panel UI is dictionary-driven zh/en. The `serve` panel includes diagnosis chat (ModelChannel: explicit `DSH_OPS_LLM_API_KEY`/`_BASE_URL`/`_MODEL` overrides, or probing DEEPSEEK/ARK/DASHSCOPE/OPENAI keys from env, `.env`, `.credentials.yaml`; the embedded form prefers the official `ctx.llm` seam and falls back to a direct channel).
+- Engine messages are English-only (one fact source for CLI/JSON/panel); the panel UI is dictionary-driven zh/en. The `serve` panel includes diagnosis chat (ModelChannel: explicit `DSH_OPS_LLM_API_KEY`/`_BASE_URL`/`_MODEL` overrides, or probing DEEPSEEK/ARK/DASHSCOPE/OPENAI keys from `.credentials.yaml`, env, or `$DSH_HOME/.env` — stored credentials win, matching the harness since dsh 0.2.1-alpha.3; the embedded form prefers the official `ctx.llm` seam and falls back to a direct channel).
 - Writes are whitelisted and backed up; fault-injection tests assert temp-sandbox paths. Every route of the embedded surface passes the harness connection's admission; the sandbox manager observes its child only from outside (its files, diagnostics, and output).
 
 ## Permissions and data access
@@ -127,7 +127,7 @@ dsh-ops touches sensitive surfaces by design; here is exactly what, when, and un
 | Command execution | `pnpm install --frozen-lockfile --force` (fixed arguments); the `dsh` command passed to `gate`; `session-audit` when present | realign drift; launch dsh after a passed gate; session-container pre-check | never arbitrary commands; only on explicit confirmation or the exact command the user typed |
 | Sandbox process | a second `dsh` spawned in a temporary DSH home through the running installation's own CLI entry (the sandbox home as cwd), or a second desktop window of the installed app (isolated `--user-data-dir` plus a temporary home) for the desktop host | the sandbox console (panel and `dsh_ops_sandbox_*` tools) | started only on explicit action; runs as this user with the inherited environment — configuration isolation for plugin work, not a security boundary (stated in the UI: user-level credentials such as the `~/.npmrc` auth token and git credential stores are readable from the sandbox); stopped with full cleanup |
 | Local HTTP server | loopback `127.0.0.1:8912` (`serve` panel); the embedded bundle reuses dsh's own web server | the web panel | loopback only, route whitelist; the embedded surface additionally passes the harness connection's browser admission (launch-token/cookie) and refuses requests without it |
-| LLM credentials | `DSH_OPS_LLM_*`, or provider keys from env / `.env` / `.credentials.yaml` | the optional diagnosis chat only | read only when chat is used; every static feature works with no key at all |
+| LLM credentials | `DSH_OPS_LLM_*`, or provider keys from `.credentials.yaml` / env / `$DSH_HOME/.env` (stored credentials win, matching the harness) | the optional diagnosis chat only | read only when chat is used; every static feature works with no key at all |
 | Network | `pnpm outdated` (opt-in via `--updates`); the configured LLM API | update advisories; diagnosis chat | `check`/`fix`/`gate` and default `scan` are fully offline |
 
 dsh-xray rates this project C3 (a capability-surface rating, not intent); the table above is its human-readable counterpart.
@@ -142,7 +142,7 @@ dsh-xray rates this project C3 (a capability-surface rating, not intent); the ta
 
 ```sh
 pnpm install && pnpm run build
-pnpm run typecheck && pnpm run test      # 333 tests (core 257 + bundle 39 + cli 37; one POSIX-only test skipped on Windows)
+pnpm run typecheck && pnpm run test      # 336 tests (core 260 + bundle 39 + cli 37; one POSIX-only test skipped on Windows)
 node packages/cli/lib/index.js selftest  # engine self-check
 node scripts/e2e/scan-fix.e2e.mjs        # offline E2E (real pnpm repair)
 node scripts/e2e/gate.e2e.mjs            # gate scenarios (pass/block/bypass/attribution/headless)

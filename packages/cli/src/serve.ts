@@ -91,7 +91,7 @@ export async function serve(options: ServeOptions): Promise<number> {
         }
         const config = resolveModelConfig(options.paths.home)
         if (config === null) {
-          json(res, 200, { ok: false, reply: '', error: 'no provider key found (env, $DSH_HOME/.env, or .credentials.yaml refs); set DSH_OPS_LLM_API_KEY to override' })
+          json(res, 200, { ok: false, reply: '', error: 'no provider key found (.credentials.yaml refs, env, or $DSH_HOME/.env); set DSH_OPS_LLM_API_KEY to override' })
           return
         }
         const context = await buildChatContext(options.paths, profile, options.config)
