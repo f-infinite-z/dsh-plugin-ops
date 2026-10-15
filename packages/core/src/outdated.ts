@@ -30,9 +30,11 @@ function cacheFile(cacheDir: string, profileName: string): string {
  * Check registry versions through `pnpm outdated --format json`. Results are
  * cached for the TTL so repeated scans (gate, fix rescans) stay fast; a failed
  * check degrades to an empty state with `checkedAt: null` instead of throwing.
- * Never blocks longer than CHECK_TIMEOUT_MS.
+ * Never blocks longer than CHECK_TIMEOUT_MS. The configured registry (when
+ * set) is passed through with pnpm's generic configuration flag, so the check
+ * reaches the same registry the installs use.
  */
-export async function checkOutdated(profileDir: string, cacheDir: string, profileName: string): Promise<OutdatedState> {
+export async function checkOutdated(profileDir: string, cacheDir: string, profileName: string, registry?: string | null): Promise<OutdatedState> {
   const file = cacheFile(cacheDir, profileName)
   if (existsSync(file)) {
     try {
@@ -45,13 +47,23 @@ export async function checkOutdated(profileDir: string, cacheDir: string, profil
     }
   }
   try {
-    const result = await runPnpm(['outdated', '--format', 'json'], profileDir, CHECK_TIMEOUT_MS)
-    if (result.code !== 0) {
+    const args = ['outdated', '--format', 'json']
+    const chosen = (registry ?? '').trim()
+    if (chosen !== '') args.push(`--config.registry=${chosen}`)
+    const result = await runPnpm(args, profileDir, CHECK_TIMEOUT_MS)
+    // `pnpm outdated` exits 1 when updates exist while still printing the
+    // complete JSON answer (and the answer spans multiple lines), so the
+    // output — not the exit code — decides whether the check ran: anything
+    // from the first `{` on parses, and a run that printed no JSON (offline,
+    // timeout, no pnpm) degrades to `checkedAt: null`.
+    const text = result.output.trim()
+    const start = text.indexOf('{')
+    if (start < 0) {
       return { entries: [], checkedAt: null }
     }
     let raw: OutdatedRaw
     try {
-      raw = JSON.parse(result.output.trim().split('\n').pop() ?? '{}') as OutdatedRaw
+      raw = JSON.parse(text.slice(start)) as OutdatedRaw
     } catch {
       return { entries: [], checkedAt: null }
     }

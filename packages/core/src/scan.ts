@@ -11,6 +11,7 @@ import { buildResolutionGeneration, dshVersionOf, locateInstallAnchor } from './
 import { detectDesktop, isDesktopProfile } from './desktop.js'
 import { readGlobalDshVersion } from './dsh-version.js'
 import { checkOutdated } from './outdated.js'
+import { discoverRegistry } from './registry.js'
 import { applyConfig, type OpsConfig } from './config.js'
 import type { VersionView } from './versions.js'
 import type { ScanReport, PackageSnapshot, Finding } from './types.js'
@@ -89,7 +90,7 @@ export async function scanProfile(input: ScanInput): Promise<ScanReport> {
 
   const updateEnabled = input.config?.rules?.['registry-version']?.enabled !== false
   if (input.updateCheck === true && updateEnabled) {
-    const outdated = await checkOutdated(input.paths.profileDir, input.paths.memoryDir, input.profileName)
+    const outdated = await checkOutdated(input.paths.profileDir, input.paths.memoryDir, input.profileName, discoverRegistry(input.paths.profileDir, input.config?.registry))
     findings = [...findings, ...ruleRegistryVersion(outdated)]
   }
 

@@ -57,6 +57,7 @@ export {
 export { allVisibleRows, rowIdsForPackage, type RowRef } from './rows.js'
 export { runCommand, runPnpm, alignToLockfile, disableRow, type RunResult, type AlignResult, type DisableResult } from './fix.js'
 export { checkOutdated, type OutdatedState, type OutdatedEntry } from './outdated.js'
+export { discoverRegistry } from './registry.js'
 export { readOpsConfig, applyConfig, DEFAULT_CONFIG_FILENAME, type OpsConfig, type RuleOverride } from './config.js'
 export { CORE_PACKAGES } from './peers.js'
 export { ruleBundleDeclaration, ruleDependencyDrift, ruleSessionMemory, ruleRegistryVersion, ruleReleaseAgeExclude, type RuleContext } from './rules.js'
