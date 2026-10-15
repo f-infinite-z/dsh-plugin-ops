@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import net from 'node:net'
 import {
@@ -10,6 +10,7 @@ import {
   desktopPortPatchYaml,
   desktopVerifyProfileFiles,
   detectDesktop,
+  discoverRegistry,
   locateInstallAnchor,
   MEMORY_DIR_NAME,
   profileBundles,
@@ -488,13 +489,36 @@ export class SandboxManager {
 
   /**
    * The registry override for sandbox management commands and the desktop
-   * profile scaffold: the dsh-ops config value wins, the environment is the
-   * fallback, and neither means the package manager default.
+   * profile scaffold: the dsh-ops config value wins, the host environment is
+   * the fallback, then the npmrc files a package-manager run on this machine
+   * reads (the sandbox profile's own, then the invoking user's). Null means
+   * the package-manager default (the public npm registry).
    */
   private registryValue(): string | null {
-    if (this.configuredRegistry !== null) return this.configuredRegistry
-    const env = (process.env.npm_config_registry ?? process.env.NPM_CONFIG_REGISTRY ?? '').trim()
-    return env === '' ? null : env
+    const paths = this.paths()
+    return discoverRegistry(paths === null ? homedir() : paths.profileDir, this.configuredRegistry)
+  }
+
+  /**
+   * A registry reachability probe before a sandbox install. The host process
+   * may run with neither a configured registry nor npm_config_registry (a
+   * GUI-launched host carries none), and on networks that cannot route the
+   * default registry the package-manager run would otherwise hang through its
+   * retry tail and die as an aborted tool call. Any HTTP response counts as
+   * reachable; only a transport failure is a fast no.
+   * @returns null when reachable, else an actionable diagnostic.
+   */
+  private async probeRegistry(registry: string | null): Promise<string | null> {
+    const base = (registry ?? 'https://registry.npmjs.org').replace(/\/+$/, '')
+    try {
+      await fetch(`${base}/-/ping`, { signal: AbortSignal.timeout(5000), headers: { accept: 'application/json' } })
+      return null
+    } catch (error) {
+      const reason = error instanceof Error && error.name === 'TimeoutError'
+        ? 'no response within 5s'
+        : String(error instanceof Error && error.cause !== undefined ? error.cause : error)
+      return `the registry ${base} is unreachable (${reason}); set \`registry:\` to a reachable mirror in <DSH_HOME>/dsh-ops.yml (or npm_config_registry in the host environment), then retry`
+    }
   }
 
   /** The sandbox profile name (the shape's official profile). */
@@ -1021,6 +1045,11 @@ export class SandboxManager {
     const paths = this.paths()
     if (this.state !== 'running' || paths === null) {
       steps.push({ step: 'state', ok: false, detail: 'the sandbox is not running; start it first' })
+      return finish(false, false)
+    }
+    const registryProblem = await this.probeRegistry(this.registryValue())
+    if (registryProblem !== null) {
+      steps.push({ step: 'registry', ok: false, detail: registryProblem })
       return finish(false, false)
     }
     const add = await this.runSandboxCommand(this.pluginArgs('add', spec))
