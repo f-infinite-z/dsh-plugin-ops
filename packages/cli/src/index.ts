@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { readFileSync } from 'node:fs'
 import { parseArgs } from 'node:util'
 import { resolveDshPaths, readOpsConfig, runSelfTest } from 'dsh-plugin-ops-core'
 import { runScanCommand } from './scan-cmd.js'
@@ -28,6 +29,7 @@ usage:
   dsh-ops sessions [--home <dir>] [--json] [--repair-paths] [--quarantine]
   dsh-ops dev   <plugin-dir> [--runtime] [--desktop] [--runtime-timeout <s>]
   dsh-ops selftest
+  dsh-ops --version | -v
   dsh-ops help
 
 config: read from <DSH_HOME>/dsh-ops.yml by default (rules on/off, severity
@@ -107,6 +109,16 @@ function parse(rawArgs: string[]): { values: Flags; positionals: string[] } {
   return { values: values as Flags, positionals }
 }
 
+/** The CLI's own version, read from the package manifest beside the bundle. */
+function opsVersion(): string {
+  try {
+    const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { version?: unknown }
+    return typeof manifest.version === 'string' ? manifest.version : 'unknown'
+  } catch {
+    return 'unknown'
+  }
+}
+
 /** Load the user config; a corrupt file is a hard usage error. */
 function loadConfig(file: string | undefined, defaultFile: string) {
   const read = readOpsConfig(file ?? defaultFile)
@@ -129,6 +141,10 @@ async function main(): Promise<number> {
     case '--help':
     case '-h':
       process.stdout.write(USAGE)
+      return 0
+    case '--version':
+    case '-v':
+      process.stdout.write(`dsh-ops ${opsVersion()}\n`)
       return 0
     case 'scan':
     case 'fix':
