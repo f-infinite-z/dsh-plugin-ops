@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 vi.unmock('../src/cli-anchor.js')
 
 import { locateCliInstallAnchor, resetCliAnchorCache } from '../src/cli-anchor.js'
+import { locateInstallAnchor } from '../src/index.js'
 import { makeHome, writeJson } from './helpers.js'
 
 const SHIM_NAME = process.platform === 'win32' ? 'dsh.cmd' : 'dsh'
@@ -109,6 +110,40 @@ describe('cli-anchor: locateCliInstallAnchor', () => {
       mkdirSync(empty, { recursive: true })
       usePath(empty)
       expect(locateCliInstallAnchor()).toBeNull()
+    } finally {
+      fixture.dispose()
+    }
+  })
+})
+
+describe('cli-anchor: locateInstallAnchor (CLI first, mirror fallback)', () => {
+  it('prefers the PATH installation over a legacy shared-mirror copy', () => {
+    const fixture = makeHome()
+    try {
+      writeJson(join(fixture.paths.sharedProfilesDir, '@deepseek-ai', 'dsh', 'package.json'), {
+        name: '@deepseek-ai/dsh', version: '0.1.6-alpha.2',
+      })
+      const bin = join(fixture.home, 'prefix', 'bin')
+      mkdirSync(bin, { recursive: true })
+      writeFileSync(join(bin, SHIM_NAME), shimText('shim-relative'), 'utf8')
+      writeJson(join(fixture.home, 'prefix', MANIFEST), { name: '@deepseek-ai/dsh', version: '0.2.1-alpha.3' })
+      usePath(bin)
+      expect(locateInstallAnchor(fixture.paths)).toBe(join(fixture.home, 'prefix', MANIFEST))
+    } finally {
+      fixture.dispose()
+    }
+  })
+
+  it('falls back to the shared mirror when PATH carries no installation', () => {
+    const fixture = makeHome()
+    try {
+      writeJson(join(fixture.paths.sharedProfilesDir, '@deepseek-ai', 'dsh', 'package.json'), {
+        name: '@deepseek-ai/dsh', version: '0.1.6-alpha.2',
+      })
+      const empty = join(fixture.home, 'empty')
+      mkdirSync(empty, { recursive: true })
+      usePath(empty)
+      expect(locateInstallAnchor(fixture.paths)).toBe(join(fixture.paths.sharedProfilesDir, '@deepseek-ai', 'dsh', 'package.json'))
     } finally {
       fixture.dispose()
     }

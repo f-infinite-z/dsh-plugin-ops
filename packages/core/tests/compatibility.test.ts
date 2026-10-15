@@ -137,6 +137,23 @@ describe('rule 8: plugin version compatibility', () => {
       fixture.dispose()
     }
   })
+
+  it('never evaluates official bundles, even under the actual view', async () => {
+    for (const view of [undefined, 'all'] as const) {
+      const fixture = setup('0.1.7-rc.2')
+      try {
+        // A stale shared-mirror copy of an official bundle whose peers reject
+        // the running release: the launcher owns it, so no view may judge it.
+        writeProfile(fixture.paths, { dependencies: { '@deepseek-ai/dsh-web-app': '0.1.6-alpha.2' }, bundles: ['@deepseek-ai/dsh-web-app'] })
+        writeBundle(fixture, '@deepseek-ai/dsh-web-app', '0.1.6-alpha.2', '^0.5.0')
+        writeLockfile(fixture.paths, {})
+        const report = await scanProfile({ paths: fixture.paths, profileName: 'web', ...(view === undefined ? {} : { versionView: view }) })
+        expect(report.findings.some((f) => f.ruleId === 'plugin-compatibility')).toBe(false)
+      } finally {
+        fixture.dispose()
+      }
+    }
+  })
 })
 
 describe('exemption write/revoke', () => {

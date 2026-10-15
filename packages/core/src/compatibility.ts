@@ -93,7 +93,9 @@ function peerSummary(peers: Record<string, string>): string {
  * the actual install: only a bundle the running release itself rejects is
  * fatal, so a cross-release view reports a future upgrade blocker as a
  * warning. Official `@deepseek-ai/` bundles ship with the installation and
- * evolve with it, so a cross-release view does not evaluate them.
+ * evolve with it, so no view evaluates them: a cross-release view cannot
+ * judge them, and the actual view can resolve a stale shared-mirror copy
+ * whose peers describe an era that is not running.
  */
 export function rulePluginCompatibility(ctx: RuleContext, resolved: ResolvedBundle[]): Finding[] {
   // The desktop host only ever runs desktop releases (0.2.0-rc.1+), so a
@@ -115,7 +117,12 @@ export function rulePluginCompatibility(ctx: RuleContext, resolved: ResolvedBund
   const exemptions = readProfileVersionExemptions(ctx.paths.profileDir)
   const findings: Finding[] = []
   for (const bundle of resolved) {
-    if (ctx.versionView !== undefined && bundle.name.startsWith('@deepseek-ai/')) continue
+    // Official bundles ship with the installation; the launcher owns their
+    // integrity. Static resolution can land on a stale shared-mirror copy on
+    // legacy homes, whose peers describe an era that is not running — judging
+    // that copy misreports the install. Third-party skips are this rule's
+    // only subject.
+    if (bundle.name.startsWith('@deepseek-ai/')) continue
     const rejected = evaluate.filter((runtime) => incompatibleDshPeers(bundle.manifest, runtime) !== null)
     if (rejected.length === 0) continue
     const version = typeof bundle.manifest.version === 'string' ? bundle.manifest.version : ''

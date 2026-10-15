@@ -157,11 +157,12 @@ export function isProfileFallbackProjection(profileDir: string, name: string): b
 
 /**
  * Locate the dsh installation manifest the launcher would use as its anchor.
- * The shared mirror's `@deepseek-ai/dsh` link is the primary source (legacy
- * homes still carry it); modern dsh (0.1.6+) derives its own anchor from the
- * running CLI's real path and never writes that mirror, so a fresh home has
- * no physical file to read and the `dsh` shim on PATH is the fallback. An
- * explicit config value overrides both for non-standard layouts.
+ * The `dsh` shim on PATH is the primary source — the same installation the
+ * version probe reads (dsh-version.ts), and the one runtime resolution would
+ * anchor at. The legacy shared mirror is only a fallback: runtime resolution
+ * never heals it, so on legacy homes it can hold a stale physical copy whose
+ * packages describe an era that is not running. An explicit config value
+ * overrides both for non-standard layouts.
  * @param paths - resolved DSH paths.
  * @param configured - explicit install anchor directory or package.json path from config.
  * @returns the absolute package.json path, or null when no installation is locatable.
@@ -171,9 +172,10 @@ export function locateInstallAnchor(paths: DshPaths, configured?: string | null)
     const direct = configured.endsWith('package.json') ? configured : join(configured, 'package.json')
     if (existsSync(direct)) return direct
   }
+  const fromCli = locateCliInstallAnchor()
+  if (fromCli !== null) return fromCli
   const mirror = join(paths.sharedProfilesDir, '@deepseek-ai', 'dsh', 'package.json')
-  if (existsSync(mirror)) return mirror
-  return locateCliInstallAnchor()
+  return existsSync(mirror) ? mirror : null
 }
 
 /** Official `packageDirFromAnchor` with the projection-exclude hook for the profile plane. */
