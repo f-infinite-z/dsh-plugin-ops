@@ -4,7 +4,7 @@ All notable changes are tracked here.
 
 ## 0.20.2 — 2026-10-15
 
-### dsh 0.2.1-alpha.3 adaptation: known-release table and two alignments
+### dsh 0.2.1-alpha.3 adaptation, pre-release field fixes, and two new commands' worth of polish
 
 - **The known-release table learns `0.2.1-alpha.3`** (released 2026-10-14).
   Its boot-time loading semantics are unchanged from `alpha.2` — verified
@@ -23,6 +23,33 @@ All notable changes are tracked here.
   since 0.2.1-alpha.3, and one pnpm accepts for every command (`remove`
   rejects `--registry`). Uninstalling through the sandbox console now
   reaches the configured mirror.
+- **`dsh-ops --version` / `-v`** prints the CLI version (scripts call it).
+- **Rule 8 never evaluates official `@deepseek-ai/*` bundles, under any
+  version view.** The actual view previously judged whatever copy static
+  resolution found, and on legacy homes the shared mirror holds a stale
+  physical copy whose peers describe an era that is not running — `fix`
+  reported an official bundle as FATAL while `scan`/`check` stayed clean.
+  The install anchor is now the `dsh` shim on PATH (the installation the
+  version probe already reads), with the shared mirror as the fallback for
+  homes whose launcher is not on PATH.
+- **Rule 5 severity follows the actual install** (mirroring rule 8): under
+  the `all` view a patch row the running release tolerates is reported at
+  warn with the cross-release note, instead of a fatal claiming the boot
+  aborts while its own note says the release skips the row.
+- **The registry-version advisory actually runs.** `pnpm outdated` exits 1
+  when updates exist and prints its answer as multi-line JSON — both were
+  treated as failure, so the check always reported "unavailable". The
+  output now decides (anything from the first `{` parses), and the check
+  receives the same registry the installs use through one shared discovery
+  chain: dsh-ops config → `npm_config_registry` → the profile's `.npmrc` →
+  the user's `.npmrc`.
+- **Sandbox installs fail fast on an unreachable registry.** Before a
+  sandbox install, the effective registry gets a 5-second reachability
+  probe; an unroutable registry (the frequent case behind a GUI-launched
+  host with no configured registry) returns an actionable diagnostic naming
+  the `registry:` key in `<DSH_HOME>/dsh-ops.yml` instead of a package
+  manager run that hangs through its retry tail and dies as an aborted tool
+  call.
 
 ## 0.20.1 — 2026-10-13
 

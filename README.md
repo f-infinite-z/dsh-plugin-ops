@@ -105,8 +105,10 @@ rules:
 versionView: all            # version view: all (default: every known release + version-range notes) | latest
 ignorePackages:
   - some-noisy-plugin
-registry: https://registry.npmmirror.com   # sandbox installs / desktop scaffold / preview registry checks; environment fallback; the embedded host reads it once at activation — restart dsh after changing it
+registry: https://registry.npmmirror.com   # recommended: sandbox installs / desktop scaffold / registry checks use it; falls back to npm_config_registry, then the npmrc files (the sandbox profile's, then yours). Without a reachable registry a sandbox install fails fast with a hint instead of hanging in retries. The embedded host reads it once at activation — restart dsh after changing it
 ```
+
+On Windows PowerShell, dsh-ops' stderr warnings render as red `NativeCommandError` blocks — they are informational, not command failures; scripts can silence them with `2>$null`.
 
 ## Architecture and self-reliance
 
@@ -142,7 +144,7 @@ dsh-xray rates this project C3 (a capability-surface rating, not intent); the ta
 
 ```sh
 pnpm install && pnpm run build
-pnpm run typecheck && pnpm run test      # 336 tests (core 260 + bundle 39 + cli 37; one POSIX-only test skipped on Windows)
+pnpm run typecheck && pnpm run test      # 342 tests (core 266 + bundle 39 + cli 37; one POSIX-only test skipped on Windows)
 node packages/cli/lib/index.js selftest  # engine self-check
 node scripts/e2e/scan-fix.e2e.mjs        # offline E2E (real pnpm repair)
 node scripts/e2e/gate.e2e.mjs            # gate scenarios (pass/block/bypass/attribution/headless)

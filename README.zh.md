@@ -105,8 +105,10 @@ rules:
 versionView: all            # 版本口径：all（默认，全版本并集+版本区间标注）/ latest（仅最新语义）
 ignorePackages:
   - some-noisy-plugin
-registry: https://registry.npmmirror.com   # 沙箱安装 / 桌面 scaffold / 预演 registry 检查；环境变量兜底；内嵌宿主激活时读取一次——改后需重启 dsh
+registry: https://registry.npmmirror.com   # 推荐显式配置：沙箱安装 / 桌面 scaffold / registry 检查均使用它；回退顺序为 npm_config_registry → profile 的 .npmrc → 用户 .npmrc。无可达 registry 时沙箱安装会快速失败并给出提示（不再挂到重试超时）；内嵌宿主激活时读取一次——改后需重启 dsh
 ```
+
+Windows PowerShell 下 dsh-ops 的 stderr 告警会渲染为红色 `NativeCommandError` 块——那是信息性输出而非命令失败；脚本可用 `2>$null` 抑制。
 
 ## 架构与自保
 
@@ -142,7 +144,7 @@ dsh-xray 给本项目的评级为 C3（衡量能力面而非意图）；上表�
 
 ```sh
 pnpm install && pnpm run build
-pnpm run typecheck && pnpm run test      # 336 单测（core 260 + bundle 39 + cli 37；Windows 跳过 1 个 POSIX 专属用例）
+pnpm run typecheck && pnpm run test      # 342 单测（core 266 + bundle 39 + cli 37；Windows 跳过 1 个 POSIX 专属用例）
 node packages/cli/lib/index.js selftest  # 引擎自检
 node scripts/e2e/scan-fix.e2e.mjs        # 离线 E2E（真实 pnpm 修复）
 node scripts/e2e/gate.e2e.mjs            # gate 场景（放行/阻断/旁路/归因/headless）
