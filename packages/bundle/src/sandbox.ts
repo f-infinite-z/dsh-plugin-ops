@@ -931,12 +931,12 @@ export class SandboxManager {
   /** One plugin-management invocation for the sandbox profile, registry carried over when set. */
   private pluginArgs(action: 'add' | 'remove', target: string): string[] {
     const args = ['plugin', '--profile', this.profileName(), action, target]
-    // `remove` is a local operation and rejects --registry ("Unknown option:
-    // 'registry'" in the field); only `add` takes the registry.
-    if (action === 'add') {
-      const registry = this.registryValue()
-      if (registry !== null) args.push(`--registry=${registry}`)
-    }
+    // `add` takes --registry; `remove` rejects it, so the removal names the
+    // registry through the generic configuration flag every pnpm command
+    // accepts (the same form the official plugin-manager sends since
+    // 0.2.1-alpha.3).
+    const registry = this.registryValue()
+    if (registry !== null) args.push(action === 'add' ? `--registry=${registry}` : `--config.registry=${registry}`)
     return args
   }
 
