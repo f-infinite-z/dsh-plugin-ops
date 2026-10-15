@@ -2,6 +2,28 @@
 
 All notable changes are tracked here.
 
+## 0.20.2 — 2026-10-15
+
+### dsh 0.2.1-alpha.3 adaptation: known-release table and two alignments
+
+- **The known-release table learns `0.2.1-alpha.3`** (released 2026-10-14).
+  Its boot-time loading semantics are unchanged from `alpha.2` — verified
+  file-by-file against the tagged sources (`plugin-compatibility.ts`,
+  `profile.ts`, and the compatibility preflight carry no changes) — so the
+  table gains one boundary: `check --freshness` reports fresh again, and the
+  compatibility matrix, `verify`, and `preview` judge the newest release.
+- **Diagnosis-chat and embedding keys follow the harness's stored-first
+  precedence** (reversed upstream in 0.2.1-alpha.3: the managed
+  `.credentials.yaml` store wins over the inherited environment). The direct
+  channel now probes `$DSH_HOME/.credentials.yaml` refs, then the process
+  environment, then `$DSH_HOME/.env` — a key saved in the product wins here
+  too, matching the harness.
+- **Sandbox removals name their registry with pnpm's generic
+  `--config.registry=` flag** — the form the official plugin-manager sends
+  since 0.2.1-alpha.3, and one pnpm accepts for every command (`remove`
+  rejects `--registry`). Uninstalling through the sandbox console now
+  reaches the configured mirror.
+
 ## 0.20.1 — 2026-10-13
 
 ### Duplicate physical copies, detected before they break a boot
