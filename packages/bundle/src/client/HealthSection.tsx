@@ -65,7 +65,8 @@ interface AdaptIncompatible {
   name: string
   version: string
   runtimeVersion: string
-  peers: Record<string, string>
+  requirements: Record<string, string>
+  peers?: Record<string, string>
   risk: 'narrow' | 'cross-major'
 }
 
@@ -766,7 +767,7 @@ export function HealthSection(): ReactNode {
               <strong>{t.adaptRefused}</strong>
               {adaptRefused.message !== undefined && <span className="dshops-dim"> — {adaptRefused.message}</span>}
             </div>
-            <div className="dshops-dim" style={{ fontSize: 11, marginTop: 4 }}>{t.adaptPeers}:</div>
+            <div className="dshops-dim" style={{ fontSize: 11, marginTop: 4 }}>{t.adaptRequirements}:</div>
             {adaptRefused.items.map((item) => (
               <div key={`${item.name}@${item.version}`} style={{ marginTop: 4 }}>
                 <span className="dshops-mono">{item.name}@{item.version}</span>{' '}
@@ -774,7 +775,7 @@ export function HealthSection(): ReactNode {
                   {item.risk === 'narrow' ? t.adaptRiskNarrow : t.adaptRiskCross}
                 </span>
                 <div className="dshops-dim dshops-mono" style={{ fontSize: 11 }}>
-                  {Object.entries(item.peers).map(([peerName, range]) => `${peerName}: ${range}`).join(', ')}
+                  {Object.entries(item.requirements ?? item.peers ?? {}).map(([name, range]) => `${name}: ${range}`).join(', ')}
                 </div>
               </div>
             ))}

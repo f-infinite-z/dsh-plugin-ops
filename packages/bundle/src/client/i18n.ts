@@ -60,7 +60,7 @@ export interface Dict {
   adaptWorking: string
   adaptInstalled: string
   adaptRefused: string
-  adaptPeers: string
+  adaptRequirements: string
   adaptRiskNarrow: string
   adaptRiskCross: string
   adaptWarning: string
@@ -148,7 +148,7 @@ export const DICTS: Record<Lang, Dict> = {
     adaptWorking: '处理中…',
     adaptInstalled: '安装完成',
     adaptRefused: '官方门禁拒绝：与当前 dsh 不兼容',
-    adaptPeers: '不兼容的 peer',
+    adaptRequirements: '未满足的要求',
     adaptRiskNarrow: '风险：窄范围',
     adaptRiskCross: '风险：跨 breaking 边界',
     adaptWarning: '豁免 = 明确接受崩溃/数据丢失风险（官方原文）；面板版不做隔离 canary，安装失败会自动撤销豁免',
@@ -234,7 +234,7 @@ export const DICTS: Record<Lang, Dict> = {
     adaptWorking: 'Working…',
     adaptInstalled: 'Installed',
     adaptRefused: 'Refused by the official gate: incompatible with this dsh',
-    adaptPeers: 'Incompatible peers',
+    adaptRequirements: 'Unmet requirements',
     adaptRiskNarrow: 'Risk: narrow',
     adaptRiskCross: 'Risk: cross-breaking',
     adaptWarning: 'An exemption explicitly accepts crash/data-loss risk (official wording); the panel skips the isolated canary and revokes the exemption automatically when the install fails',

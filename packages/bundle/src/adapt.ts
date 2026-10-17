@@ -5,21 +5,24 @@ import { classifyPeerRisk, type AdaptRisk } from 'dsh-plugin-ops-core'
  * plugin-manager service the host context exposes as `pluginManager`.
  *
  * The panel never fetches a manifest itself: it asks the official manager to
- * install the spec, and a refusal for incompatible peers carries the exact
- * `{ name, version, runtimeVersion, peers }` the launcher checked — that is the
- * diagnosis. Granting the exemption and retrying then uses the manager's own
- * `setVersionExemption`, so the profile's compatibility state stays owned by
- * the official code path. Every operation is contained: a rejected install
- * changes nothing, and a failed adapted install revokes the exemption it
- * granted.
+ * install the spec, and a refusal for unmet requirements carries the exact
+ * `{ name, version, runtimeVersion, requirements }` the launcher checked —
+ * that is the diagnosis. dsh 0.2.1-rc.1 renamed the record field from `peers`
+ * to `requirements`; both are accepted. Granting the exemption and retrying
+ * then uses the manager's own `setVersionExemption`, so the profile's
+ * compatibility state stays owned by the official code path. Every operation
+ * is contained: a rejected install changes nothing, and a failed adapted
+ * install revokes the exemption it granted.
  */
 
-/** One package whose declared peers reject the running runtime. */
+/** One package whose declared dsh requirements reject the running runtime. */
 export interface AdaptIncompatible {
   name: string
   version: string
   runtimeVersion: string
-  peers: Record<string, string>
+  requirements: Record<string, string>
+  /** Legacy field name returned before dsh 0.2.1-rc.1; kept when the host sends it. */
+  peers?: Record<string, string>
   risk: AdaptRisk
 }
 
@@ -33,7 +36,13 @@ export interface ChangeLike {
   error?: {
     code: string
     message?: string
-    incompatible?: Array<{ name: string; version: string; runtimeVersion: string; peers: Record<string, string> }>
+    incompatible?: Array<{
+      name: string
+      version: string
+      runtimeVersion: string
+      requirements?: Record<string, string>
+      peers?: Record<string, string>
+    }>
   }
   /** The last package-manager run, whose output explains operational failures. */
   packageResult?: { output?: string; exitCode?: number; kind?: string; timedOut?: boolean }
@@ -88,12 +97,15 @@ function messageOf(error: unknown): string {
 }
 
 function incompatibleOf(items: NonNullable<ChangeLike['error']>['incompatible']): AdaptIncompatible[] {
-  return (items ?? []).map((item) => ({ ...item, risk: classifyPeerRisk(item.peers, item.runtimeVersion) }))
+  return (items ?? []).map((item) => {
+    const requirements = item.requirements ?? item.peers ?? {}
+    return { name: item.name, version: item.version, runtimeVersion: item.runtimeVersion, requirements, risk: classifyPeerRisk(requirements, item.runtimeVersion) }
+  })
 }
 
 /**
- * Attempt one install. A refusal for incompatible peers returns the diagnosis
- * instead of a plain failure; nothing is written on refusal.
+ * Attempt one install. A refusal for unmet dsh requirements returns the
+ * diagnosis instead of a plain failure; nothing is written on refusal.
  */
 export async function installWithDiagnosis(manager: PluginManagerLike, spec: string): Promise<AdaptOutcome> {
   try {

@@ -50,7 +50,7 @@ describe('installWithDiagnosis', () => {
     expect(outcome).toEqual({ ok: true, application: 'applied', target: 'pkg', bundle: 'pkg-a' })
   })
 
-  it('carries the incompatible peers and their risk on a refusal', async () => {
+  it('carries the unmet requirements and their risk on a refusal', async () => {
     const manager = new FakeManager([change({
       error: {
         code: 'incompatible-version',
@@ -63,7 +63,20 @@ describe('installWithDiagnosis', () => {
     expect(outcome.code).toBe('incompatible-version')
     expect(outcome.message).toBe('refused')
     expect(outcome.incompatible).toEqual([
-      { name: 'pkg-a', version: '1.0.0', runtimeVersion: '0.2.0', peers: { '@deepseek-ai/dsh-llm': '^0.1.0' }, risk: 'cross-major' },
+      { name: 'pkg-a', version: '1.0.0', runtimeVersion: '0.2.0', requirements: { '@deepseek-ai/dsh-llm': '^0.1.0' }, risk: 'cross-major' },
+    ])
+  })
+
+  it('reads the requirements field dsh 0.2.1-rc.1 returns', async () => {
+    const manager = new FakeManager([change({
+      error: {
+        code: 'incompatible-version',
+        incompatible: [{ name: 'pkg-a', version: '1.0.0', runtimeVersion: '0.2.1-rc.1', requirements: { 'engines.dsh': '0.2.0' } }],
+      },
+    })])
+    const outcome = await installWithDiagnosis(manager, 'pkg-a')
+    expect(outcome.incompatible).toEqual([
+      { name: 'pkg-a', version: '1.0.0', runtimeVersion: '0.2.1-rc.1', requirements: { 'engines.dsh': '0.2.0' }, risk: 'narrow' },
     ])
   })
 
