@@ -375,4 +375,38 @@ describe('verifyPluginPackage', () => {
       expect(report.findings.filter((f) => f.ruleId === 'peer-contract')).toEqual([])
     })
   })
+
+  it('accepts an engines.dsh range covering every modern release and notes the legacy gap (V10)', () => {
+    const manifest = JSON.parse(GOOD_FILES['package.json']!) as Record<string, unknown>
+    manifest.engines = { dsh: '>=0.2.1-alpha.4 <0.3.0' }
+    withPkg({ ...GOOD_FILES, 'package.json': JSON.stringify(manifest) }, (dir) => {
+      const report = verifyPluginPackage(dir)
+      expect(report.findings.filter((f) => f.ruleId === 'requirement-contract' && f.severity !== 'info')).toEqual([])
+      expect(report.findings.some((f) => f.ruleId === 'requirement-contract' && f.severity === 'info')).toBe(true)
+    })
+  })
+
+  it('warns when engines.dsh does not cover the newest release (V10)', () => {
+    const manifest = JSON.parse(GOOD_FILES['package.json']!) as Record<string, unknown>
+    manifest.engines = { dsh: '>=0.2.1-alpha.4 <0.2.1-rc.1' }
+    withPkg({ ...GOOD_FILES, 'package.json': JSON.stringify(manifest) }, (dir) => {
+      const report = verifyPluginPackage(dir)
+      expect(report.findings.some((f) => f.ruleId === 'requirement-contract' && f.severity === 'warn' && f.message.includes('0.2.1-rc.1'))).toBe(true)
+    })
+  })
+
+  it('errors on a malformed engines object or a workspace engines.dsh (V10)', () => {
+    const malformed = JSON.parse(GOOD_FILES['package.json']!) as Record<string, unknown>
+    malformed.engines = 'not-an-object'
+    withPkg({ ...GOOD_FILES, 'package.json': JSON.stringify(malformed) }, (dir) => {
+      const report = verifyPluginPackage(dir)
+      expect(report.findings.some((f) => f.ruleId === 'requirement-contract' && f.severity === 'error')).toBe(true)
+    })
+    const workspace = JSON.parse(GOOD_FILES['package.json']!) as Record<string, unknown>
+    workspace.engines = { dsh: 'workspace:^' }
+    withPkg({ ...GOOD_FILES, 'package.json': JSON.stringify(workspace) }, (dir) => {
+      const report = verifyPluginPackage(dir)
+      expect(report.findings.some((f) => f.ruleId === 'requirement-contract' && f.severity === 'error' && f.message.includes('workspace:'))).toBe(true)
+    })
+  })
 })

@@ -51,6 +51,7 @@ export interface PackageManifest {
   peerDependencies?: Record<string, string>
   peerDependenciesMeta?: Record<string, unknown>
   optionalDependencies?: Record<string, string>
+  engines?: Record<string, unknown>
   dsh?: { bundle?: { patch?: unknown }; profile?: unknown; client?: unknown }
 }
 

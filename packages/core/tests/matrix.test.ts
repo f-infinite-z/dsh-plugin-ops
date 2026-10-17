@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildVerifyMatrix, renderVerifyMatrix, dshPeersOf, type VerifyMatrixInput } from '../src/matrix.js'
+import { buildVerifyMatrix, renderVerifyMatrix, dshPeersOf, dshRequirementsOf, type VerifyMatrixInput } from '../src/matrix.js'
 import type { VerifyFinding } from '../src/verify.js'
 import { KNOWN_VERSION_BOUNDARIES } from '../src/versions.js'
 
@@ -33,6 +33,22 @@ describe('dshPeersOf', () => {
 
   it('returns an empty record without peer declarations', () => {
     expect(dshPeersOf({})).toEqual({})
+  })
+})
+
+describe('dshRequirementsOf', () => {
+  it('prefers an own engines.dsh range over dsh peers', () => {
+    expect(dshRequirementsOf({
+      engines: { dsh: '>=0.2.1-alpha.4 <0.3.0' },
+      peerDependencies: { '@deepseek-ai/dsh': '^0.1.7' },
+    })).toEqual({ 'engines.dsh': '>=0.2.1-alpha.4 <0.3.0' })
+  })
+
+  it('falls back to dsh peer ranges without engines.dsh', () => {
+    expect(dshRequirementsOf({
+      engines: { node: '>=22' },
+      peerDependencies: { '@deepseek-ai/dsh': '^0.1.7', 'react-dom': '^18.2.0' },
+    })).toEqual({ '@deepseek-ai/dsh': '^0.1.7' })
   })
 })
 
@@ -85,10 +101,16 @@ describe('renderVerifyMatrix', () => {
     const md = renderVerifyMatrix(buildVerifyMatrix(input({ dshPeers: { '@deepseek-ai/dsh': '>=0.1.7-rc.2 <0.2.0-rc.1' } })))
     expect(md).toContain('| @deepseek-ai/dsh | >=0.1.7-rc.2 <0.2.0-rc.1 |')
     expect(md).toContain('covered known releases: 0.1.7-rc.2')
-    expect(md).toContain('not covered: 0.1.5-rc.2, 0.2.0-rc.2, 0.2.1-alpha.1')
+    expect(md).toContain(`not covered: ${KNOWN_VERSION_BOUNDARIES.filter((v) => v !== '0.1.7-rc.2').join(', ')}`)
     expect(md).toContain('| visibility | no | planned |')
     const none = renderVerifyMatrix(buildVerifyMatrix(input()))
-    expect(none).toContain('(no dsh peer ranges declared)')
+    expect(none).toContain('(no dsh requirements declared)')
+  })
+
+  it('names engines.dsh as the requirement and notes its version boundary', () => {
+    const md = renderVerifyMatrix(buildVerifyMatrix(input({ dshPeers: { 'engines.dsh': '>=0.2.1-alpha.4 <0.3.0' } })))
+    expect(md).toContain('| engines.dsh | >=0.2.1-alpha.4 <0.3.0 |')
+    expect(md).toContain('note: engines.dsh applies from dsh 0.2.1-alpha.4 on')
   })
 
   it('escapes pipes and newlines in cells', () => {

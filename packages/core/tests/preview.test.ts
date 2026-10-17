@@ -53,6 +53,8 @@ describe('preview: verdicts', () => {
       expect(entry.verdict).toBe('skipped')
       expect(entry.fix).toBe('exempt')
       expect(entry.risk).toBe('cross-major')
+      expect(entry.requirements).toEqual({ '@deepseek-ai/dsh': '^0.1.5' })
+      expect(entry.peers).toEqual(entry.requirements)
       expect(entry.commands).toEqual([
         `dsh plugin --profile web allow-version pkg-a@1.0.1 --dsh-version ${LATEST_KNOWN_VERSION} --accept-risk`,
       ])
@@ -185,6 +187,28 @@ describe('preview: update check', () => {
       expect(entry.latestCompatible).toBe(false)
       expect(entry.detail).toContain('even the newest release 2.0.0 rejects')
       expect(entry.commands[0]).toContain('allow-version pkg-a@1.0.1')
+    } finally {
+      fixture.dispose()
+    }
+  })
+
+  it('reads engines.dsh from the registry for the update check', async () => {
+    const fixture = makeHome()
+    try {
+      writeProfile(fixture.paths, { dependencies: { 'pkg-a': '^1.0.0' }, bundles: ['pkg-a'] })
+      writeBundle(fixture, 'pkg-a', '1.0.1', { '@deepseek-ai/dsh': '^0.1.5' })
+      stubRegistryFetch([
+        ['@deepseek-ai%2Fdsh', { 'dist-tags': { latest: '0.2.1-rc.1' } }],
+        ['/pkg-a', {
+          'dist-tags': { latest: '1.1.0' },
+          versions: { '1.1.0': { engines: { dsh: '>=0.2.1-alpha.4 <0.3.0' }, peerDependencies: { '@deepseek-ai/dsh': '^0.1.5' } } },
+        }],
+      ])
+      const report = await buildPreviewReport({ paths: fixture.paths, profileName: 'web', updateCheck: true, dshVersion: null })
+      expect(report.target).toEqual({ version: '0.2.1-rc.1', source: 'registry' })
+      const entry = report.entries[0]!
+      expect(entry.fix).toBe('update')
+      expect(entry.latestCompatible).toBe(true)
     } finally {
       fixture.dispose()
     }

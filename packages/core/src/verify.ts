@@ -5,6 +5,7 @@ import { parseDocument } from 'yaml'
 import { readPackageManifest, type PackageManifest } from './package-tree.js'
 import { splitBareSpecifier } from './patchres.js'
 import { KNOWN_VERSION_BOUNDARIES } from './versions.js'
+import { ENGINES_DSH_MIN_VERSION } from './compatibility.js'
 
 /**
  * Publish-time verification for plugin authors: static checks over a package
@@ -22,6 +23,7 @@ export type VerifyRuleId =
   | 'client-bundle'
   | 'files-completeness'
   | 'peer-contract'
+  | 'requirement-contract'
 
 export interface VerifyFinding {
   ruleId: VerifyRuleId
@@ -299,8 +301,66 @@ export function verifyPluginPackage(packageDir: string): VerifyReport {
     }
   }
 
-  // ---- V9: peer contract (declared peers must be resolvable package names
-  // with satisfiable ranges) ----
+  // ---- V9: requirement contract (declared dsh requirements must be
+  // resolvable and cover every supported release era) ----
+  const engines = manifest.engines
+  let hasEnginesDsh = false
+  if (engines !== undefined) {
+    if (engines === null || typeof engines !== 'object' || Array.isArray(engines)) {
+      findings.push({
+        ruleId: 'requirement-contract',
+        severity: 'error',
+        message: 'engines is not an object, so dsh refuses the package as unreadable for compatibility',
+        detail: 'declare engines as an object; engines.dsh holds the dsh version range',
+      })
+    } else if (Object.hasOwn(engines, 'dsh')) {
+      const range = engines.dsh
+      if (typeof range !== 'string') {
+        findings.push({
+          ruleId: 'requirement-contract',
+          severity: 'error',
+          message: 'engines.dsh is not a string, so dsh refuses the package as unreadable for compatibility',
+          detail: 'declare engines.dsh as a semver range',
+        })
+      } else {
+        hasEnginesDsh = true
+        if (range.startsWith('workspace:')) {
+          findings.push({
+            ruleId: 'requirement-contract',
+            severity: 'error',
+            message: `engines.dsh uses the workspace: protocol (${range})`,
+            detail: 'workspace: resolves only in peerDependencies; in engines.dsh it makes every release incompatible',
+          })
+        } else if (semver.validRange(range) === null) {
+          findings.push({
+            ruleId: 'requirement-contract',
+            severity: 'warn',
+            message: `engines.dsh is not a semver range: ${JSON.stringify(range)}`,
+            detail: 'use a semver range; an empty or unparsable range rejects every release',
+          })
+        } else {
+          const modern = KNOWN_VERSION_BOUNDARIES.filter((release) => semver.gte(release, ENGINES_DSH_MIN_VERSION))
+          const uncovered = modern.filter((release) => !semver.satisfies(release, range, { includePrerelease: true }))
+          if (uncovered.length > 0) {
+            findings.push({
+              ruleId: 'requirement-contract',
+              severity: 'warn',
+              message: `engines.dsh ${range} does not cover dsh ${uncovered.join(', ')}; dsh skips this package on those releases`,
+              detail: `cover every supported dsh release from ${ENGINES_DSH_MIN_VERSION} on (a compatibility matrix requirement for marketplace listings)`,
+            })
+          }
+        }
+      }
+    }
+  }
+  if (hasEnginesDsh && manifest.peerDependencies === undefined) {
+    findings.push({
+      ruleId: 'requirement-contract',
+      severity: 'info',
+      message: `engines.dsh is ignored before dsh ${ENGINES_DSH_MIN_VERSION} and no dsh peer is declared`,
+      detail: 'older releases judge dsh peer ranges only; add a dsh peer if those releases must be judged deliberately',
+    })
+  }
   const peers = manifest.peerDependencies
   if (peers !== undefined) {
     for (const [name, spec] of Object.entries(peers)) {
@@ -328,13 +388,22 @@ export function verifyPluginPackage(packageDir: string): VerifyReport {
       // launcher skips a bundle whose range rejects the running release, so a
       // gap silently disables the plugin on those releases.
       if (name === '@deepseek-ai/dsh' || name.startsWith('@deepseek-ai/dsh-')) {
-        const uncovered = KNOWN_VERSION_BOUNDARIES.filter((release) => !semver.satisfies(release, spec, { includePrerelease: true }))
+        // With engines.dsh declared, dsh judges this peer only before the
+        // engines era; the engines range owns the modern releases.
+        const boundaries = hasEnginesDsh
+          ? KNOWN_VERSION_BOUNDARIES.filter((release) => semver.lt(release, ENGINES_DSH_MIN_VERSION))
+          : KNOWN_VERSION_BOUNDARIES
+        const uncovered = boundaries.filter((release) => !semver.satisfies(release, spec, { includePrerelease: true }))
         if (uncovered.length > 0) {
           findings.push({
             ruleId: 'peer-contract',
             severity: 'warn',
-            message: `peerDependencies.${name} ${spec} does not cover dsh ${uncovered.join(', ')}; the launcher skips this bundle on those releases`,
-            detail: 'cover every supported dsh release so the bundle stays loadable across versions (a compatibility matrix requirement for marketplace listings)',
+            message: hasEnginesDsh
+              ? `peerDependencies.${name} ${spec} does not cover dsh ${uncovered.join(', ')}; dsh judges this peer before ${ENGINES_DSH_MIN_VERSION}`
+              : `peerDependencies.${name} ${spec} does not cover dsh ${uncovered.join(', ')}; the launcher skips this bundle on those releases`,
+            detail: hasEnginesDsh
+              ? 'cover every older dsh release that should judge the peer range (engines.dsh owns the newer releases)'
+              : 'cover every supported dsh release so the bundle stays loadable across versions (a compatibility matrix requirement for marketplace listings)',
           })
         }
       }

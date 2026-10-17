@@ -4,7 +4,7 @@ import type { VerifyFinding } from './verify.js'
 
 /**
  * Compatibility-matrix reporting for `dsh-ops verify`: turns one verification
- * run into a marketplace-style matrix — static checks, dsh peer declaration
+ * run into a marketplace-style matrix — static checks, dsh requirement
  * coverage, measured runtime targets, and an explicit lifecycle coverage
  * list. Transparency over completeness: phases this tool does not measure
  * yet are named as not covered instead of being omitted.
@@ -23,7 +23,7 @@ export interface VerifyMatrixInput {
   packageName: string | null
   version: string | null
   findings: VerifyFinding[]
-  /** The package's dsh-related peer declarations (name → range). */
+  /** The package's dsh-related requirements (`engines.dsh` or peer names → range). */
   dshPeers: Record<string, string>
   web: MatrixRuntimeResult | null
   desktop: MatrixRuntimeResult | null
@@ -50,17 +50,32 @@ export interface VerifyMatrix {
 }
 
 /**
- * Extract the dsh-related peer declarations from a manifest
- * (`@deepseek-ai/dsh` and its `@deepseek-ai/dsh-*` packages — the ranges the
- * launcher's compatibility check judges).
+ * Extract the dsh-related requirement declarations from a manifest. An own
+ * `engines.dsh` range is authoritative from dsh 0.2.1-alpha.4 on and is
+ * reported as the `engines.dsh` key; otherwise the `@deepseek-ai/dsh` and
+ * `@deepseek-ai/dsh-*` peer ranges (the ranges older releases judge) are used.
  */
-export function dshPeersOf(manifest: { peerDependencies?: Record<string, string> }): Record<string, string> {
+export function dshRequirementsOf(manifest: {
+  engines?: Record<string, unknown>
+  peerDependencies?: Record<string, string>
+}): Record<string, string> {
+  const engines = manifest.engines
+  if (engines !== undefined && engines !== null && typeof engines === 'object' && !Array.isArray(engines)) {
+    const range = engines.dsh
+    if (typeof range === 'string') return { 'engines.dsh': range }
+  }
   const out: Record<string, string> = {}
   for (const [name, range] of Object.entries(manifest.peerDependencies ?? {})) {
     if (name === '@deepseek-ai/dsh' || name.startsWith('@deepseek-ai/dsh-')) out[name] = range
   }
   return out
 }
+
+/**
+ * @deprecated Use {@link dshRequirementsOf}; kept on the published API surface
+ * for existing callers. The returned map may now be keyed `engines.dsh`.
+ */
+export const dshPeersOf = dshRequirementsOf
 
 function severityCounts(findings: VerifyFinding[]): { error: number; warn: number; info: number } {
   const counts = { error: 0, warn: 0, info: 0 }
@@ -128,18 +143,21 @@ export function renderVerifyMatrix(matrix: VerifyMatrix): string {
   lines.push('')
   lines.push(`${matrix.staticChecks.error} error(s), ${matrix.staticChecks.warn} warning(s), ${matrix.staticChecks.info} info`)
   lines.push('')
-  lines.push('## dsh peer declaration coverage')
+  lines.push('## dsh requirement coverage')
   lines.push('')
   const peerEntries = Object.entries(matrix.dshPeers.declared)
   if (peerEntries.length === 0) {
-    lines.push('(no dsh peer ranges declared)')
+    lines.push('(no dsh requirements declared)')
   } else {
-    lines.push('| peer | declared range |')
+    lines.push('| requirement | declared range |')
     lines.push('|---|---|')
     for (const [peer, range] of peerEntries) lines.push(`| ${cell(peer)} | ${cell(range)} |`)
     lines.push('')
     lines.push(`covered known releases: ${matrix.dshPeers.coveredVersions.length === 0 ? '(none)' : matrix.dshPeers.coveredVersions.join(', ')}`)
     lines.push(`not covered: ${matrix.dshPeers.uncoveredVersions.length === 0 ? '(none)' : matrix.dshPeers.uncoveredVersions.join(', ')}`)
+    if (Object.hasOwn(matrix.dshPeers.declared, 'engines.dsh')) {
+      lines.push('note: engines.dsh applies from dsh 0.2.1-alpha.4 on; older releases judge dsh peer ranges only')
+    }
   }
   lines.push('')
   lines.push('## Runtime results (measured)')

@@ -24,6 +24,13 @@ export const KNOWN_VERSION_BOUNDARIES: readonly string[] = [
   // (runtime recomposition, HMR package reload, and stored-credential
   // precedence changed; the static pre-boot checks judge boot semantics).
   '0.2.1-alpha.3',
+  // engines.dsh-first era: installation and profile startup read an own
+  // engines.dsh range before dsh peers (0.2.1-alpha.4+); the static rule 8
+  // mirror switches to the same requirement rules at this boundary.
+  '0.2.1-alpha.4',
+  // Newest release; rc line, boot and requirement semantics unchanged from
+  // alpha.4 (alpha.5 and rc.1 refined UI, PTC, and terminal behavior only).
+  '0.2.1-rc.1',
 ]
 
 /** Newest known release; the `latest` reporting target. */

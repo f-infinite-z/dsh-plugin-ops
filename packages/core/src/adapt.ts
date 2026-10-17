@@ -1,6 +1,6 @@
 import semver from 'semver'
 import type { PackageManifest } from './package-tree.js'
-import { incompatibleDshPeers } from './compatibility.js'
+import { unmetDshRequirements } from './compatibility.js'
 
 /**
  * Installation-adaptation diagnosis: why one plugin is rejected by the
@@ -11,23 +11,24 @@ import { incompatibleDshPeers } from './compatibility.js'
  * orchestration.
  */
 
-/** Risk class for an incompatible peer set. */
+/** Risk class for an unmet dsh requirement set. */
 export type AdaptRisk = 'narrow' | 'cross-major'
 
 /**
- * Classify a set of incompatible `@deepseek-ai/dsh*` peer ranges against one
- * runtime version. A range whose minimum satisfying version shares the
- * runtime's breaking boundary (major, or minor on the 0.x line) is `narrow`;
- * anything crossing that boundary — or that does not parse at all — is
- * `cross-major`. An unparsable runtime version is conservatively cross-major.
- * @param peers - incompatible peers (name → declared range), as the official
- *   `evaluatePluginCompatibility` reports them.
+ * Classify a set of unmet dsh requirements (own `engines.dsh` range or dsh
+ * peer ranges) against one runtime version. A range whose minimum satisfying
+ * version shares the runtime's breaking boundary (major, or minor on the 0.x
+ * line) is `narrow`; anything crossing that boundary — or that does not parse
+ * at all — is `cross-major`. An unparsable runtime version is conservatively
+ * cross-major.
+ * @param requirements - unmet requirements (name → declared range), as the
+ *   official `evaluatePluginCompatibility` reports them.
  * @param runtimeVersion - the running dsh version the ranges were checked against.
  */
-export function classifyPeerRisk(peers: Record<string, string>, runtimeVersion: string): AdaptRisk {
+export function classifyPeerRisk(requirements: Record<string, string>, runtimeVersion: string): AdaptRisk {
   const runtime = semver.parse(runtimeVersion)
   if (runtime === null) return 'cross-major'
-  for (const range of Object.values(peers)) {
+  for (const range of Object.values(requirements)) {
     const min = semver.minVersion(range)
     if (min === null) return 'cross-major'
     if (min.major !== runtime.major) return 'cross-major'
@@ -45,7 +46,7 @@ export interface AdaptDiagnosis {
   version: string | null
   /** The running dsh version used for the comparison; null when unknown. */
   dshVersion: string | null
-  /** Incompatible `@deepseek-ai/dsh*` peers (name → declared range). */
+  /** Unmet dsh requirements (engines.dsh or peer name → declared range). */
   incompatiblePeers: Record<string, string>
   /** Narrow ranges (same major) versus cross-major or unparsable ranges. */
   risk: AdaptRisk
@@ -67,13 +68,13 @@ export function diagnoseIncompatibility(
   if (dshVersion === null || !semver.valid(dshVersion)) {
     return { packageName: manifest.name, version, dshVersion, incompatiblePeers: {}, risk: 'cross-major' }
   }
-  const peers = incompatibleDshPeers(manifest, dshVersion) ?? {}
+  const requirements = unmetDshRequirements(manifest, dshVersion) ?? {}
   return {
     packageName: manifest.name,
     version,
     dshVersion,
-    incompatiblePeers: peers,
-    risk: classifyPeerRisk(peers, dshVersion),
+    incompatiblePeers: requirements,
+    risk: classifyPeerRisk(requirements, dshVersion),
   }
 }
 
@@ -85,7 +86,7 @@ export function renderAdaptDiagnosis(diagnosis: AdaptDiagnosis): string {
   ]
   for (const [name, range] of peers) lines.push(`  ${name}: requires ${range}`)
   lines.push(diagnosis.risk === 'narrow'
-    ? 'risk: NARROW — the peer ranges stay within the same breaking boundary; likely only a stale lower bound, so an exemption has a good chance of working'
-    : 'risk: CROSS-MAJOR — a peer range crosses a breaking boundary (a major, or a minor on the 0.x line) or is unparsable; an exemption may still crash the plugin')
+    ? 'risk: NARROW — the requirement ranges stay within the same breaking boundary; likely only a stale lower bound, so an exemption has a good chance of working'
+    : 'risk: CROSS-MAJOR — a requirement range crosses a breaking boundary (a major, or a minor on the 0.x line) or is unparsable; an exemption may still crash the plugin')
   return lines.join('\n')
 }

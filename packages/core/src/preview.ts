@@ -3,7 +3,7 @@ import { detectDesktop, isDesktopProfile } from './desktop.js'
 import { readGlobalDshVersion } from './dsh-version.js'
 import { buildResolutionGeneration, dshVersionOf, locateInstallAnchor } from './generation.js'
 import { readProfileManifest, resolveBundles, type ResolvedBundle } from './profile.js'
-import { incompatibleDshPeers, readProfileVersionExemptions } from './compatibility.js'
+import { unmetDshRequirements, readProfileVersionExemptions } from './compatibility.js'
 import { classifyPeerRisk, type AdaptRisk } from './adapt.js'
 import { isRetiredBundle } from './retired.js'
 import { checkVersionFreshness, LATEST_KNOWN_VERSION, type VersionFreshness } from './versions.js'
@@ -16,7 +16,7 @@ import type { OpsConfig } from './config.js'
  * and what each one's fix is — a compatible update, an exact-version
  * exemption, or disabling the row. Read-only: the report never writes to the
  * profile, and the rendering follows the same compatibility judgment
- * (`incompatibleDshPeers`) the launcher and rule 8 use.
+ * (`unmetDshRequirements`) the launcher and rule 8 use.
  */
 
 /** The release a preview rehearses against. */
@@ -43,9 +43,17 @@ export interface PreviewEntry {
   /** Installed version from the bundle manifest; null when undeclared. */
   version: string | null
   verdict: PreviewVerdict
-  /** The `@deepseek-ai/dsh*` peers that reject the target release (name → declared range). */
+  /**
+   * The unmet dsh requirements that reject the target release (keyed
+   * `engines.dsh` or by peer name).
+   */
+  requirements?: Record<string, string>
+  /**
+   * @deprecated Legacy alias of {@link requirements}, kept one release for
+   * existing report consumers; both keys carry the same object.
+   */
   peers?: Record<string, string>
-  /** Breaking-boundary classification of those peers, when present. */
+  /** Breaking-boundary classification of those requirements, when present. */
   risk?: AdaptRisk
   fix: PreviewFix
   /** Shell-ready commands implementing the fix; empty when the fix has no command form. */
@@ -114,23 +122,26 @@ interface RegistryPackageDocument {
   versions?: Record<string, unknown>
 }
 
-/** One registry lookup for a package's newest release and its dsh peers. */
+/** One registry lookup for a package's newest release and its dsh requirements. */
 interface LatestPackageInfo {
   latest: string | null
+  /** All peerDependencies recorded for the newest release (the pre-alpha.4 source). */
   peers: Record<string, string> | null
+  /** The newest release's own engines object; `engines.dsh` takes precedence from 0.2.1-alpha.4 on. */
+  engines: Record<string, unknown> | null
 }
 
 /** The base judgment of one bundle, before the registry update pass. */
 interface BundleBase {
   name: string
   version: string | null
-  peers: Record<string, string> | null
+  requirements: Record<string, string> | null
   risk: AdaptRisk | null
   kind: 'skipped' | 'exempted' | 'compatible' | 'retired' | 'official'
   detail: string
 }
 
-/** Peer dependencies recorded for one version entry in a registry document. */
+/** All peerDependencies recorded for one version entry in a registry document. */
 function peerDependenciesOf(document: RegistryPackageDocument, version: string): Record<string, string> | null {
   const entry = document.versions?.[version]
   if (entry === null || typeof entry !== 'object') return null
@@ -143,10 +154,19 @@ function peerDependenciesOf(document: RegistryPackageDocument, version: string):
   return out
 }
 
+/** The engines object recorded for one version entry, or null when it is absent or malformed. */
+function enginesOf(document: RegistryPackageDocument, version: string): Record<string, unknown> | null {
+  const entry = document.versions?.[version]
+  if (entry === null || typeof entry !== 'object') return null
+  const engines = (entry as { engines?: unknown }).engines
+  if (engines === null || typeof engines !== 'object' || Array.isArray(engines)) return null
+  return engines as Record<string, unknown>
+}
+
 /**
- * Read one package's newest release and its dsh peers from the registry.
- * The abbreviated metadata format keeps the response small; a mirror that
- * ignores it still answers with the full document, which has the same two
+ * Read one package's newest release and its dsh requirements from the
+ * registry. The abbreviated metadata format keeps the response small; a mirror
+ * that ignores it still answers with the full document, which has the same
  * fields. Every failure degrades to `null` fields instead of throwing.
  */
 async function fetchLatestPackageInfo(
@@ -162,13 +182,13 @@ async function fetchLatestPackageInfo(
       signal: AbortSignal.timeout(timeoutMs),
       headers: { accept: 'application/vnd.npm.install-v1+json' },
     })
-    if (!res.ok) return { latest: null, peers: null }
+    if (!res.ok) return { latest: null, peers: null, engines: null }
     const document = (await res.json()) as RegistryPackageDocument
     const latest = document['dist-tags']?.latest
-    if (typeof latest !== 'string' || semver.valid(latest) === null) return { latest: null, peers: null }
-    return { latest, peers: peerDependenciesOf(document, latest) }
+    if (typeof latest !== 'string' || semver.valid(latest) === null) return { latest: null, peers: null, engines: null }
+    return { latest, peers: peerDependenciesOf(document, latest), engines: enginesOf(document, latest) }
   } catch {
-    return { latest: null, peers: null }
+    return { latest: null, peers: null, engines: null }
   }
 }
 
@@ -308,7 +328,7 @@ function judgeBundle(
     return {
       name: bundle.name,
       version,
-      peers: null,
+      requirements: null,
       risk: null,
       kind: 'retired',
       detail: `dsh ${targetVersion} retires this bundle; the launcher drops the entry on load`,
@@ -318,29 +338,29 @@ function judgeBundle(
     return {
       name: bundle.name,
       version,
-      peers: null,
+      requirements: null,
       risk: null,
       kind: 'official',
       detail: 'official bundle — ships with the installation and evolves with it; not evaluated',
     }
   }
-  const peers = incompatibleDshPeers(bundle.manifest, targetVersion)
-  if (peers === null) {
+  const requirements = unmetDshRequirements(bundle.manifest, targetVersion)
+  if (requirements === null) {
     return {
       name: bundle.name,
       version,
-      peers: null,
+      requirements: null,
       risk: null,
       kind: 'compatible',
-      detail: `dsh peers accept ${targetVersion}`,
+      detail: `dsh requirements accept ${targetVersion}`,
     }
   }
-  const risk = classifyPeerRisk(peers, targetVersion)
+  const risk = classifyPeerRisk(requirements, targetVersion)
   if (exemptionCovers(exemptions, bundle.name, version, targetVersion)) {
     return {
       name: bundle.name,
       version,
-      peers,
+      requirements,
       risk,
       kind: 'exempted',
       detail: `an exact-version exemption covers ${bundle.name}@${version} on dsh ${targetVersion}; the bundle keeps loading`,
@@ -349,10 +369,10 @@ function judgeBundle(
   return {
     name: bundle.name,
     version,
-    peers,
+    requirements,
     risk,
     kind: 'skipped',
-    detail: `dsh peers reject ${targetVersion}`,
+    detail: `dsh requirements reject ${targetVersion}`,
   }
 }
 
@@ -377,7 +397,7 @@ function finalizeEntry(
       name: base.name,
       version: base.version,
       verdict,
-      ...(base.peers === null ? {} : { peers: base.peers }),
+      ...(base.requirements === null ? {} : { requirements: base.requirements, peers: base.requirements }),
       ...(base.risk === null ? {} : { risk: base.risk }),
       fix: 'none',
       commands: [],
@@ -388,13 +408,17 @@ function finalizeEntry(
     name: base.name,
     version: base.version,
     verdict: 'skipped' as const,
-    peers: base.peers ?? {},
+    requirements: base.requirements ?? {},
+    peers: base.requirements ?? {},
     ...(base.risk === null ? {} : { risk: base.risk }),
   }
   if (checked && update !== undefined) {
     const latest = update.latest
-    const latestCompatible = latest !== null && update.peers !== null
-      ? incompatibleDshPeers({ peerDependencies: update.peers }, targetVersion) === null
+    const latestCompatible = latest !== null && (update.peers !== null || update.engines !== null)
+      ? unmetDshRequirements({
+          ...(update.peers !== null ? { peerDependencies: update.peers } : {}),
+          ...(update.engines !== null ? { engines: update.engines } : {}),
+        }, targetVersion) === null
       : null
     if (latest !== null && latest !== base.version && latestCompatible === true) {
       return {
@@ -510,11 +534,11 @@ export function renderPreviewReport(report: PreviewReport): string {
   if (skipped.length > 0) {
     lines.push('SKIPPED')
     for (const entry of skipped) {
-      const peers = Object.entries(entry.peers ?? {})
+      const requirements = Object.entries(entry.requirements ?? entry.peers ?? {})
         .map(([name, range]) => `${name}: ${range}`)
         .join(', ')
-      lines.push(`  ${entry.name}@${entry.version ?? '?'} — dsh peers reject ${report.target.version}`)
-      lines.push(`    peers: ${peers} (risk: ${entry.risk === 'narrow' ? 'NARROW' : 'CROSS-MAJOR'})`)
+      lines.push(`  ${entry.name}@${entry.version ?? '?'} — dsh requirements reject ${report.target.version}`)
+      lines.push(`    requirements: ${requirements} (risk: ${entry.risk === 'narrow' ? 'NARROW' : 'CROSS-MAJOR'})`)
       lines.push(`    ${entry.detail}`)
       for (const command of entry.commands) lines.push(`      ${command}`)
     }
@@ -546,6 +570,7 @@ export function renderPreviewReport(report: PreviewReport): string {
   }
   lines.push('notes:')
   lines.push('- official @deepseek-ai/* bundles ship with the installation and are not evaluated')
+  lines.push('- requirements come from engines.dsh (dsh 0.2.1-alpha.4+) or dsh peer ranges')
   if (report.registry === undefined) {
     lines.push('- update check skipped (offline); pass --updates to ask the registry for compatible releases')
   } else if (report.registry.problem !== null) {
@@ -571,12 +596,12 @@ export function renderPreviewMatrix(report: PreviewReport): string {
     lines.push('- registry check: not run (offline)')
   }
   lines.push('')
-  lines.push('| plugin | version | verdict | rejecting peers | fix |')
+  lines.push('| plugin | version | verdict | unmet requirements | fix |')
   lines.push('|---|---|---|---|---|')
   for (const entry of report.entries) {
-    const peers = Object.entries(entry.peers ?? {}).map(([name, range]) => `${name}: ${range}`).join(', ')
+    const requirements = Object.entries(entry.requirements ?? entry.peers ?? {}).map(([name, range]) => `${name}: ${range}`).join(', ')
     const fix = entry.commands.length > 0 ? entry.commands[0]! : entry.fix
-    lines.push(`| ${cell(entry.name)} | ${cell(entry.version ?? '')} | ${entry.verdict} | ${cell(peers)} | ${cell(fix)} |`)
+    lines.push(`| ${cell(entry.name)} | ${cell(entry.version ?? '')} | ${entry.verdict} | ${cell(requirements)} | ${cell(fix)} |`)
   }
   lines.push('')
   return lines.join('\n')

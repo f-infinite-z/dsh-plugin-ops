@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { scanProfile, writeVersionExemption, removeVersionExemption, removeExemptionsForPackage, readProfileVersionExemptions } from '../src/index.js'
+import { scanProfile, writeVersionExemption, removeVersionExemption, removeExemptionsForPackage, readProfileVersionExemptions, unmetDshRequirements } from '../src/index.js'
 import { makeHome, writeProfile, writeLockfile, writeJson } from './helpers.js'
 
 /** Write the dsh installation anchor (the shared closure's @deepseek-ai/dsh link). */
@@ -223,6 +223,93 @@ describe('exemption write/revoke', () => {
       const result = removeExemptionsForPackage(fixture.paths.profileDir, 'missing')
       expect(result.ok).toBe(true)
       expect(result.backup).toBeNull()
+    } finally {
+      fixture.dispose()
+    }
+  })
+})
+
+describe('unmetDshRequirements', () => {
+  it('prefers engines.dsh over dsh peers from 0.2.1-alpha.4 on', () => {
+    expect(unmetDshRequirements({
+      engines: { dsh: '>=0.2.1-alpha.4 <0.3.0' },
+      peerDependencies: { '@deepseek-ai/dsh': '^0.1.7' },
+    }, '0.2.1-rc.1')).toBeNull()
+    expect(unmetDshRequirements({
+      engines: { dsh: '0.2.0' },
+      peerDependencies: { '@deepseek-ai/dsh': '^0.1.5' },
+    }, '0.2.1-rc.1')).toEqual({ 'engines.dsh': '0.2.0' })
+  })
+
+  it('ignores engines.dsh before 0.2.1-alpha.4', () => {
+    expect(unmetDshRequirements({
+      engines: { dsh: '>=9.0.0' },
+      peerDependencies: { '@deepseek-ai/dsh': '^0.1.5' },
+    }, '0.1.7-rc.2')).toBeNull()
+    expect(unmetDshRequirements({
+      engines: { dsh: '>=9.0.0' },
+      peerDependencies: { '@deepseek-ai/dsh': '^0.2.0' },
+    }, '0.1.7-rc.2')).toEqual({ '@deepseek-ai/dsh': '^0.2.0' })
+  })
+
+  it('treats workspace:, empty, and non-string engines.dsh as unmet', () => {
+    expect(unmetDshRequirements({ engines: { dsh: 'workspace:^' } }, '0.2.1-rc.1')).toEqual({ 'engines.dsh': 'workspace:^' })
+    expect(unmetDshRequirements({ engines: { dsh: '' } }, '0.2.1-rc.1')).toEqual({ 'engines.dsh': '' })
+    expect(unmetDshRequirements({ engines: { dsh: 1 } }, '0.2.1-rc.1')).toEqual({ 'engines.dsh': '(not a string)' })
+  })
+
+  it('refuses a malformed engines object', () => {
+    expect(unmetDshRequirements({ engines: 'x' as unknown as Record<string, unknown> }, '0.2.1-rc.1')).toEqual({ engines: '(not an object)' })
+    expect(unmetDshRequirements({ engines: [] as unknown as Record<string, unknown> }, '0.2.1-rc.1')).toEqual({ engines: '(not an object)' })
+  })
+
+  it('keeps workspace peers matching the runtime and non-string peers unmet', () => {
+    expect(unmetDshRequirements({ peerDependencies: { '@deepseek-ai/dsh': 'workspace:^' } }, '0.2.0-rc.2')).toBeNull()
+    expect(unmetDshRequirements({ peerDependencies: { '@deepseek-ai/dsh': 1 as unknown as string } }, '0.2.0-rc.2')).toEqual({ '@deepseek-ai/dsh': '(not a string)' })
+  })
+})
+
+describe('rule 8: engines.dsh requirements', () => {
+  it('flags an engines.dsh rejection on dsh 0.2.1-rc.1', async () => {
+    const fixture = setup('0.2.1-rc.1')
+    try {
+      writeProfile(fixture.paths, { dependencies: { 'pkg-a': '^1.0.0' }, bundles: ['pkg-a'] })
+      const dir = join(fixture.paths.profileDir, 'node_modules', 'pkg-a')
+      mkdirSync(dir, { recursive: true })
+      writeJson(join(dir, 'package.json'), {
+        name: 'pkg-a',
+        version: '1.0.1',
+        engines: { dsh: '0.2.0' },
+        dsh: { bundle: { patch: 'cordis.patch.yml' } },
+      })
+      writeFileSync(join(dir, 'cordis.patch.yml'), '- id: probe\n', 'utf8')
+      writeLockfile(fixture.paths, { 'pkg-a': '1.0.1' })
+      const report = await scanProfile({ paths: fixture.paths, profileName: 'web', dshVersion: '0.2.1-rc.1' })
+      const finding = report.findings.find((f) => f.ruleId === 'plugin-compatibility')
+      expect(finding?.severity).toBe('fatal')
+      expect(finding?.message).toContain('engines.dsh')
+      expect(finding?.message).toContain('requirements')
+    } finally {
+      fixture.dispose()
+    }
+  })
+
+  it('ignores engines.dsh on dsh 0.2.1-alpha.3', async () => {
+    const fixture = setup('0.2.1-alpha.3')
+    try {
+      writeProfile(fixture.paths, { dependencies: { 'pkg-a': '^1.0.0' }, bundles: ['pkg-a'] })
+      const dir = join(fixture.paths.profileDir, 'node_modules', 'pkg-a')
+      mkdirSync(dir, { recursive: true })
+      writeJson(join(dir, 'package.json'), {
+        name: 'pkg-a',
+        version: '1.0.1',
+        engines: { dsh: '>=9.0.0' },
+        dsh: { bundle: { patch: 'cordis.patch.yml' } },
+      })
+      writeFileSync(join(dir, 'cordis.patch.yml'), '- id: probe\n', 'utf8')
+      writeLockfile(fixture.paths, { 'pkg-a': '1.0.1' })
+      const report = await scanProfile({ paths: fixture.paths, profileName: 'web', dshVersion: '0.2.1-alpha.3' })
+      expect(report.findings.some((f) => f.ruleId === 'plugin-compatibility')).toBe(false)
     } finally {
       fixture.dispose()
     }

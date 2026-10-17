@@ -71,8 +71,10 @@ export {
   removeVersionExemption,
   removeExemptionsForPackage,
   incompatibleDshPeers,
+  unmetDshRequirements,
   PROFILE_COMPATIBILITY_FILENAME,
   COMPATIBILITY_MIN_VERSION,
+  ENGINES_DSH_MIN_VERSION,
   type ExemptionWriteResult,
 } from './compatibility.js'
 export { ruleDuplicateCopies } from './duplicates.js'
@@ -91,7 +93,7 @@ export {
   type PreviewVerdict,
   type PreviewFix,
 } from './preview.js'
-export { buildVerifyMatrix, renderVerifyMatrix, dshPeersOf, type VerifyMatrix, type VerifyMatrixInput, type VerifyMatrixLifecyclePhase, type MatrixRuntimeResult } from './matrix.js'
+export { buildVerifyMatrix, renderVerifyMatrix, dshPeersOf, dshRequirementsOf, type VerifyMatrix, type VerifyMatrixInput, type VerifyMatrixLifecyclePhase, type MatrixRuntimeResult } from './matrix.js'
 export { fetchNpmPackage, packLocalPackage, type FetchedPackage, type PackedPackage } from './npm-fetch.js'
 export { runSelfTest, type SelfTestResult } from './selftest.js'
 export { handlePanelApi, PanelApiError, type PanelApiOptions, type RowView } from './panel-api.js'
