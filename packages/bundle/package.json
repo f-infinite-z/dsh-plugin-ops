@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-ops-bundle",
-  "version": "0.20.2",
+  "version": "0.20.3",
   "type": "module",
   "description": "Embedded dsh bundle for dsh-plugin-ops: a settings-page health panel (scan, plugin rows, diagnosis chat) over the shared engine",
   "license": "MIT",

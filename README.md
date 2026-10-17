@@ -19,7 +19,7 @@ Against dsh `0.2.1-alpha.2` this project's own web profile reports that `dsh-lsp
 
 **Install:** desktop → **Settings → Plugins → `dsh-plugin-ops-bundle`**. Web/CLI profiles and the terminal are in [Install](#install).
 
-**Status: v0.20.1 — upgrade preview: rehearse the next dsh release against every installed plugin ("which ones get skipped — and each one's fix as a runnable command"), with `--updates` resolving the newest registry release; both panels gained the preview card. New scan rule 10 detects same-version duplicate physical copies inside one install tree (the field case where a swallowed loader error hid a koffi type collision). Interception, repair, and memory mechanics: [docs/architecture.md](docs/architecture.md).**
+**Status: v0.20.3 — dsh 0.2.1-rc.1 adaptation: plugins are now judged by their own `engines.dsh` range first (falling back to dsh peers), matching the harness change from 0.2.1-alpha.4 on; `preview` reports `requirements` alongside the legacy `peers` key and resolves update compatibility from `engines.dsh`; `verify` gains V10 for plugin authors; the panel reads the renamed refusal field. Interception, repair, and memory mechanics: [docs/architecture.md](docs/architecture.md).**
 
 ## Names
 
@@ -144,7 +144,7 @@ dsh-xray rates this project C3 (a capability-surface rating, not intent); the ta
 
 ```sh
 pnpm install && pnpm run build
-pnpm run typecheck && pnpm run test      # 342 tests (core 266 + bundle 39 + cli 37; one POSIX-only test skipped on Windows)
+pnpm run typecheck && pnpm run test      # 357 tests (core 280 + bundle 40 + cli 37; one POSIX-only test skipped on Windows)
 node packages/cli/lib/index.js selftest  # engine self-check
 node scripts/e2e/scan-fix.e2e.mjs        # offline E2E (real pnpm repair)
 node scripts/e2e/gate.e2e.mjs            # gate scenarios (pass/block/bypass/attribution/headless)

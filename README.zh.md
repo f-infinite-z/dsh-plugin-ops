@@ -19,7 +19,7 @@
 
 **安装：** 桌面端 → **设置 → 插件 → `dsh-plugin-ops-bundle`**。Web/CLI profile 与终端见[安装](#安装)。
 
-**状态：v0.20.1 — 升级存活预演：对目标 dsh 版本预演每个已装插件的去向（"哪些会被跳过——每项修法都是可执行命令"），`--updates` 从 registry 解析最新发布；两个面板都加了预演卡片。新增规则 10 检测同一安装树内的同版本重复物理副本（现场案例：被 loader 吞掉的错误掩盖了 koffi 类型冲突）。拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
+**状态：v0.20.3 — 适配 dsh 0.2.1-rc.1：插件判定改为优先读自身 `engines.dsh`（未声明时回退 dsh peers），与 0.2.1-alpha.4 起的官方语义一致；`preview` 同时输出 `requirements` 新键与旧 `peers` 键，并按 `engines.dsh` 判定更新兼容性；`verify` 新增 V10 作者检查；面板兼容官方重命名后的拒绝字段。拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
 
 ## 命名
 
@@ -144,7 +144,7 @@ dsh-xray 给本项目的评级为 C3（衡量能力面而非意图）；上表�
 
 ```sh
 pnpm install && pnpm run build
-pnpm run typecheck && pnpm run test      # 342 单测（core 266 + bundle 39 + cli 37；Windows 跳过 1 个 POSIX 专属用例）
+pnpm run typecheck && pnpm run test      # 357 单测（core 280 + bundle 40 + cli 37；Windows 跳过 1 个 POSIX 专属用例）
 node packages/cli/lib/index.js selftest  # 引擎自检
 node scripts/e2e/scan-fix.e2e.mjs        # 离线 E2E（真实 pnpm 修复）
 node scripts/e2e/gate.e2e.mjs            # gate 场景（放行/阻断/旁路/归因/headless）

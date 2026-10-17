@@ -2,6 +2,47 @@
 
 All notable changes are tracked here.
 
+## 0.20.3 — 2026-10-17
+
+### dsh 0.2.1-rc.1 adaptation: engines.dsh comes first
+
+- **The known-release table learns `0.2.1-alpha.4` and `0.2.1-rc.1`.**
+  From 0.2.1-alpha.4 on the harness reads a plugin's own `engines.dsh`
+  range first and ignores its dsh peer ranges; `alpha.5` and `rc.1`
+  refined UI, PTC, and terminal behavior without changing boot or
+  requirement semantics. `check --freshness` reports fresh again, and
+  `preview`, the compatibility matrix, and rule 8 judge the newest
+  releases.
+- **Rule 8 mirrors the engines.dsh-first rules, version by version.**
+  `unmetDshRequirements` (the new name; `incompatibleDshPeers` stays as a
+  deprecated alias) switches on the runtime release: from
+  `0.2.1-alpha.4` on an own `engines.dsh` range decides alone — a
+  malformed `engines` object, a non-string `engines.dsh`, a `workspace:`
+  value, or an empty range is unmet — while older releases keep judging
+  `@deepseek-ai/dsh*` peers only. Findings now say "requirements", the
+  terminology the harness reports.
+- **`preview` reports both keys while the transition is in flight.**
+  Each entry carries `requirements` (keyed `engines.dsh` or by peer name)
+  and the legacy `peers` alias with the same object; the registry update
+  check reads `engines.dsh` from the newest release so an update that
+  widens only the engines range is recognized as compatible. The text
+  report and Markdown matrix say "unmet requirements".
+- **`verify` gains V10 (`requirement-contract`)** for plugin authors: a
+  malformed `engines` object, a non-string `engines.dsh`, a `workspace:`
+  value, or a range that misses a modern release is reported (errors for
+  what dsh refuses, warnings for gaps). Declaring `engines.dsh` without a
+  dsh peer is an info: releases before 0.2.1-alpha.4 ignore the engines
+  range and see no dsh peer. The matrix names `engines.dsh` and notes the
+  boundary.
+- **The embedded panel reads the renamed refusal field.** dsh 0.2.1-rc.1
+  returns `requirements` on `incompatible-version`; the panel accepts
+  `requirements` or the legacy `peers`, and its label is now "Unmet
+  requirements".
+- Verified against dsh 0.2.1-rc.1 in an isolated home: engines.dsh
+  rejection is fatal, engines.dsh acceptance overrides a rejecting peer,
+  and the official `dsh plugin add` refuses/accepts with the same
+  structured results.
+
 ## 0.20.2 — 2026-10-15
 
 ### dsh 0.2.1-alpha.3 adaptation, pre-release field fixes, and two new commands' worth of polish
