@@ -19,7 +19,7 @@ Against dsh `0.2.1-alpha.2` this project's own web profile reports that `dsh-lsp
 
 **Install:** desktop → **Settings → Plugins → `dsh-plugin-ops-bundle`**. Web/CLI profiles and the terminal are in [Install](#install).
 
-**Status: v0.20.3 — dsh 0.2.1-rc.1 adaptation: plugins are now judged by their own `engines.dsh` range first (falling back to dsh peers), matching the harness change from 0.2.1-alpha.4 on; `preview` reports `requirements` alongside the legacy `peers` key and resolves update compatibility from `engines.dsh`; `verify` gains V10 for plugin authors; the panel reads the renamed refusal field. Interception, repair, and memory mechanics: [docs/architecture.md](docs/architecture.md).**
+**Status: v0.20.4 — dsh 0.2.1-rc.2 adaptation: the known-release table covers `0.2.1-rc.2`; its boot and plugin-compatibility semantics are unchanged from rc.1. Plugins are judged by their own `engines.dsh` range first (falling back to dsh peers) from 0.2.1-alpha.4 on; `preview` reports `requirements` alongside the legacy `peers` key and resolves update compatibility from `engines.dsh`; `verify` includes V10 for plugin authors; the panel reads the renamed refusal field. Interception, repair, and memory mechanics: [docs/architecture.md](docs/architecture.md).**
 
 ## Names
 

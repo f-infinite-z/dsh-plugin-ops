@@ -19,7 +19,7 @@
 
 **安装：** 桌面端 → **设置 → 插件 → `dsh-plugin-ops-bundle`**。Web/CLI profile 与终端见[安装](#安装)。
 
-**状态：v0.20.3 — 适配 dsh 0.2.1-rc.1：插件判定改为优先读自身 `engines.dsh`（未声明时回退 dsh peers），与 0.2.1-alpha.4 起的官方语义一致；`preview` 同时输出 `requirements` 新键与旧 `peers` 键，并按 `engines.dsh` 判定更新兼容性；`verify` 新增 V10 作者检查；面板兼容官方重命名后的拒绝字段。拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
+**状态：v0.20.4 — 适配 dsh 0.2.1-rc.2：已知版本表覆盖 `0.2.1-rc.2`；rc.2 的启动与插件兼容语义与 rc.1 相同。插件判定仍优先读自身 `engines.dsh`（未声明时回退 dsh peers），与 0.2.1-alpha.4 起的官方语义一致；`preview` 同时输出 `requirements` 新键与旧 `peers` 键，并按 `engines.dsh` 判定更新兼容性；`verify` 包含 V10 作者检查；面板兼容官方重命名后的拒绝字段。拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
 
 ## 命名
 

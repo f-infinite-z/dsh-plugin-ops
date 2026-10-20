@@ -2,6 +2,20 @@
 
 All notable changes are tracked here.
 
+## 0.20.4 — 2026-10-20
+
+### dsh 0.2.1-rc.2 adaptation: known-release table
+
+- **The known-release table learns `0.2.1-rc.2`.** Compared `rc.1` to
+  `rc.2` file-by-file, the harness's boot and plugin-compatibility sources
+  are unchanged: rc.2 adds DeepSeek Search/Fetch and the Flash 1017 label.
+  `check --freshness` reports fresh again, and `preview`, the compatibility
+  matrix, and rule 8 judge the newest release.
+- **Regression coverage pins the rc.2 behavior.** The engines.dsh-first
+  requirement rules and freshness target are tested against
+  `0.2.1-rc.2`, so a future table change cannot silently regress the newest
+  release.
+
 ## 0.20.3 — 2026-10-17
 
 ### dsh 0.2.1-rc.1 adaptation: engines.dsh comes first

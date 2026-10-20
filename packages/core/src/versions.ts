@@ -28,9 +28,12 @@ export const KNOWN_VERSION_BOUNDARIES: readonly string[] = [
   // engines.dsh range before dsh peers (0.2.1-alpha.4+); the static rule 8
   // mirror switches to the same requirement rules at this boundary.
   '0.2.1-alpha.4',
-  // Newest release; rc line, boot and requirement semantics unchanged from
-  // alpha.4 (alpha.5 and rc.1 refined UI, PTC, and terminal behavior only).
+  // rc line; boot and requirement semantics unchanged from alpha.4
+  // (alpha.5 and rc.1 refined UI, PTC, and terminal behavior only).
   '0.2.1-rc.1',
+  // rc.2 adds DeepSeek Search/Fetch and the Flash 1017 label; boot and
+  // requirement semantics are unchanged from rc.1.
+  '0.2.1-rc.2',
 ]
 
 /** Newest known release; the `latest` reporting target. */

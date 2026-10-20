@@ -16,6 +16,13 @@ describe('freshnessFromDistTags', () => {
     expect(fresh.tableCovers).toBe(LATEST_KNOWN_VERSION)
   })
 
+  it('covers the current rc.2 release', () => {
+    const fresh = freshnessFromDistTags({ latest: '0.2.1-rc.2' })
+    expect(fresh.tableCovers).toBe('0.2.1-rc.2')
+    expect(fresh.registryNewest).toBe('0.2.1-rc.2')
+    expect(fresh.fresh).toBe(true)
+  })
+
   it('degrades when the registry reports no valid versions', () => {
     const fresh = freshnessFromDistTags({ weird: 'not-a-version' })
     expect(fresh.registryNewest).toBeNull()

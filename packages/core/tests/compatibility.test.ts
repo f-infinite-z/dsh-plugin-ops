@@ -241,6 +241,17 @@ describe('unmetDshRequirements', () => {
     }, '0.2.1-rc.1')).toEqual({ 'engines.dsh': '0.2.0' })
   })
 
+  it('applies the same requirement rules on dsh 0.2.1-rc.2', () => {
+    expect(unmetDshRequirements({
+      engines: { dsh: '>=0.2.1-alpha.4 <0.3.0' },
+      peerDependencies: { '@deepseek-ai/dsh': '^0.1.7' },
+    }, '0.2.1-rc.2')).toBeNull()
+    expect(unmetDshRequirements({
+      engines: { dsh: '0.2.1-rc.1' },
+      peerDependencies: { '@deepseek-ai/dsh': '^0.1.5' },
+    }, '0.2.1-rc.2')).toEqual({ 'engines.dsh': '0.2.1-rc.1' })
+  })
+
   it('ignores engines.dsh before 0.2.1-alpha.4', () => {
     expect(unmetDshRequirements({
       engines: { dsh: '>=9.0.0' },
