@@ -15,11 +15,11 @@
 2. **预演** —— `dsh-ops preview` 拿**下一个** dsh 版本对已装插件跑一遍，用启动器同款兼容语义给出：**哪些会被跳过**，以及每一项的修法。
 3. **隔离复验** —— 安装、修复、适配都**先在第二个隔离实例**里复验（独立 DSH home + user-data-dir），只有那一次启动存活才写入真实 profile。
 
-拿 dsh `0.2.1-alpha.2` 跑本项目自己的 web profile：`dsh-lsp-actions@0.4.5` 与 `dsh-mcp-connector@0.2.37` 会被跳过，能活下来的是 `dsh-lsp-actions@0.5.12` / `dsh-mcp-connector@0.2.70`。
+拿 dsh `0.2.1-rc.3` 跑本项目自己的 web profile：`dsh-handoff-compaction@0.2.0-rc.7` 会被跳过（其 requirements 止于 `0.2.1-alpha.3`），并直接给出对应的豁免命令；能活下来的是 `dsh-lsp-actions@0.5.12` / `dsh-mcp-connector@0.2.75`。
 
 **安装：** 桌面端 → **设置 → 插件 → `dsh-plugin-ops-bundle`**。Web/CLI profile 与终端见[安装](#安装)。
 
-**状态：v0.20.5 — 适配 dsh 0.2.1-rc.3：已知版本表覆盖 `0.2.1-rc.3`；rc.3 为纯版本号重发，启动与插件兼容语义与 rc.2 相同。插件判定仍优先读自身 `engines.dsh`（未声明时回退 dsh peers），与 0.2.1-alpha.4 起的官方语义一致；`preview` 同时输出 `requirements` 新键与旧 `peers` 键，并按 `engines.dsh` 判定更新兼容性；`verify` 包含 V10 作者检查；面板兼容官方重命名后的拒绝字段。拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
+**状态：v0.20.5 — 适配 dsh 0.2.1-rc.3：已知版本表覆盖 `0.2.1-rc.3`（纯版本号重发，启动与插件兼容语义与 rc.2 相同）。插件判定仍优先读自身 `engines.dsh`（未声明时回退 dsh peers），与 0.2.1-alpha.4 起的官方语义一致；`preview` 同时输出 `requirements` 新键与旧 `peers` 键，并按 `engines.dsh` 判定更新兼容性；`verify` 包含 V10 作者检查；面板兼容官方重命名后的拒绝字段。沙箱安装已加上边界：单次 5 分钟（默认总 10 分钟、上限 30 分钟）、2 分钟静默看门狗、共享预算的一次重试、失败时附完整 pnpm 输出，以及可选的 fetch/registry 参数。拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
 
 ## 命名
 
@@ -67,11 +67,11 @@ dsh-ops selftest               # 自检：内置故障样本跑全规则
 | 5 | patch 行解析（合并语义） | fatal/info | insert 行引用的包不可解析即中止启动（必需 entry / 版本语义）；扁平行是配置补丁（其 `name` 仅为匹配断言），无可见层引入其 id 时报 info"不生效"；同 id 以最后一条 insert 为生效行（对照 0.1.7-rc.2 与 0.2.1-alpha.1 源码 + `--dump-config` 实测） |
 | 6 | 故障记忆 | info/warn | 自上次成功启动后变化的包清单（归因基础） |
 | 7 | 结构完整性 | fatal/warn | 缺默认入口 / CJS 入口（Loader 需 ESM 命名导出）/ 缺 types/client |
-| 8 | 插件版本兼容性 | fatal / info（已豁免） | `@deepseek-ai/dsh*` peer 范围拒绝当前 dsh 版本——dsh 0.1.7-rc.1+ 会跳过该 bundle，功能静默缺失，除非授予 exact-version 豁免 |
+| 8 | 插件版本兼容性 | fatal / info（已豁免） | 拒绝当前 dsh 版本的 requirements：0.2.1-alpha.4 起优先看插件自身的 `engines.dsh`（格式错误、空值、`workspace:` 均视为不满足），旧版本回退到 `@deepseek-ai/dsh*` peer 范围；dsh 0.1.7-rc.1+ 会跳过该 bundle，功能静默缺失，除非授予 exact-version 豁免 |
 | 9 | 嫩包豁免条目卫生 | warn | `minimumReleaseAgeExclude` 中同一包出现两条带版本条目会让 pnpm 11 的锁文件豁免失效，此后该 profile 的每次安装都失败（`ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION`，已在 pnpm 11.7 复现）；推荐改写为裸包名 |
 | 10 | 重复物理副本 | fatal / warn | 同一安装树内 `@deepseek-ai/*` 与框架核心包出现**同版本**的多个物理副本（pnpm store 实体经符号链接只有一份物理路径，自动去重；不同版本的嵌套解析属 npm 常态，不报；0.1.5 遗留的共享闭包镜像树不扫——0.1.6+ 启动器不读它）。多次安装/升级会累积同版本残留，而模块求值期做进程级全局登记的包（原生绑定、koffi 类型）在第二份副本加载时失败、且错误被 loader 吞掉；官方静态闸可通过（2026-10-13 现场：四份 `@deepseek-ai/dsh-win32-process`，`Duplicate type name 'DSH_STARTUPINFOW'`） |
 
-解析跟随启动器的运行时 generation（0.1.6+）：profile 自身依赖树原生优先，其次是从安装清单与所选 bundle 重建的包表——冻结的磁盘镜像不再参与判定。Node 解析只沿锚点的物理祖先链；环境注入路径（NODE_PATH、全局路径、加载器链）一律不参与，与启动器自身的包表一致。
+解析跟随启动器的运行时 generation（0.1.6+ 至 0.2.1-rc.3）：profile 自身依赖树原生优先，其次是从安装清单与所选 bundle 重建的包表——冻结的磁盘镜像不再参与判定。Node 解析只沿锚点的物理祖先链；环境注入路径（NODE_PATH、全局路径、加载器链）一律不参与，与启动器自身的包表一致。
 
 真实生态验证：peer 声明悬空（作者引用官方未发布的包）已在多个第三方插件上检出。
 
@@ -80,7 +80,7 @@ dsh-ops selftest               # 自检：内置故障样本跑全规则
 | 面 | 说明 |
 |---|---|
 | `check` | 全 profile 一键体检（默认无网络），人类与模型双友好 |
-| `scan` | 单 profile 深扫：规则 1-9 + 可选更新检查；`--version-view all\|latest` 选择版本口径（all 默认：全版本并集并标注版本区间；latest 仅最新语义；严重度始终锚定实际安装版本） |
+| `scan` | 单 profile 深扫：规则 1-10 + 可选更新检查；`--version-view all\|latest` 选择版本口径（all 默认：全版本并集并标注版本区间；latest 仅最新语义；严重度始终锚定实际安装版本） |
 | `fix` | 自动可修集：磁盘↔lockfile 对齐（`pnpm install --frozen-lockfile --force`）；plan→确认→执行→备份 |
 | `gate` | 先阻断分级处置：fatal 先拦（自动修→放行；复杂→醒目指引；`--bypass` 逃生舱记录不静默）；dsh 启动秒退 → 读取官方启动诊断（`$DSH_HOME/logs/startup-*.log`）→ 归因差异包与启动器报告的失败插件 → 交互禁用重试（**先在 profile 的隔离副本中复验**：web 用临时 DSH home 启动副本，桌面用复用沙箱并从最新 crash report 归因；只有复验启动存活才写入真实 profile，沙箱不可用时如实降级为直接应用）；headless 一次性 profile 退出码透传不归因 |
 | `serve` | 本地 Web 面板：健康卡/结果列表/修复执行/**升级预演**（目标版本彩排 + 可复制修法命令）/**插件行管理**（健康徽标、致命/警告/正常筛选、每页 10 行分页、官方行保护、启停开关）/故障时间线/**诊断对话（带增强检索 RAG 开关）**——排障经验沉淀为 Markdown，开启后自动检索命中条目注入对话（BM25 + 可选向量重排），zh/en 切换 |
@@ -108,6 +108,8 @@ ignorePackages:
 registry: https://registry.npmmirror.com   # 推荐显式配置：沙箱安装 / 桌面 scaffold / registry 检查均使用它；回退顺序为 npm_config_registry → profile 的 .npmrc → 用户 .npmrc。无可达 registry 时沙箱安装会快速失败并给出提示（不再挂到重试超时）；内嵌宿主激活时读取一次——改后需重启 dsh
 ```
 
+`registry` 作用于沙箱安装、桌面 scaffold 与 registry 检查。沙箱安装另外接受按次覆盖参数（`dsh_ops_sandbox_install` 工具与 `/api/sandbox/install` 路由）：`timeoutMs`（默认 300000，上限 900000）、`idleTimeoutMs`（默认 120000）、`registry` 覆盖，以及可选的 pnpm 参数 `fetchTimeoutMs`、`fetchRetries`、`networkConcurrency`、`preferOffline`——不显式指定就不发送。
+
 Windows PowerShell 下 dsh-ops 的 stderr 告警会渲染为红色 `NativeCommandError` 块——那是信息性输出而非命令失败；脚本可用 `2>$null` 抑制。
 
 ## 架构与自保
@@ -127,10 +129,10 @@ dsh-ops 按设计会触达敏感面；下面说明具体触达什么、何时触
 | 补丁层 | 向 profile 用户补丁层 `cordis.patch.yml` 结构化写入 `disabled` 行 | 禁用导致启动失败的插件行 | plan→确认→备份→校验写入；删行即恢复；官方 `@deepseek-ai/*` 行拒绝禁用（403） |
 | 会话容器 | 读取 `$DSH_HOME/sessions` 目录树；`--repair-paths` 把会话目录改名为其 header id，`--quarantine` 把会话目录移入 dsh-ops 缓存 | `sessions` 修复命令 | 仅显式 flag；永不删除；先跑只读计划并报告每一步移动 |
 | 命令执行 | `pnpm install --frozen-lockfile --force`（固定参数）；`gate` 中传入的 `dsh` 命令；存在时调用 `session-audit` | lockfile 对齐；预检通过后启动 dsh；会话容器预检 | 绝不执行任意命令；仅在显式确认或用户自己输入的命令上执行 |
-| 沙箱进程 | 经**运行安装自带的 CLI 入口**在临时 DSH home 中启动第二个 `dsh`（cwd 为沙箱 home）；桌面宿主则启动已安装应用自身的第二个窗口（独立 `--user-data-dir` + 临时 home） | 沙箱控制台（面板与 `dsh_ops_sandbox_*` 工具） | 仅在显式操作时启动；以当前用户身份继承环境运行——面向插件配置的隔离，非安全边界（UI 中已明示：用户级凭据如 `~/.npmrc` 的 auth token、git 凭据库在沙箱内可读）；停止即完全清理 |
+| 沙箱进程 | 经**运行安装自带的 CLI 入口**在临时 DSH home 中启动第二个 `dsh`（cwd 为沙箱 home）；桌面宿主则启动已安装应用自身的第二个窗口（独立 `--user-data-dir` + 临时 home） | 沙箱控制台（面板与 `dsh_ops_sandbox_*` 工具） | 仅在显式操作时启动；以当前用户身份继承环境运行——面向插件配置的隔离，非安全边界（UI 中已明示：用户级凭据如 `~/.npmrc` 的 auth token、git 凭据库在沙箱内可读）；停止即完全清理；安装命令有边界（单次 5 分钟、2 分钟静默看门狗、共享预算的一次重试） |
 | 本地 HTTP 服务 | 回环 `127.0.0.1:8912`（`serve` 面板）；内嵌 bundle 复用 dsh 自带 web 服务 | Web 面板 | 仅回环、路由白名单；内嵌面额外经过官方 connection 浏览器准入（launch-token/cookie），无凭据请求一律拒绝 |
 | LLM 凭据 | `DSH_OPS_LLM_*`，或 `.credentials.yaml` / env / `$DSH_HOME/.env` 中的 provider key（已保存凭据优先，与 harness 一致） | 仅可选的诊断对话 | 只在对话使用时读取；全部静态功能无 key 可用 |
-| 网络 | `pnpm outdated`（`--updates` 可选）；配置的 LLM API | 更新提示；诊断对话 | `check`/`fix`/`gate` 与默认 `scan` 完全离线 |
+| 网络 | `pnpm outdated`（`--updates` 可选）；沙箱安装经配置的 registry；配置的 LLM API | 更新提示；隔离沙箱内的插件安装；诊断对话 | `check`/`fix`/`gate` 与默认 `scan` 完全离线；安装仅在显式操作时运行 |
 
 dsh-xray 给本项目的评级为 C3（衡量能力面而非意图）；上表是该能力卡的人类可读版本。
 
@@ -144,7 +146,7 @@ dsh-xray 给本项目的评级为 C3（衡量能力面而非意图）；上表�
 
 ```sh
 pnpm install && pnpm run build
-pnpm run typecheck && pnpm run test      # 357 单测（core 280 + bundle 40 + cli 37；Windows 跳过 1 个 POSIX 专属用例）
+pnpm run typecheck && pnpm run test      # 366 单测（core 284 + bundle 45 + cli 37；Windows 跳过 1 个 POSIX 专属用例）
 node packages/cli/lib/index.js selftest  # 引擎自检
 node scripts/e2e/scan-fix.e2e.mjs        # 离线 E2E（真实 pnpm 修复）
 node scripts/e2e/gate.e2e.mjs            # gate 场景（放行/阻断/旁路/归因/headless）

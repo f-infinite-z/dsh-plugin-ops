@@ -15,11 +15,11 @@ English | [中文](README.zh.md)
 2. **Rehearse** — `dsh-ops preview` runs the **next** dsh release against your installed plugins using the launcher's own compatibility semantics: *which plugins that release would skip*, and each one's fix.
 3. **Prove it in isolation** — installs, repairs and adaptations are verified first in a **second isolated instance** (its own DSH home and user-data-dir); only a surviving boot writes your real profile.
 
-Against dsh `0.2.1-alpha.2` this project's own web profile reports that `dsh-lsp-actions@0.4.5` and `dsh-mcp-connector@0.2.37` would be skipped, and that `dsh-lsp-actions@0.5.12` / `dsh-mcp-connector@0.2.70` are the releases that survive.
+Against dsh `0.2.1-rc.3` this project's own web profile reports that `dsh-handoff-compaction@0.2.0-rc.7` would be skipped (its requirements stop at `0.2.1-alpha.3`) and hands over the exact exemption command; `dsh-lsp-actions@0.5.12` and `dsh-mcp-connector@0.2.75` are the releases that survive.
 
 **Install:** desktop → **Settings → Plugins → `dsh-plugin-ops-bundle`**. Web/CLI profiles and the terminal are in [Install](#install).
 
-**Status: v0.20.5 — dsh 0.2.1-rc.3 adaptation: the known-release table covers `0.2.1-rc.3`; its boot and plugin-compatibility semantics are unchanged from rc.2 (version-only republish). Plugins are judged by their own `engines.dsh` range first (falling back to dsh peers) from 0.2.1-alpha.4 on; `preview` reports `requirements` alongside the legacy `peers` key and resolves update compatibility from `engines.dsh`; `verify` includes V10 for plugin authors; the panel reads the renamed refusal field. Interception, repair, and memory mechanics: [docs/architecture.md](docs/architecture.md).**
+**Status: v0.20.5 — dsh 0.2.1-rc.3 adaptation: the known-release table covers `0.2.1-rc.3` (a version-only republish of rc.2; boot and plugin-compatibility semantics unchanged). Plugins are judged by their own `engines.dsh` range first (falling back to dsh peers) from 0.2.1-alpha.4 on; `preview` reports `requirements` alongside the legacy `peers` key and resolves update compatibility from `engines.dsh`; `verify` includes V10 for plugin authors; the panel reads the renamed refusal field. Sandbox installs are now bounded: 5 minutes per attempt (10 total by default, 30 cap), a 2-minute silence watchdog, one retry sharing that budget, the captured pnpm output on failure, and opt-in fetch/registry controls. Interception, repair, and memory mechanics: [docs/architecture.md](docs/architecture.md).**
 
 ## Names
 
@@ -67,11 +67,11 @@ dsh-ops selftest               # run built-in fault samples through all rules
 | 5 | Patch-row resolution (composition semantics) | fatal/info | a package referenced by an inserted row that does not resolve aborts the boot (required entries / version semantics); a flat row is a configuration patch whose `name` is only a match assertion, reported at info when no visible layer introduces its id; the last insert for an id is the effective row (vendored sources 0.1.7-rc.2 + 0.2.1-alpha.1, `--dump-config` probes) |
 | 6 | Fault memory | info/warn | packages that changed since the last successful boot (attribution baseline) |
 | 7 | Structure integrity | fatal/warn | missing default entry / CJS entry (the Loader needs ESM named exports) / missing types or client |
-| 8 | Plugin version compatibility | fatal / info (exempted) | `@deepseek-ai/dsh*` peer ranges that reject the running dsh version — dsh 0.1.7-rc.1+ skips such a bundle, silently dropping its features unless an exact-version exemption is granted |
+| 8 | Plugin version compatibility | fatal / info (exempted) | requirements that reject the running dsh version: since 0.2.1-alpha.4 the plugin's own `engines.dsh` range decides first (malformed, empty, and `workspace:` values count as unmet), falling back to `@deepseek-ai/dsh*` peer ranges on older releases; dsh 0.1.7-rc.1+ skips such a bundle, silently dropping its features unless an exact-version exemption is granted |
 | 9 | Release-age exclusion hygiene | warn | `minimumReleaseAgeExclude` with two versioned entries for one package breaks pnpm 11's lockfile exemption, so every later install in the profile fails with `ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION` (reproduced against pnpm 11.7); the bare package name is the recommended fix |
 | 10 | Duplicate physical copies | fatal / warn | `@deepseek-ai/*` and framework-core packages existing as more than one **same-version** physical copy inside one installation tree (pnpm store entities behind symlinks dedupe to one physical copy; different-version nesting is ordinary npm resolution and stays silent; the legacy shared-closure mirror is excluded — no launcher since 0.1.6 reads it). Cumulative installs/upgrades leave same-version residues, and packages that register process-global names at module evaluation (native bindings, koffi types) fail on the second copy with the reason swallowed by the loader; the official static gate passes (field case 2026-10-13: four copies of `@deepseek-ai/dsh-win32-process`, `Duplicate type name 'DSH_STARTUPINFOW'`) |
 
-Resolution follows the launcher's runtime generation (0.1.6+): the profile's own tree wins natively, then the package table rebuilt from the installation manifest and the selected bundles — the frozen disk mirror no longer decides. The Node lookup follows the anchor's physical ancestor chain only; environment-injected paths (NODE_PATH, global paths, loader chains) are ignored, matching the launcher's own table.
+Resolution follows the launcher's runtime generation (0.1.6+ through 0.2.1-rc.3): the profile's own tree wins natively, then the package table rebuilt from the installation manifest and the selected bundles — the frozen disk mirror no longer decides. The Node lookup follows the anchor's physical ancestor chain only; environment-injected paths (NODE_PATH, global paths, loader chains) are ignored, matching the launcher's own table.
 
 Real-ecosystem validation: dangling peer declarations (authors referencing official packages that were never published) were detected on multiple third-party plugins.
 
@@ -80,7 +80,7 @@ Real-ecosystem validation: dangling peer declarations (authors referencing offic
 | Surface | Description |
 |---|---|
 | `check` | one-shot health check across all profiles (offline by default) |
-| `scan` | single-profile deep scan: rules 1-9 plus optional update check; `--version-view all\|latest` selects the version view (all by default: every known release with version-range notes; latest: newest semantics only; severity always follows the actual install) |
+| `scan` | single-profile deep scan: rules 1-10 plus optional update check; `--version-view all\|latest` selects the version view (all by default: every known release with version-range notes; latest: newest semantics only; severity always follows the actual install) |
 | `fix` | auto-fix set: disk↔lockfile realign (`pnpm install --frozen-lockfile --force`); plan → confirm → execute → backup |
 | `gate` | block-first graded disposition: fatal findings block (auto-fix then pass; complex ones get loud guidance; `--bypass` is a logged escape hatch); a boot failure reads the official startup diagnostics (`$DSH_HOME/logs/startup-*.log`), attributes the changed packages and the launcher-reported failed plugins, and offers interactive disable-and-retry that is **first verified in an isolated copy of the profile** — web profiles boot the copy in a temporary DSH home, the desktop profile through the reusable desktop sandbox from the latest crash report; only a surviving sandbox boot writes the real profile, and an unavailable sandbox falls back to applying the fix directly; one-shot headless profiles pass exit codes through without attribution |
 | `serve` | local web panel: health cards / findings / fix execution / **upgrade preview** (target rehearsal with copy-ready fix commands) / **plugin-row management** (health badges, severity filter, 10-per-page paging, official-row protection, enable/disable) / fault timeline / **diagnosis chat** with an **enhanced-retrieval (RAG) toggle** — troubleshooting experience deposits as Markdown and matching entries are retrieved into the chat (BM25 + optional embedding re-rank), zh/en switch |
@@ -108,6 +108,8 @@ ignorePackages:
 registry: https://registry.npmmirror.com   # recommended: sandbox installs / desktop scaffold / registry checks use it; falls back to npm_config_registry, then the npmrc files (the sandbox profile's, then yours). Without a reachable registry a sandbox install fails fast with a hint instead of hanging in retries. The embedded host reads it once at activation — restart dsh after changing it
 ```
 
+`registry` applies to sandbox installs, the desktop scaffold, and registry checks. Sandbox installs additionally accept per-call controls on the `dsh_ops_sandbox_install` tool and the `/api/sandbox/install` route: `timeoutMs` (default 300000, max 900000), `idleTimeoutMs` (default 120000), a `registry` override, and the opt-in pnpm flags `fetchTimeoutMs`, `fetchRetries`, `networkConcurrency`, `preferOffline` — nothing is sent unless requested.
+
 On Windows PowerShell, dsh-ops' stderr warnings render as red `NativeCommandError` blocks — they are informational, not command failures; scripts can silence them with `2>$null`.
 
 ## Architecture and self-reliance
@@ -127,10 +129,10 @@ dsh-ops touches sensitive surfaces by design; here is exactly what, when, and un
 | Patch layer | structured write of `disabled` rows into the profile's user `cordis.patch.yml` | disable the plugin row that breaks boot | plan → confirm → backup → validated write; delete the row to revert; official `@deepseek-ai/*` rows are refused (403) |
 | Session containers | read the `$DSH_HOME/sessions` tree; `--repair-paths` renames a session directory to its header id, `--quarantine` moves a session directory into the dsh-ops cache | the `sessions` repair command | explicit flags only; nothing is ever deleted; the read-only plan runs first and reports every move |
 | Command execution | `pnpm install --frozen-lockfile --force` (fixed arguments); the `dsh` command passed to `gate`; `session-audit` when present | realign drift; launch dsh after a passed gate; session-container pre-check | never arbitrary commands; only on explicit confirmation or the exact command the user typed |
-| Sandbox process | a second `dsh` spawned in a temporary DSH home through the running installation's own CLI entry (the sandbox home as cwd), or a second desktop window of the installed app (isolated `--user-data-dir` plus a temporary home) for the desktop host | the sandbox console (panel and `dsh_ops_sandbox_*` tools) | started only on explicit action; runs as this user with the inherited environment — configuration isolation for plugin work, not a security boundary (stated in the UI: user-level credentials such as the `~/.npmrc` auth token and git credential stores are readable from the sandbox); stopped with full cleanup |
+| Sandbox process | a second `dsh` spawned in a temporary DSH home through the running installation's own CLI entry (the sandbox home as cwd), or a second desktop window of the installed app (isolated `--user-data-dir` plus a temporary home) for the desktop host | the sandbox console (panel and `dsh_ops_sandbox_*` tools) | started only on explicit action; runs as this user with the inherited environment — configuration isolation for plugin work, not a security boundary (stated in the UI: user-level credentials such as the `~/.npmrc` auth token and git credential stores are readable from the sandbox); stopped with full cleanup; install commands are bounded (5 minutes per attempt, 2-minute silence watchdog, one shared-budget retry) |
 | Local HTTP server | loopback `127.0.0.1:8912` (`serve` panel); the embedded bundle reuses dsh's own web server | the web panel | loopback only, route whitelist; the embedded surface additionally passes the harness connection's browser admission (launch-token/cookie) and refuses requests without it |
 | LLM credentials | `DSH_OPS_LLM_*`, or provider keys from `.credentials.yaml` / env / `$DSH_HOME/.env` (stored credentials win, matching the harness) | the optional diagnosis chat only | read only when chat is used; every static feature works with no key at all |
-| Network | `pnpm outdated` (opt-in via `--updates`); the configured LLM API | update advisories; diagnosis chat | `check`/`fix`/`gate` and default `scan` are fully offline |
+| Network | `pnpm outdated` (opt-in via `--updates`); sandbox installs through the configured registry; the configured LLM API | update advisories; plugin installs in the isolated sandbox; diagnosis chat | `check`/`fix`/`gate` and default `scan` are fully offline; installs run only on explicit action |
 
 dsh-xray rates this project C3 (a capability-surface rating, not intent); the table above is its human-readable counterpart.
 
@@ -144,7 +146,7 @@ dsh-xray rates this project C3 (a capability-surface rating, not intent); the ta
 
 ```sh
 pnpm install && pnpm run build
-pnpm run typecheck && pnpm run test      # 357 tests (core 280 + bundle 40 + cli 37; one POSIX-only test skipped on Windows)
+pnpm run typecheck && pnpm run test      # 366 tests (core 284 + bundle 45 + cli 37; one POSIX-only test skipped on Windows)
 node packages/cli/lib/index.js selftest  # engine self-check
 node scripts/e2e/scan-fix.e2e.mjs        # offline E2E (real pnpm repair)
 node scripts/e2e/gate.e2e.mjs            # gate scenarios (pass/block/bypass/attribution/headless)
