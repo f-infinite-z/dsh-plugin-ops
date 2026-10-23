@@ -1,5 +1,18 @@
+import { mkdtempSync, mkdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { SandboxManager, desktopInstallFromEntry, packageNameFromSpec, redactToken } from '../src/sandbox.js'
+import {
+  SandboxManager,
+  desktopInstallFromEntry,
+  packageNameFromSpec,
+  pnpmInstallFlags,
+  readPluginManagerLog,
+  redactToken,
+  resolveIdleTimeout,
+  resolveInstallTimeout,
+  resolveInstallTuning,
+} from '../src/sandbox.js'
 
 describe('packageNameFromSpec', () => {
   it('extracts the bare name from registry specs', () => {
@@ -30,6 +43,70 @@ describe('redactToken', () => {
   it('masks a token when it is the last parameter and leaves clean text alone', () => {
     expect(redactToken('http://127.0.0.1:1/?token=zzz')).toBe('http://127.0.0.1:1/?token=***')
     expect(redactToken('boot line without credentials')).toBe('boot line without credentials')
+  })
+})
+
+describe('resolveInstallTimeout', () => {
+  it('defaults to five minutes and clamps explicit values', () => {
+    expect(resolveInstallTimeout()).toBe(300_000)
+    expect(resolveInstallTimeout(Number.NaN)).toBe(300_000)
+    expect(resolveInstallTimeout(2_000)).toBe(30_000)
+    expect(resolveInstallTimeout(600_000)).toBe(600_000)
+    expect(resolveInstallTimeout(9_999_999)).toBe(900_000)
+  })
+})
+
+describe('resolveIdleTimeout', () => {
+  it('defaults to two minutes and clamps explicit values', () => {
+    expect(resolveIdleTimeout()).toBe(120_000)
+    expect(resolveIdleTimeout(1_000)).toBe(30_000)
+    expect(resolveIdleTimeout(300_000)).toBe(300_000)
+    expect(resolveIdleTimeout(9_999_999)).toBe(600_000)
+  })
+})
+
+describe('install tuning', () => {
+  it('sends nothing unless the caller asks for it', () => {
+    expect(pnpmInstallFlags(resolveInstallTuning({}))).toEqual([])
+  })
+
+  it('maps the opt-in fetch controls to pnpm flags and clamps them', () => {
+    const tuning = resolveInstallTuning({
+      fetchTimeoutMs: 15_000,
+      fetchRetries: 1,
+      networkConcurrency: 32,
+      preferOffline: true,
+    })
+    expect(pnpmInstallFlags(tuning)).toEqual([
+      '--fetch-timeout=15000',
+      '--fetch-retries=1',
+      '--network-concurrency=32',
+      '--prefer-offline',
+    ])
+    expect(resolveInstallTuning({ fetchRetries: 99 }).fetchRetries).toBe(10)
+    expect(resolveInstallTuning({ networkConcurrency: 0 }).networkConcurrency).toBe(1)
+  })
+})
+
+describe('readPluginManagerLog', () => {
+  it('returns the newest operation log and degrades without one', () => {
+    const home = mkdtempSync(join(tmpdir(), 'dsh-ops-sandbox-test-'))
+    try {
+      const profileDir = join(home, 'profiles', 'web')
+      const logs = join(profileDir, '.plugin-manager', 'logs')
+      mkdirSync(join(logs, 'operation-old'), { recursive: true })
+      mkdirSync(join(logs, 'operation-new'), { recursive: true })
+      writeFileSync(join(logs, 'operation-old', 'pnpm.log'), 'old failure\n', 'utf8')
+      writeFileSync(join(logs, 'operation-new', 'pnpm.log'), 'Command failed with exit code 1\n', 'utf8')
+      utimesSync(join(logs, 'operation-old', 'pnpm.log'), new Date(1_000), new Date(1_000))
+      utimesSync(join(logs, 'operation-new', 'pnpm.log'), new Date(2_000), new Date(2_000))
+      const log = readPluginManagerLog(profileDir)
+      expect(log?.file).toBe(join(logs, 'operation-new', 'pnpm.log'))
+      expect(log?.text).toContain('Command failed with exit code 1')
+      expect(readPluginManagerLog(join(home, 'profiles', 'desktop'))).toBeNull()
+    } finally {
+      rmSync(home, { recursive: true, force: true })
+    }
   })
 })
 

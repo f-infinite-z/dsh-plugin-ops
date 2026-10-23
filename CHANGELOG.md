@@ -2,6 +2,52 @@
 
 All notable changes are tracked here.
 
+## 0.20.5 — 2026-10-23
+
+### Sandbox install: bounded waits, stalled detection, and the real output
+
+- **A killed or stalled install no longer surfaces as `exit 1`.** One attempt
+  is bounded to 5 minutes by default (`timeoutMs`, up to 15 minutes), and a
+  watchdog declares the attempt stalled when no output arrives for 2 minutes
+  (`idleTimeoutMs`, configurable). The step names the bound that fired, how
+  long it ran, and how many log lines were collected ("stopped after 120s
+  without output (idle bound 120s); the log stopped at line 0") instead of
+  masquerading as a package-manager failure. A kill resolves with a null
+  exit code, and the failure classification separates "dependency
+  resolution stalled (no output)" from "dependency resolution timed out".
+- **The captured pnpm output is attached to failures.** The install pipes
+  the official CLI, whose pnpm child inherits stdout/stderr; the output is
+  streamed into the sandbox log while the command runs and the full capture
+  (bounded at 32 KB, both ends kept) is added as an `output` step. The
+  plugin manager's own `pnpm.log` is attached as a second step when present
+  — in CLI mode it holds only the diagnostic line, so it complements the
+  capture rather than replacing it.
+- **The retry shares one total budget.** A timeout or stall is retried once
+  with the registry metadata already cached, but the retry may only use what
+  is left of `2 × timeoutMs` (capped at 30 minutes): the worst case is a
+  10-minute tool call by default, and a stall (2 minutes) leaves most of
+  that budget for the retry instead of piling a second full timeout on top.
+- **`dsh_ops_sandbox_install` gains the speed controls** — `idleTimeoutMs`,
+  a per-call `registry`, and opt-in pnpm flags `fetchTimeoutMs`,
+  `fetchRetries`, `networkConcurrency`, `preferOffline` (nothing is sent
+  unless asked). The fetch flags make a dead network fail fast; the registry
+  override points one install at a mirror. The HTTP
+  `/api/sandbox/install` route accepts the same fields. Uninstall and repair
+  removals keep their own bounded window.
+
+### dsh 0.2.1-rc.3 adaptation: known-release table
+
+- **The known-release table learns `0.2.1-rc.3`.** Compared `rc.2` to
+  `rc.3` on the packages that carry boot and plugin-compatibility semantics
+  (`dsh`, `dsh-app-boot`, `dsh-plugin-manager`, `dsh-base`), the sources are
+  byte-identical: rc.3 republishes the rc line with version bumps only.
+  `check --freshness` reports fresh again, and `preview`, the compatibility
+  matrix, and rule 8 judge the newest release.
+- **Regression coverage pins the rc.3 behavior.** The engines.dsh-first
+  requirement rules and freshness target are tested against
+  `0.2.1-rc.3`, so a future table change cannot silently regress the newest
+  release.
+
 ## 0.20.4 — 2026-10-20
 
 ### dsh 0.2.1-rc.2 adaptation: known-release table

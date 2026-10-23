@@ -1,4 +1,4 @@
-import { redactToken, type SandboxBuildGateResult, type SandboxChangeResult, type SandboxManager, type SandboxReport, type SandboxStatus } from './sandbox.js'
+import { redactToken, type SandboxBuildGateResult, type SandboxChangeResult, type SandboxInstallOptions, type SandboxManager, type SandboxReport, type SandboxStatus } from './sandbox.js'
 
 /**
  * Agent tools over the sandbox manager: the "number 1 dsh controls the
@@ -225,11 +225,18 @@ function restartTool(manager: SandboxManager): SandboxTool {
 function installTool(manager: SandboxManager): SandboxTool {
   return {
     name: 'dsh_ops_sandbox_install',
-    description: 'Install a plugin from the npm registry into the sandbox and verify it got activated: the profile is read back afterwards, and a half-registered residue (declared in dependencies but missing from dsh.profile.bundles — the aftermath of a failed install) is repaired automatically with remove + add. The sandbox must be running; the desktop shape hot-loads a new bundle within seconds, no restart needed. Registry specs only (name, name@version, scoped names).',
+    description: 'Install a plugin from the npm registry into the sandbox and verify it got activated: the profile is read back afterwards, and a half-registered residue (declared in dependencies but missing from dsh.profile.bundles — the aftermath of a failed install) is repaired automatically with remove + add. A timeout or a 2-minute silence is reported as a timeout/stall (not a failure) with the captured pnpm output, and retried once inside a shared budget (5 minutes per attempt, 10 total by default; raise timeoutMs for heavy dependency trees). The sandbox must be running; the desktop shape hot-loads a new bundle within seconds, no restart needed. Registry specs only (name, name@version, scoped names).',
     parameters: {
       type: 'object',
       properties: {
         package: { type: 'string', description: 'npm package spec, e.g. dsh-whale-widget or @scope/name@0.4.2' },
+        timeoutMs: { type: 'number', description: 'upper bound for one install attempt; default 300000 (5 min), cap 900000 (15 min). The automatic retry shares a total budget of twice this value (capped at 30 min)' },
+        idleTimeoutMs: { type: 'number', description: 'silence watchdog: kill the attempt when no output arrives for this long; default 120000 (2 min), within [30s, 10min]. A stalled run is reported as stalled and retried once' },
+        registry: { type: 'string', description: 'per-call registry override (e.g. a mirror); defaults to the dsh-ops.yml registry or the package-manager default' },
+        fetchTimeoutMs: { type: 'number', description: 'opt-in pnpm --fetch-timeout (ms); default unset. 15000 makes a dead network fail fast instead of waiting out pnpm retries' },
+        fetchRetries: { type: 'number', description: 'opt-in pnpm --fetch-retries; default unset. 1 halves the retry tail' },
+        networkConcurrency: { type: 'number', description: 'opt-in pnpm --network-concurrency; default unset (pnpm default). 32 speeds up metadata fetching slightly' },
+        preferOffline: { type: 'boolean', description: 'opt-in pnpm --prefer-offline; a second run reuses cached metadata' },
       },
       required: ['package'],
       additionalProperties: false,
@@ -239,9 +246,34 @@ function installTool(manager: SandboxManager): SandboxTool {
       render: (_args, value) => renderChangeResult(value as SandboxChangeResult),
     },
     async execute(args) {
-      const spec = (args as { package?: unknown }).package
+      const input = (args ?? {}) as Record<string, unknown>
+      const spec = input.package
       if (typeof spec !== 'string' || spec.trim() === '') throw new Error('package must be a non-empty npm spec')
-      return manager.install(spec.trim())
+      const positiveNumber = (key: string): number | undefined => {
+        const value = input[key]
+        if (value === undefined) return undefined
+        if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) throw new Error(`${key} must be a positive number`)
+        return value
+      }
+      const retries = (): number | undefined => {
+        const value = input.fetchRetries
+        if (value === undefined) return undefined
+        if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || !Number.isInteger(value)) throw new Error('fetchRetries must be a non-negative integer')
+        return value
+      }
+      const options: SandboxInstallOptions = {
+        timeoutMs: positiveNumber('timeoutMs'),
+        idleTimeoutMs: positiveNumber('idleTimeoutMs'),
+        fetchTimeoutMs: positiveNumber('fetchTimeoutMs'),
+        fetchRetries: retries(),
+        networkConcurrency: positiveNumber('networkConcurrency'),
+        preferOffline: input.preferOffline === true,
+      }
+      if (input.registry !== undefined) {
+        if (typeof input.registry !== 'string' || input.registry.trim() === '') throw new Error('registry must be a non-empty URL')
+        options.registry = input.registry.trim()
+      }
+      return manager.install(spec.trim(), options)
     },
   }
 }

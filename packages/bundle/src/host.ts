@@ -26,7 +26,7 @@ import {
   revokeExemptionsFor,
   type PluginManagerLike,
 } from './adapt.js'
-import type { SandboxManager } from './sandbox.js'
+import type { SandboxInstallOptions, SandboxManager } from './sandbox.js'
 
 /** HTTP prefix the bundle owns on the harness Web server. */
 export const ROUTE_PREFIX = '/dsh-ops'
@@ -104,6 +104,30 @@ function parseJsonObject(body: string | undefined): Record<string, unknown> | nu
   } catch {
     return null
   }
+}
+
+/** The optional install controls accepted by the sandbox install route. */
+function installOptionsFrom(parsed: Record<string, unknown> | null): SandboxInstallOptions {
+  if (parsed === null) return {}
+  const options: SandboxInstallOptions = {}
+  const positive = (key: string): number | undefined => {
+    const value = parsed[key]
+    return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined
+  }
+  const timeoutMs = positive('timeoutMs')
+  if (timeoutMs !== undefined) options.timeoutMs = timeoutMs
+  const idleTimeoutMs = positive('idleTimeoutMs')
+  if (idleTimeoutMs !== undefined) options.idleTimeoutMs = idleTimeoutMs
+  const fetchTimeoutMs = positive('fetchTimeoutMs')
+  if (fetchTimeoutMs !== undefined) options.fetchTimeoutMs = fetchTimeoutMs
+  const networkConcurrency = positive('networkConcurrency')
+  if (networkConcurrency !== undefined) options.networkConcurrency = networkConcurrency
+  const fetchRetries = parsed.fetchRetries
+  if (typeof fetchRetries === 'number' && Number.isInteger(fetchRetries) && fetchRetries >= 0) options.fetchRetries = fetchRetries
+  const registry = parsed.registry
+  if (typeof registry === 'string' && registry.trim() !== '') options.registry = registry.trim()
+  if (parsed.preferOffline === true) options.preferOffline = true
+  return options
 }
 /**
  * Build the HTTP handler served under {@link ROUTE_PREFIX}. Panel API routes
@@ -325,7 +349,7 @@ async function handleSandbox(
         json(res, 400, { ok: false, code: 'invalid-spec', message: 'POST with a package spec is required' })
         return
       }
-      json(res, 200, { ...(await sandbox.install(spec)) })
+      json(res, 200, { ...(await sandbox.install(spec, installOptionsFrom(parsed))) })
       return
     }
     case '/api/sandbox/uninstall': {

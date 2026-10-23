@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import net from 'node:net'
@@ -164,6 +164,24 @@ export interface SandboxReport {
 
 const START_TIMEOUT_MS = 45_000
 const MAX_LOG_LINES = 400
+/**
+ * Install commands resolve a dependency tree before downloading, which can
+ * take minutes on heavy plugins. The first attempt gets 5 minutes; the
+ * automatic retry shares a 10-minute total budget (both configurable, up to
+ * 15 + 15 minutes). A run that prints nothing for 2 minutes is treated as
+ * stalled instead of waiting out the full bound.
+ */
+const DEFAULT_INSTALL_TIMEOUT_MS = 300_000
+const MIN_INSTALL_TIMEOUT_MS = 30_000
+const MAX_INSTALL_TIMEOUT_MS = 900_000
+const MAX_INSTALL_TOTAL_MS = 1_800_000
+const MIN_RETRY_BUDGET_MS = 30_000
+const DEFAULT_IDLE_TIMEOUT_MS = 120_000
+const MIN_IDLE_TIMEOUT_MS = 30_000
+const MAX_IDLE_TIMEOUT_MS = 600_000
+const MAX_CAPTURE_CHARS = 64_000
+const MAX_STEP_OUTPUT = 32_000
+const PLUGIN_LOG_LIMIT = 32_000
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolvePromise) => setTimeout(resolvePromise, ms))
@@ -329,6 +347,145 @@ export function packageNameFromSpec(spec: string): string | null {
   return name.length > 0 ? name : null
 }
 
+function clampNumber(value: number | undefined, min: number, max: number, fallback: number): number {
+  if (value === undefined || !Number.isFinite(value)) return fallback
+  return Math.min(max, Math.max(min, Math.round(value)))
+}
+
+/**
+ * Bound one install attempt: an explicit value is honored within
+ * [30s, 15min]; absent or invalid values fall back to 5 minutes. The
+ * automatic retry shares a total budget of twice this value, capped at 30
+ * minutes, so a hung install can never occupy the tool for longer than that.
+ */
+export function resolveInstallTimeout(timeoutMs?: number): number {
+  return clampNumber(timeoutMs, MIN_INSTALL_TIMEOUT_MS, MAX_INSTALL_TIMEOUT_MS, DEFAULT_INSTALL_TIMEOUT_MS)
+}
+
+/** Bound the silence watchdog: 2 minutes by default, within [30s, 10min]. */
+export function resolveIdleTimeout(idleTimeoutMs?: number): number {
+  return clampNumber(idleTimeoutMs, MIN_IDLE_TIMEOUT_MS, MAX_IDLE_TIMEOUT_MS, DEFAULT_IDLE_TIMEOUT_MS)
+}
+
+/** The optional pnpm tuning exposed to callers; each value is null/false when unset. */
+export interface SandboxInstallTuning {
+  fetchTimeoutMs: number | null
+  fetchRetries: number | null
+  networkConcurrency: number | null
+  preferOffline: boolean
+}
+
+/** The caller-facing install controls: timing, registry override, and opt-in pnpm tuning. */
+export interface SandboxInstallOptions {
+  timeoutMs?: number | undefined
+  idleTimeoutMs?: number | undefined
+  registry?: string | undefined
+  fetchTimeoutMs?: number | undefined
+  fetchRetries?: number | undefined
+  networkConcurrency?: number | undefined
+  preferOffline?: boolean | undefined
+}
+
+/**
+ * Normalize the opt-in pnpm tuning. Nothing is sent unless the caller asked
+ * for it: lowering the fetch timeout or retry count speeds up a dead network
+ * but can fail a merely slow one, so those are not defaults.
+ */
+export function resolveInstallTuning(options: SandboxInstallOptions): SandboxInstallTuning {
+  return {
+    fetchTimeoutMs: options.fetchTimeoutMs === undefined || !Number.isFinite(options.fetchTimeoutMs)
+      ? null
+      : clampNumber(options.fetchTimeoutMs, 1_000, 600_000, 60_000),
+    fetchRetries: options.fetchRetries === undefined || !Number.isFinite(options.fetchRetries)
+      ? null
+      : clampNumber(options.fetchRetries, 0, 10, 2),
+    networkConcurrency: options.networkConcurrency === undefined || !Number.isFinite(options.networkConcurrency)
+      ? null
+      : clampNumber(options.networkConcurrency, 1, 64, 16),
+    preferOffline: options.preferOffline === true,
+  }
+}
+
+/** The pnpm flags for one normalized tuning; empty when the caller asked for nothing. */
+export function pnpmInstallFlags(tuning: SandboxInstallTuning): string[] {
+  const flags: string[] = []
+  if (tuning.fetchTimeoutMs !== null) flags.push(`--fetch-timeout=${tuning.fetchTimeoutMs}`)
+  if (tuning.fetchRetries !== null) flags.push(`--fetch-retries=${tuning.fetchRetries}`)
+  if (tuning.networkConcurrency !== null) flags.push(`--network-concurrency=${tuning.networkConcurrency}`)
+  if (tuning.preferOffline) flags.push('--prefer-offline')
+  return flags
+}
+
+/**
+ * The newest pnpm log dsh's plugin manager wrote for this profile
+ * (`<profile>/.plugin-manager/logs/<operation>/pnpm.log`). The manager keeps
+ * pnpm's real output there, while the CLI output carries only the failure
+ * summary — an install failure is undiagnosable without it.
+ */
+export function readPluginManagerLog(profileDir: string): { file: string; text: string } | null {
+  const logsDir = join(profileDir, '.plugin-manager', 'logs')
+  let entries: string[]
+  try {
+    entries = readdirSync(logsDir)
+  } catch {
+    return null
+  }
+  let newest: { file: string; mtimeMs: number } | null = null
+  for (const entry of entries) {
+    const file = join(logsDir, entry, 'pnpm.log')
+    try {
+      const mtimeMs = statSync(file).mtimeMs
+      if (newest === null || mtimeMs > newest.mtimeMs) newest = { file, mtimeMs }
+    } catch {
+      // Not an operation directory; keep looking.
+    }
+  }
+  if (newest === null) return null
+  try {
+    const text = readFileSync(newest.file, 'utf8')
+    const bounded = text.length > PLUGIN_LOG_LIMIT
+      ? `${text.slice(0, PLUGIN_LOG_LIMIT / 2)}\n… (${text.length - PLUGIN_LOG_LIMIT} characters elided) …\n${text.slice(-PLUGIN_LOG_LIMIT / 2)}`
+      : text
+    return { file: newest.file, text: bounded }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The result of one bounded sandbox management command. `timedOut` (the run
+ * bound) and `stalled` (the silence bound) separate a kill from a real
+ * failure; both report a null exit code.
+ */
+interface SandboxCommandResult {
+  code: number | null
+  output: string
+  timedOut: boolean
+  stalled: boolean
+  elapsedMs: number
+  truncated: boolean
+}
+
+/** The step detail for a failed command: a kill and an exit code are different facts. */
+function commandFailureDetail(result: SandboxCommandResult, timeoutMs: number, idleTimeoutMs: number): string {
+  const lines = result.output.split(/\r?\n/).filter((line) => line.trim() !== '').length
+  if (result.stalled) {
+    return `stopped after ${Math.round(result.elapsedMs / 1000)}s without output (idle bound ${Math.round(idleTimeoutMs / 1000)}s); the log stopped at line ${lines}. The dependency resolution stopped reporting progress — check registry reachability, or retry with a larger idleTimeoutMs / the opt-in fetch limits`
+  }
+  if (result.timedOut) {
+    return `killed after ${Math.round(result.elapsedMs / 1000)}s (timeout ${Math.round(timeoutMs / 1000)}s); the log stopped at line ${lines}. The dependency resolution did not finish in time — retry with a larger timeoutMs (max ${MAX_INSTALL_TIMEOUT_MS})`
+  }
+  return `exited ${result.code ?? 'spawn failure'} — ${outputTail(result.output)}`
+}
+
+/** Bound a captured command output for one step detail, keeping both ends readable. */
+function boundedOutput(text: string, limit = MAX_STEP_OUTPUT): string {
+  const trimmed = text.trim()
+  if (trimmed.length <= limit) return trimmed
+  const half = Math.floor(limit / 2)
+  return `${trimmed.slice(0, half)}\n… (${trimmed.length - limit} characters elided) …\n${trimmed.slice(-half)}`
+}
+
 /** Collapse one command output into a bounded single-line tail for step details. */
 function outputTail(text: string, max = 240): string {
   const collapsed = text.replace(/\s+/g, ' ').trim()
@@ -351,6 +508,8 @@ function classifyInstallFailure(steps: SandboxChangeStep[]): string {
   if (failed('state')) return 'sandbox not running'
   const add = steps.find((entry) => entry.step === 'add')
   if (add !== undefined && !add.ok) {
+    if (/without output/i.test(add.detail)) return 'dependency resolution stalled (no output)'
+    if (/killed after \d+s/i.test(add.detail)) return 'dependency resolution timed out'
     if (/ENOTFOUND|ETIMEDOUT|ECONNREFUSED|EAI_AGAIN|network|fetch/i.test(add.detail)) return 'network'
     if (/NO_MATCHING_VERSION|not found|E404/i.test(add.detail)) return 'not in the registry'
     if (/ERR_PNPM_/.test(add.detail)) return 'package manager rejected the install'
@@ -952,46 +1111,128 @@ export class SandboxManager {
     return { kind: 'command', name: launcher }
   }
 
-  /** One plugin-management invocation for the sandbox profile, registry carried over when set. */
-  private pluginArgs(action: 'add' | 'remove', target: string): string[] {
+  /**
+   * One plugin-management invocation for the sandbox profile. The registry
+   * override wins over the configured value; opt-in pnpm tuning flags are
+   * appended to `add` only.
+   */
+  private pluginArgs(
+    action: 'add' | 'remove',
+    target: string,
+    registryOverride?: string | undefined,
+    tuning?: SandboxInstallTuning | undefined,
+  ): string[] {
     const args = ['plugin', '--profile', this.profileName(), action, target]
     // `add` takes --registry; `remove` rejects it, so the removal names the
     // registry through the generic configuration flag every pnpm command
     // accepts (the same form the official plugin-manager sends since
     // 0.2.1-alpha.3).
-    const registry = this.registryValue()
+    const override = (registryOverride ?? '').trim()
+    const registry = override === '' ? this.registryValue() : override
     if (registry !== null) args.push(action === 'add' ? `--registry=${registry}` : `--config.registry=${registry}`)
+    if (action === 'add' && tuning !== undefined) args.push(...pnpmInstallFlags(tuning))
     return args
   }
 
   /**
-   * Run one sandbox management command to completion (bounded) and return its
-   * exit code plus output. The command runs with the sandbox home as DSH_HOME;
-   * a timeout kills its tree.
+   * Run one sandbox management command to completion (bounded by a total
+   * timeout and a silence watchdog) and stream its output into the sandbox
+   * log as it arrives. A kill is not an exit: `timedOut`/`stalled` carry the
+   * verdict with a null code, so callers never report a kill as a
+   * package-manager failure. The command runs with the sandbox home as
+   * DSH_HOME.
    */
-  private runSandboxCommand(args: string[], timeoutMs = 300_000): Promise<{ code: number | null; output: string }> {
+  private runSandboxCommand(
+    args: string[],
+    options: { timeoutMs?: number; idleTimeoutMs?: number } = {},
+  ): Promise<SandboxCommandResult> {
+    const timeoutMs = options.timeoutMs ?? DEFAULT_INSTALL_TIMEOUT_MS
+    const idleTimeoutMs = options.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS
     const home = this.home
-    if (home === null) return Promise.resolve({ code: null, output: 'no sandbox home' })
+    if (home === null) return Promise.resolve({ code: null, output: 'no sandbox home', timedOut: false, stalled: false, elapsedMs: 0, truncated: false })
     const driver = this.managementDriver()
-    if (typeof driver === 'string') return Promise.resolve({ code: null, output: driver })
+    if (typeof driver === 'string') return Promise.resolve({ code: null, output: driver, timedOut: false, stalled: false, elapsedMs: 0, truncated: false })
     return new Promise((resolvePromise) => {
+      const startedMs = Date.now()
       this.appendLog(`$ ${args.join(' ')}`)
       const child = spawnSandbox(driver, args, { ...process.env, DSH_HOME: home }, home)
-      const timer = setTimeout(() => killTree(child.pid), timeoutMs)
       let output = ''
-      child.stdout?.on('data', (chunk: Buffer) => { output += chunk.toString() })
-      child.stderr?.on('data', (chunk: Buffer) => { output += chunk.toString() })
-      child.on('error', (error) => {
-        clearTimeout(timer)
-        resolvePromise({ code: 127, output: `${output}${String(error)}` })
-      })
-      child.on('close', (code) => {
-        clearTimeout(timer)
-        for (const line of output.split(/\r?\n/).slice(-8)) {
+      let pending = ''
+      let truncated = false
+      let timedOut = false
+      let stalled = false
+      let settled = false
+      let timer: NodeJS.Timeout | undefined
+      let idleTimer: NodeJS.Timeout | undefined
+      let fallback: NodeJS.Timeout | undefined
+      const finish = (code: number | null): void => {
+        if (settled) return
+        settled = true
+        if (timer !== undefined) clearTimeout(timer)
+        if (idleTimer !== undefined) clearTimeout(idleTimer)
+        if (fallback !== undefined) clearTimeout(fallback)
+        if (pending.trim() !== '') this.appendLog(pending)
+        resolvePromise({
+          code: timedOut || stalled ? null : code,
+          output,
+          timedOut,
+          stalled,
+          elapsedMs: Date.now() - startedMs,
+          truncated,
+        })
+      }
+      const kill = (kind: 'timeout' | 'idle'): void => {
+        if (settled) return
+        if (kind === 'idle') {
+          stalled = true
+          this.appendLog(`# no output for ${Math.round(idleTimeoutMs / 1000)}s; killing its process tree`)
+        } else {
+          timedOut = true
+          this.appendLog(`# command exceeded ${Math.round(timeoutMs / 1000)}s; killing its process tree`)
+        }
+        killTree(child.pid)
+        // A killed tree can leave the pipes open; never let the caller hang on
+        // a close event that may not arrive.
+        fallback = setTimeout(() => finish(null), 5000)
+        fallback.unref()
+      }
+      const armIdle = (): void => {
+        if (settled) return
+        if (idleTimer !== undefined) clearTimeout(idleTimer)
+        idleTimer = setTimeout(() => kill('idle'), idleTimeoutMs)
+        idleTimer.unref()
+      }
+      const feed = (chunk: Buffer): void => {
+        const text = chunk.toString()
+        output += text
+        if (output.length > MAX_CAPTURE_CHARS) {
+          output = output.slice(-MAX_CAPTURE_CHARS)
+          truncated = true
+        }
+        pending += text
+        const lines = pending.split(/\r\n|\n|\r/)
+        pending = lines.pop() ?? ''
+        for (const line of lines) {
           if (line.trim() !== '') this.appendLog(line)
         }
-        resolvePromise({ code, output })
+        // A carriage-return progress line that never ends must not grow the
+        // buffer without bound; flush an overlong fragment as one log line.
+        if (pending.length > 16_000) {
+          this.appendLog(pending)
+          pending = ''
+        }
+        armIdle()
+      }
+      timer = setTimeout(() => kill('timeout'), timeoutMs)
+      timer.unref()
+      armIdle()
+      child.stdout?.on('data', feed)
+      child.stderr?.on('data', feed)
+      child.on('error', (error) => {
+        output += String(error)
+        finish(127)
       })
+      child.on('close', (code) => finish(code))
     })
   }
 
@@ -1029,7 +1270,12 @@ export class SandboxManager {
    * dependency is present but activation is not. The desktop shape hot-loads
    * a new bundle in a few seconds; no restart is needed.
    */
-  async install(spec: string): Promise<SandboxChangeResult> {
+  async install(spec: string, options: SandboxInstallOptions = {}): Promise<SandboxChangeResult> {
+    const timeoutMs = resolveInstallTimeout(options.timeoutMs)
+    const idleTimeoutMs = resolveIdleTimeout(options.idleTimeoutMs)
+    const tuning = resolveInstallTuning(options)
+    const totalBudgetMs = Math.min(MAX_INSTALL_TOTAL_MS, timeoutMs * 2)
+    const registryOverride = (options.registry ?? '').trim()
     const steps: SandboxChangeStep[] = []
     const name = packageNameFromSpec(spec)
     const finish = (ok: boolean, recovered: boolean): SandboxChangeResult => {
@@ -1047,16 +1293,49 @@ export class SandboxManager {
       steps.push({ step: 'state', ok: false, detail: 'the sandbox is not running; start it first' })
       return finish(false, false)
     }
-    const registryProblem = await this.probeRegistry(this.registryValue())
+    const registryProblem = await this.probeRegistry(registryOverride === '' ? this.registryValue() : registryOverride)
     if (registryProblem !== null) {
       steps.push({ step: 'registry', ok: false, detail: registryProblem })
       return finish(false, false)
     }
-    const add = await this.runSandboxCommand(this.pluginArgs('add', spec))
-    steps.push({
-      step: 'add', ok: add.code === 0,
-      detail: add.code === 0 ? 'the package manager finished' : `exited ${add.code ?? 'timeout or spawn failure'} — ${outputTail(add.output)}`,
-    })
+    const addArgs = (): string[] => this.pluginArgs('add', spec, registryOverride === '' ? undefined : registryOverride, tuning)
+    const runAdd = (allowanceMs: number): Promise<SandboxCommandResult> => this.runSandboxCommand(addArgs(), { timeoutMs: allowanceMs, idleTimeoutMs })
+    const describe = (step: string, result: SandboxCommandResult, allowanceMs: number): SandboxChangeStep => {
+      const ok = result.code === 0 && !result.timedOut && !result.stalled
+      return { step, ok, detail: ok ? 'the package manager finished' : commandFailureDetail(result, allowanceMs, idleTimeoutMs) }
+    }
+    const failed = (result: SandboxCommandResult): boolean => result.code !== 0 || result.timedOut || result.stalled
+    let add = await runAdd(timeoutMs)
+    steps.push(describe('add', add, timeoutMs))
+    if (add.timedOut || add.stalled) {
+      const remaining = totalBudgetMs - add.elapsedMs
+      if (remaining >= MIN_RETRY_BUDGET_MS) {
+        const retryAllowance = Math.min(timeoutMs, remaining)
+        steps.push({
+          step: 'retry-plan', ok: false,
+          detail: `retrying once within the total ${Math.round(totalBudgetMs / 1000)}s budget (${Math.round(retryAllowance / 1000)}s left): the registry metadata fetched before the kill is cached`,
+        })
+        add = await runAdd(retryAllowance)
+        steps.push(describe('add-retry', add, retryAllowance))
+      } else {
+        steps.push({
+          step: 'add-retry', ok: false,
+          detail: `no retry: the ${Math.round(totalBudgetMs / 1000)}s total budget is exhausted (${Math.round(add.elapsedMs / 1000)}s spent)`,
+        })
+      }
+    }
+    if (failed(add)) {
+      if (add.output.trim() !== '') {
+        steps.push({
+          step: 'output', ok: false,
+          detail: `pnpm output ${add.truncated ? `(last ${MAX_CAPTURE_CHARS} chars)` : '(full)'}:\n${boundedOutput(add.output)}`,
+        })
+      }
+      const pluginLog = readPluginManagerLog(paths.profileDir)
+      if (pluginLog !== null) {
+        steps.push({ step: 'pnpm-log', ok: false, detail: `the newest plugin-manager log (${pluginLog.file}):\n${pluginLog.text.trim() === '' ? '(empty)' : pluginLog.text.trim()}` })
+      }
+    }
     if (/IGNORED_BUILDS/i.test(add.output)) {
       steps.push({ step: 'build-scripts', ok: false, detail: 'the install reported ignored build scripts (ERR_PNPM_IGNORED_BUILDS): the dependency build gate needs a decision before the install can complete' })
     }
@@ -1068,14 +1347,15 @@ export class SandboxManager {
       steps.push({ step: 'allowBuilds', ok: false, detail: blockers })
       return finish(false, false)
     }
-    if (add.code !== 0 && !state.inDeps) {
+    if (failed(add) && !state.inDeps) {
       steps.push({ step: 'repair', ok: false, detail: 'the install failed before touching the profile; nothing to repair — resolve the cause and retry' })
       return finish(false, false)
     }
-    const remove = await this.runSandboxCommand(this.pluginArgs('remove', name))
-    steps.push({ step: 'repair-remove', ok: remove.code === 0, detail: remove.code === 0 ? 'residue cleared' : `exited ${remove.code ?? 'timeout'} — ${outputTail(remove.output)}` })
-    const readd = await this.runSandboxCommand(this.pluginArgs('add', spec))
-    steps.push({ step: 'repair-add', ok: readd.code === 0, detail: readd.code === 0 ? 're-installed' : `exited ${readd.code ?? 'timeout'} — ${outputTail(readd.output)}` })
+    const remove = await this.runSandboxCommand(this.pluginArgs('remove', name), { idleTimeoutMs })
+    const removeOk = remove.code === 0 && !remove.timedOut && !remove.stalled
+    steps.push({ step: 'repair-remove', ok: removeOk, detail: removeOk ? 'residue cleared' : commandFailureDetail(remove, DEFAULT_INSTALL_TIMEOUT_MS, idleTimeoutMs) })
+    const readd = await runAdd(timeoutMs)
+    steps.push(describe('repair-add', readd, timeoutMs))
     state = this.registrationState(paths, name)
     steps.push({ step: 'verify-after-repair', ok: state.registered, detail: state.detail })
     return finish(state.registered, true)
@@ -1095,9 +1375,10 @@ export class SandboxManager {
       return finish(false)
     }
     const remove = await this.runSandboxCommand(this.pluginArgs('remove', name))
+    const removeOk = remove.code === 0 && !remove.timedOut && !remove.stalled
     steps.push({
-      step: 'remove', ok: remove.code === 0,
-      detail: remove.code === 0 ? 'the package manager finished' : `exited ${remove.code ?? 'timeout'} — ${outputTail(remove.output)}`,
+      step: 'remove', ok: removeOk,
+      detail: removeOk ? 'the package manager finished' : commandFailureDetail(remove, DEFAULT_INSTALL_TIMEOUT_MS, DEFAULT_IDLE_TIMEOUT_MS),
     })
     const state = this.registrationState(paths, name)
     const clean = !state.registered && !state.inDeps

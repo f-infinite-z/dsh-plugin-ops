@@ -34,6 +34,9 @@ export const KNOWN_VERSION_BOUNDARIES: readonly string[] = [
   // rc.2 adds DeepSeek Search/Fetch and the Flash 1017 label; boot and
   // requirement semantics are unchanged from rc.1.
   '0.2.1-rc.2',
+  // rc.3 republishes the rc line with version bumps only (the boot,
+  // plugin-manager, and requirement sources are unchanged from rc.2).
+  '0.2.1-rc.3',
 ]
 
 /** Newest known release; the `latest` reporting target. */
