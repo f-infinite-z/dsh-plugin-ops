@@ -37,6 +37,9 @@ export const KNOWN_VERSION_BOUNDARIES: readonly string[] = [
   // rc.3 republishes the rc line with version bumps only (the boot,
   // plugin-manager, and requirement sources are unchanged from rc.2).
   '0.2.1-rc.3',
+  // rc.4 is another version-only republish (boot, plugin-manager, and
+  // requirement sources are byte-identical to rc.3).
+  '0.2.1-rc.4',
 ]
 
 /** Newest known release; the `latest` reporting target. */

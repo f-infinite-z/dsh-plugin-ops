@@ -2,6 +2,22 @@
 
 All notable changes are tracked here.
 
+## 0.20.6 — 2026-10-27
+
+### dsh 0.2.1-rc.4 adaptation: known-release table
+
+- **The known-release table learns `0.2.1-rc.4`.** Compared `rc.3` to
+  `rc.4` file-by-file on the packages that carry boot and
+  plugin-compatibility semantics (`dsh`, `dsh-app-boot`,
+  `dsh-plugin-manager`, `dsh-base`), plus the shared requirement and launch
+  dependencies (`dsh-package-manifest`, `dsh-launch-environment`,
+  `dsh-headless`), the sources are byte-identical: rc.4 republishes the rc
+  line with version bumps only. `check --freshness` reports fresh again, and
+  `preview`, the compatibility matrix, and rule 8 judge the newest release.
+- **Regression coverage pins the rc.4 behavior.** The engines.dsh-first
+  requirement rules and freshness target are tested against `0.2.1-rc.4`, so
+  a future table change cannot silently regress the newest release.
+
 ## 0.20.5 — 2026-10-23
 
 ### Sandbox install: bounded waits, stalled detection, and the real output

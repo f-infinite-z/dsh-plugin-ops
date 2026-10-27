@@ -18,15 +18,22 @@ describe('freshnessFromDistTags', () => {
 
   it('covers the rc.2 release', () => {
     const fresh = freshnessFromDistTags({ latest: '0.2.1-rc.2' })
-    expect(fresh.tableCovers).toBe('0.2.1-rc.3')
+    expect(fresh.tableCovers).toBe('0.2.1-rc.4')
     expect(fresh.registryNewest).toBe('0.2.1-rc.2')
     expect(fresh.fresh).toBe(true)
   })
 
-  it('covers the current rc.3 release from the next channel', () => {
+  it('covers the rc.3 release from the next channel', () => {
     const fresh = freshnessFromDistTags({ latest: '0.2.1-rc.2', next: '0.2.1-rc.3' })
-    expect(fresh.tableCovers).toBe('0.2.1-rc.3')
+    expect(fresh.tableCovers).toBe('0.2.1-rc.4')
     expect(fresh.registryNewest).toBe('0.2.1-rc.3')
+    expect(fresh.fresh).toBe(true)
+  })
+
+  it('covers the current rc.4 release from the next channel', () => {
+    const fresh = freshnessFromDistTags({ latest: '0.2.1-rc.2', next: '0.2.1-rc.4' })
+    expect(fresh.tableCovers).toBe('0.2.1-rc.4')
+    expect(fresh.registryNewest).toBe('0.2.1-rc.4')
     expect(fresh.fresh).toBe(true)
   })
 
