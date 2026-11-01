@@ -15,11 +15,11 @@
 2. **预演** —— `dsh-ops preview` 拿**下一个** dsh 版本对已装插件跑一遍，用启动器同款兼容语义给出：**哪些会被跳过**，以及每一项的修法。
 3. **隔离复验** —— 安装、修复、适配都**先在第二个隔离实例**里复验（独立 DSH home + user-data-dir），只有那一次启动存活才写入真实 profile。
 
-拿 dsh `0.2.1-rc.5` 跑本项目自己的 web profile：`dsh-handoff-compaction@0.2.0-rc.7` 会被跳过（其 requirements 止于 `0.2.1-alpha.3`），并直接给出对应的豁免命令；能活下来的是 `dsh-lsp-actions@0.5.12` / `dsh-mcp-connector@0.2.75`。
+拿 dsh `0.2.2-alpha.2` 跑本项目自己的 web profile：`dsh-handoff-compaction@0.2.0-rc.7` 会被跳过（其 requirements 止于 `0.2.1-alpha.3`），并直接给出对应的豁免命令；能活下来的是 `dsh-lsp-actions@0.5.12` / `dsh-mcp-connector@0.2.75`。
 
 **安装：** 桌面端 → **设置 → 插件 → `dsh-plugin-ops-bundle`**。Web/CLI profile 与终端见[安装](#安装)。
 
-**状态：v0.20.7 — 适配 dsh 0.2.1-rc.5：已知版本表覆盖 `0.2.1-rc.5`（纯对话思考展示优化，启动与插件兼容语义与 rc.4 相同）。插件判定仍优先读自身 `engines.dsh`（未声明时回退 dsh peers），与 0.2.1-alpha.4 起的官方语义一致；`preview` 同时输出 `requirements` 新键与旧 `peers` 键，并按 `engines.dsh` 判定更新兼容性；`verify` 包含 V10 作者检查；面板兼容官方重命名后的拒绝字段。沙箱安装已加上边界：单次 5 分钟（默认总 10 分钟、上限 30 分钟）、2 分钟静默看门狗、共享预算的一次重试、失败时附完整 pnpm 输出，以及可选的 fetch/registry 参数。拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
+**状态：v0.20.8 — 适配 dsh 0.2.2-alpha.2（alpha 线）：已知版本表覆盖 `0.2.2-alpha.2`，该版本开启新的 alpha 线并带有插件运行时 API 变化（工具激活拆分、会话投影、Cordis Timer/Fiber），启动与 dsh 要求语义仍与 0.2.1-alpha.4 起一致。这是兼容性声明，不代表稳定支持；bundle 现有 `tools.register` / `pluginManager` / Cordis 调用保持不变，并已对 alpha 构建做冒烟。插件判定仍优先读自身 `engines.dsh`（未声明时回退 dsh peers），与 0.2.1-alpha.4 起的官方语义一致；`preview` 同时输出 `requirements` 新键与旧 `peers` 键，并按 `engines.dsh` 判定更新兼容性；`verify` 包含 V10 作者检查；面板兼容官方重命名后的拒绝字段。沙箱安装已加上边界：单次 5 分钟（默认总 10 分钟、上限 30 分钟）、2 分钟静默看门狗、共享预算的一次重试、失败时附完整 pnpm 输出，以及可选的 fetch/registry 参数。拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
 
 ## 命名
 
@@ -71,7 +71,7 @@ dsh-ops selftest               # 自检：内置故障样本跑全规则
 | 9 | 嫩包豁免条目卫生 | warn | `minimumReleaseAgeExclude` 中同一包出现两条带版本条目会让 pnpm 11 的锁文件豁免失效，此后该 profile 的每次安装都失败（`ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION`，已在 pnpm 11.7 复现）；推荐改写为裸包名 |
 | 10 | 重复物理副本 | fatal / warn | 同一安装树内 `@deepseek-ai/*` 与框架核心包出现**同版本**的多个物理副本（pnpm store 实体经符号链接只有一份物理路径，自动去重；不同版本的嵌套解析属 npm 常态，不报；0.1.5 遗留的共享闭包镜像树不扫——0.1.6+ 启动器不读它）。多次安装/升级会累积同版本残留，而模块求值期做进程级全局登记的包（原生绑定、koffi 类型）在第二份副本加载时失败、且错误被 loader 吞掉；官方静态闸可通过（2026-10-13 现场：四份 `@deepseek-ai/dsh-win32-process`，`Duplicate type name 'DSH_STARTUPINFOW'`） |
 
-解析跟随启动器的运行时 generation（0.1.6+ 至 0.2.1-rc.5）：profile 自身依赖树原生优先，其次是从安装清单与所选 bundle 重建的包表——冻结的磁盘镜像不再参与判定。Node 解析只沿锚点的物理祖先链；环境注入路径（NODE_PATH、全局路径、加载器链）一律不参与，与启动器自身的包表一致。
+解析跟随启动器的运行时 generation（0.1.6+ 至 0.2.2-alpha.2）：profile 自身依赖树原生优先，其次是从安装清单与所选 bundle 重建的包表——冻结的磁盘镜像不再参与判定。Node 解析只沿锚点的物理祖先链；环境注入路径（NODE_PATH、全局路径、加载器链）一律不参与，与启动器自身的包表一致。
 
 真实生态验证：peer 声明悬空（作者引用官方未发布的包）已在多个第三方插件上检出。
 

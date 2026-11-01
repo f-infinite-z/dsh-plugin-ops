@@ -43,6 +43,10 @@ export const KNOWN_VERSION_BOUNDARIES: readonly string[] = [
   // rc.5 refines how thinking content is displayed in conversations; boot,
   // plugin-manager, and requirement semantics are unchanged from rc.4.
   '0.2.1-rc.5',
+  // 0.2.2-alpha.2 starts the next alpha line with plugin-runtime API changes
+  // (tool activation/execution split, session projections, Cordis Timer/Fiber);
+  // boot and dsh requirement semantics remain those of 0.2.1-alpha.4+.
+  '0.2.2-alpha.2',
 ]
 
 /** Newest known release; the `latest` reporting target. */

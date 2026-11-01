@@ -2,6 +2,29 @@
 
 All notable changes are tracked here.
 
+## 0.20.8 — 2026-11-01
+
+### dsh 0.2.2-alpha.2 adaptation: known-release table (alpha line)
+
+- **The known-release table learns `0.2.2-alpha.2`.** The release starts a new
+  alpha line with plugin-runtime API changes (tool activation/execution split,
+  session projections, Cordis Timer/Fiber); the boot, plugin-manager, and
+  dsh-requirement semantics remain those of 0.2.1-alpha.4+. `check --freshness`
+  reports fresh again, and `preview`, the compatibility matrix, and rule 8 judge
+  the newest release.
+- **Alpha-line scope.** This is a compatibility declaration, not a stability
+  claim. The bundle's existing `tools.register` and `pluginManager` calls and
+  its Cordis `ctx.effect` / `ctx.inject` usage remain compatible with 0.2.2 and
+  are smoke-tested against the alpha build. The new tool-activation APIs
+  (`register(definition, { when })`, `resolve` / `executable`) are intentionally
+  not adopted in this release.
+- **Regression coverage pins the 0.2.2-alpha.2 behavior.** The engines.dsh-first
+  requirement rules and freshness target are tested against `0.2.2-alpha.2`, so
+  a future table change cannot silently regress the newest release.
+- **dsh 0.2.2 requires Node.js 24.9+ for its own runtime.** The dsh-ops CLI
+  keeps its `^22.19.0 || >=24.0.0` engine range; only the adaptation smoke
+  environment needs the newer runtime.
+
 ## 0.20.7 — 2026-11-01
 
 ### dsh 0.2.1-rc.5 adaptation: known-release table
