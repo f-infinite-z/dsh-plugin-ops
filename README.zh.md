@@ -94,6 +94,12 @@ dsh-ops selftest               # 自检：内置故障样本跑全规则
 
 退出码：`0` 通过（或 dsh 自身码）/ `1` 仍有 fatal（`preview`：至少一个插件会被跳过）/ `2` 用法或 profile 缺失 / `3` gate 被需人工处置的 fatal 阻断 / `4-5` gate 归因相关。
 
+### 使用注意
+
+- `gate` 要等子进程退出后才返回。对 `dsh web` 这类常驻服务需要自己关闭；`--boot-threshold-ms` 只在子进程退出后用于判定"存活够久即通过"。即使基线已记为成功，强行杀掉子进程仍会得到退出码 `1`。
+- PowerShell 下 `dsh-ops.ps1` 垫片会吞掉 `--` 分隔符，`dsh-ops gate -- dsh ...` 会让 `dsh` 收到空参数。改用 `cmd /c dsh-ops gate ...`（或 `--%` 停止解析符）。
+- 在 DSH 的 workspace-write 沙箱内，`dsh-ops gate` 无法 `spawn dsh --version`（`spawn EPERM`）。请在沙箱外运行，或给 CI 足够的进程启动权限；这是沙箱边界，不是插件问题。
+
 ## 配置（`$DSH_HOME/dsh-ops.yml`）
 
 ```yaml

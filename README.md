@@ -94,6 +94,12 @@ Real-ecosystem validation: dangling peer declarations (authors referencing offic
 
 Exit codes: `0` ok (or dsh's own code) / `1` fatal findings remain (for `preview`: at least one plugin would be skipped) / `2` usage or profile missing / `3` gate blocked by fatal findings / `4-5` gate attribution outcomes.
 
+### Operational notes
+
+- `gate` releases only after its child exits. For a long-running command such as `dsh web`, close it yourself; `--boot-threshold-ms` is evaluated once the child exits (a child that stayed up long enough marks the boot successful). Killing it yields `1` even when the boot baseline was recorded.
+- In PowerShell, the `--` separator is consumed by the `dsh-ops.ps1` shim, so `dsh-ops gate -- dsh ...` loses the separator and `dsh` receives no arguments. Use `cmd /c dsh-ops gate ...` (or the `--%` stop-parsing token) instead.
+- Inside DSH's workspace-write sandbox, `dsh-ops gate` cannot spawn `dsh --version` (`spawn EPERM`). Run it outside that sandbox, or give the CI job enough process-spawn permission; this is the sandbox boundary, not a plugin fault.
+
 ## Configuration (`$DSH_HOME/dsh-ops.yml`)
 
 ```yaml
