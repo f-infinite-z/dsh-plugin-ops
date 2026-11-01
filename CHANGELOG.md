@@ -2,6 +2,24 @@
 
 All notable changes are tracked here.
 
+## 0.20.7 — 2026-11-01
+
+### dsh 0.2.1-rc.5 adaptation: known-release table
+
+- **The known-release table learns `0.2.1-rc.5`.** rc.5 refines how thinking
+  content is displayed in conversations; the boot, plugin-manager, and
+  requirement sources are unchanged from rc.4. `check --freshness` reports
+  fresh again, and `preview`, the compatibility matrix, and rule 8 judge the
+  newest release.
+- **Regression coverage pins the rc.5 behavior.** The engines.dsh-first
+  requirement rules and freshness target are tested against `0.2.1-rc.5`, so
+  a future table change cannot silently regress the newest release.
+- **The alpha-only `0.2.2-alpha.2` line is not covered by this table
+  update.** It carries plugin-runtime API changes (tools/session/Cordis) and
+  remains a separate adaptation task; `check --freshness` still reports the
+  newest registry release across all channels, so an alpha tag can surface
+  as stale while that work is pending.
+
 ## 0.20.6 — 2026-10-27
 
 ### dsh 0.2.1-rc.4 adaptation: known-release table

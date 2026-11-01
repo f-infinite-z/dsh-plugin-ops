@@ -40,6 +40,9 @@ export const KNOWN_VERSION_BOUNDARIES: readonly string[] = [
   // rc.4 is another version-only republish (boot, plugin-manager, and
   // requirement sources are byte-identical to rc.3).
   '0.2.1-rc.4',
+  // rc.5 refines how thinking content is displayed in conversations; boot,
+  // plugin-manager, and requirement semantics are unchanged from rc.4.
+  '0.2.1-rc.5',
 ]
 
 /** Newest known release; the `latest` reporting target. */
