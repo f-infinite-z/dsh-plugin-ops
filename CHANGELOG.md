@@ -2,6 +2,42 @@
 
 All notable changes are tracked here.
 
+## 0.20.9 — 2026-11-08
+
+### dsh 0.2.2-rc.1 adaptation: known-release table
+
+- **The known-release table learns `0.2.2-alpha.3` and `0.2.2-rc.1`.**
+  alpha.3 is the alpha line's patch release (UI and session-view fixes);
+  rc.1 opens the 0.2.2 release-candidate line with the largest runtime
+  change since 0.2.1-alpha.4: Cordis 4.1.0 / Loader 1.1.0 / Include 1.1.0,
+  a Node.js 24.9+ floor, step-conditional tools and the native/PTC
+  execution split, asynchronous Session Projection registration, and the
+  official bundle list moving to `@deepseek-ai/dsh-official-bundles`.
+  `check --freshness` reports fresh again, and `preview`, the compatibility
+  matrix, and rule 8 judge the newest release.
+- **The static pre-boot checks keep their 0.2.1-alpha.4+ semantics.** The
+  launcher still reads a plugin's own `engines.dsh` range first (falling
+  back to `@deepseek-ai/dsh*` peers), still skips incompatible bundles, and
+  still writes `startup-<timestamp>-<uuid>.log` in the same inspected
+  layout; the desktop crash report keeps its `crash-<time>-<source>.log`
+  header fields (rc.1 only appends an operation-history section). Rule 8,
+  `preview`, and the startup attribution need no source change beyond the
+  table.
+- **The bundle keeps its existing host calls.** `tools.register(definition,
+  options?)`, `pluginManager` (`installBundle` / `removeBundle` /
+  `setVersionExemption` / `listVersionExemptions`), `webServer.register`,
+  `connection.requestRejection`, `ctx.llm`, and the client `slots` surface
+  all remain compatible with rc.1; the new `updateBundle` / `listVersions`
+  and the `resolve` / `executable` activation APIs are not adopted in this
+  release. Cordis 4.1.0 still satisfies the bundle's `^4.0.0` peer.
+- **dsh 0.2.2 requires Node.js 24.9+ for its own runtime.** The dsh-ops CLI
+  keeps its `^22.19.0 || >=24.0.0` engine range; only the dsh process it
+  launches (gate, sandbox, verify, adapt) needs the newer runtime.
+- **Regression coverage pins the newest release.** The engines.dsh-first
+  requirement rules and the freshness target are tested against
+  `0.2.2-alpha.3` and `0.2.2-rc.1`, so a future table change cannot
+  silently regress the 0.2.2 line.
+
 ## 0.20.8 — 2026-11-01
 
 ### dsh 0.2.2-alpha.2 adaptation: known-release table (alpha line)

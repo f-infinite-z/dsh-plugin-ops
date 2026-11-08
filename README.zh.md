@@ -15,11 +15,11 @@
 2. **预演** —— `dsh-ops preview` 拿**下一个** dsh 版本对已装插件跑一遍，用启动器同款兼容语义给出：**哪些会被跳过**，以及每一项的修法。
 3. **隔离复验** —— 安装、修复、适配都**先在第二个隔离实例**里复验（独立 DSH home + user-data-dir），只有那一次启动存活才写入真实 profile。
 
-拿 dsh `0.2.2-alpha.2` 跑本项目自己的 web profile：`dsh-handoff-compaction@0.2.0-rc.7` 会被跳过（其 requirements 止于 `0.2.1-alpha.3`），并直接给出对应的豁免命令；能活下来的是 `dsh-lsp-actions@0.5.12` / `dsh-mcp-connector@0.2.75`。
+拿 dsh `0.2.2-rc.1` 跑本项目自己的 web profile：`dsh-handoff-compaction@0.2.0-rc.7` 会被跳过（其 requirements 止于 `0.2.1-alpha.3`），并直接给出对应的豁免命令；能活下来的是 `dsh-lsp-actions@0.5.12` / `dsh-mcp-connector@0.2.75`。
 
 **安装：** 桌面端 → **设置 → 插件 → `dsh-plugin-ops-bundle`**。Web/CLI profile 与终端见[安装](#安装)。
 
-**状态：v0.20.8 — 适配 dsh 0.2.2-alpha.2（alpha 线）：已知版本表覆盖 `0.2.2-alpha.2`，该版本开启新的 alpha 线并带有插件运行时 API 变化（工具激活拆分、会话投影、Cordis Timer/Fiber），启动与 dsh 要求语义仍与 0.2.1-alpha.4 起一致。这是兼容性声明，不代表稳定支持；bundle 现有 `tools.register` / `pluginManager` / Cordis 调用保持不变，并已对 alpha 构建做冒烟。插件判定仍优先读自身 `engines.dsh`（未声明时回退 dsh peers），与 0.2.1-alpha.4 起的官方语义一致；`preview` 同时输出 `requirements` 新键与旧 `peers` 键，并按 `engines.dsh` 判定更新兼容性；`verify` 包含 V10 作者检查；面板兼容官方重命名后的拒绝字段。沙箱安装已加上边界：单次 5 分钟（默认总 10 分钟、上限 30 分钟）、2 分钟静默看门狗、共享预算的一次重试、失败时附完整 pnpm 输出，以及可选的 fetch/registry 参数。拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
+**状态：v0.20.9 — 适配 dsh 0.2.2-rc.1：已知版本表覆盖 `0.2.2-alpha.3` 与 `0.2.2-rc.1`（0.2.2 线首个候选版本）。rc.1 将插件运行时升级到 Cordis 4.1.0 / Loader 1.1.0 / Include 1.1.0，把 dsh 自身的 Node.js 下限提高到 24.9，引入按步骤条件启用工具与原生/PTC 执行拆分，将会话投影注册改为异步，并把官方 bundle 列表迁到 `@deepseek-ai/dsh-official-bundles`；静态预启动检查仍按 0.2.1-alpha.4 起的启动与 dsh 要求语义判定（插件自身 `engines.dsh` 优先，未声明时回退 dsh peers）。这是兼容性声明，不代表稳定支持；bundle 现有 `tools.register` / `pluginManager` / Cordis 调用保持不变，已对照 rc.1 源码核对并在启动器层做过冒烟。`preview` 同时输出 `requirements` 新键与旧 `peers` 键，并按 `engines.dsh` 判定更新兼容性；`verify` 包含 V10 作者检查；面板兼容官方重命名后的拒绝字段。沙箱安装有边界：单次 5 分钟（默认总 10 分钟、上限 30 分钟）、2 分钟静默看门狗、共享预算的一次重试、失败时附完整 pnpm 输出，以及可选的 fetch/registry 参数。拦截/修复/记忆的机制见 [docs/architecture.md](docs/architecture.md)。**
 
 ## 命名
 
@@ -71,7 +71,7 @@ dsh-ops selftest               # 自检：内置故障样本跑全规则
 | 9 | 嫩包豁免条目卫生 | warn | `minimumReleaseAgeExclude` 中同一包出现两条带版本条目会让 pnpm 11 的锁文件豁免失效，此后该 profile 的每次安装都失败（`ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION`，已在 pnpm 11.7 复现）；推荐改写为裸包名 |
 | 10 | 重复物理副本 | fatal / warn | 同一安装树内 `@deepseek-ai/*` 与框架核心包出现**同版本**的多个物理副本（pnpm store 实体经符号链接只有一份物理路径，自动去重；不同版本的嵌套解析属 npm 常态，不报；0.1.5 遗留的共享闭包镜像树不扫——0.1.6+ 启动器不读它）。多次安装/升级会累积同版本残留，而模块求值期做进程级全局登记的包（原生绑定、koffi 类型）在第二份副本加载时失败、且错误被 loader 吞掉；官方静态闸可通过（2026-10-13 现场：四份 `@deepseek-ai/dsh-win32-process`，`Duplicate type name 'DSH_STARTUPINFOW'`） |
 
-解析跟随启动器的运行时 generation（0.1.6+ 至 0.2.2-alpha.2）：profile 自身依赖树原生优先，其次是从安装清单与所选 bundle 重建的包表——冻结的磁盘镜像不再参与判定。Node 解析只沿锚点的物理祖先链；环境注入路径（NODE_PATH、全局路径、加载器链）一律不参与，与启动器自身的包表一致。
+解析跟随启动器的运行时 generation（0.1.6+ 至 0.2.2-rc.1）：profile 自身依赖树原生优先，其次是从安装清单与所选 bundle 重建的包表——冻结的磁盘镜像不再参与判定。Node 解析只沿锚点的物理祖先链；环境注入路径（NODE_PATH、全局路径、加载器链）一律不参与，与启动器自身的包表一致。
 
 真实生态验证：peer 声明悬空（作者引用官方未发布的包）已在多个第三方插件上检出。
 
@@ -99,6 +99,7 @@ dsh-ops selftest               # 自检：内置故障样本跑全规则
 - `gate` 要等子进程退出后才返回。对 `dsh web` 这类常驻服务需要自己关闭；`--boot-threshold-ms` 只在子进程退出后用于判定"存活够久即通过"。即使基线已记为成功，强行杀掉子进程仍会得到退出码 `1`。
 - PowerShell 下 `dsh-ops.ps1` 垫片会吞掉 `--` 分隔符，`dsh-ops gate -- dsh ...` 会让 `dsh` 收到空参数。改用 `cmd /c dsh-ops gate ...`（或 `--%` 停止解析符）。
 - 在 DSH 的 workspace-write 沙箱内，`dsh-ops gate` 无法 `spawn dsh --version`（`spawn EPERM`）。请在沙箱外运行，或给 CI 足够的进程启动权限；这是沙箱边界，不是插件问题。
+- dsh 0.2.2（rc.1 起）自身运行要求 Node.js 24.9+。`gate`、沙箱控制台、`verify --runtime` 和 `adapt` 都通过 PATH 启动 dsh，Node 版本过低时会在 dsh 内部先失败，dsh-ops 无法归因；请升级运行 dsh 的运行时，而不是运行 dsh-ops 的那个。
 
 ## 配置（`$DSH_HOME/dsh-ops.yml`）
 
@@ -152,7 +153,7 @@ dsh-xray 给本项目的评级为 C3（衡量能力面而非意图）；上表�
 
 ```sh
 pnpm install && pnpm run build
-pnpm run typecheck && pnpm run test      # 366 单测（core 284 + bundle 45 + cli 37；Windows 跳过 1 个 POSIX 专属用例）
+pnpm run typecheck && pnpm run test      # 376 单测（core 294 + bundle 45 + cli 37；Windows 跳过 1 个 POSIX 专属用例）
 node packages/cli/lib/index.js selftest  # 引擎自检
 node scripts/e2e/scan-fix.e2e.mjs        # 离线 E2E（真实 pnpm 修复）
 node scripts/e2e/gate.e2e.mjs            # gate 场景（放行/阻断/旁路/归因/headless）

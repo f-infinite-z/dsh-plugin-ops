@@ -15,11 +15,11 @@ English | [中文](README.zh.md)
 2. **Rehearse** — `dsh-ops preview` runs the **next** dsh release against your installed plugins using the launcher's own compatibility semantics: *which plugins that release would skip*, and each one's fix.
 3. **Prove it in isolation** — installs, repairs and adaptations are verified first in a **second isolated instance** (its own DSH home and user-data-dir); only a surviving boot writes your real profile.
 
-Against dsh `0.2.2-alpha.2` this project's own web profile reports that `dsh-handoff-compaction@0.2.0-rc.7` would be skipped (its requirements stop at `0.2.1-alpha.3`) and hands over the exact exemption command; `dsh-lsp-actions@0.5.12` and `dsh-mcp-connector@0.2.75` are the releases that survive.
+Against dsh `0.2.2-rc.1` this project's own web profile reports that `dsh-handoff-compaction@0.2.0-rc.7` would be skipped (its requirements stop at `0.2.1-alpha.3`) and hands over the exact exemption command; `dsh-lsp-actions@0.5.12` and `dsh-mcp-connector@0.2.75` are the releases that survive.
 
 **Install:** desktop → **Settings → Plugins → `dsh-plugin-ops-bundle`**. Web/CLI profiles and the terminal are in [Install](#install).
 
-**Status: v0.20.8 — dsh 0.2.2-alpha.2 adaptation (alpha line): the known-release table covers `0.2.2-alpha.2`, which starts a new alpha line with plugin-runtime API changes (tool activation split, session projections, Cordis Timer/Fiber) while boot and dsh-requirement semantics stay those of 0.2.1-alpha.4+. This is a compatibility declaration, not a stability claim; the bundle keeps its existing `tools.register` / `pluginManager` / Cordis calls, now smoke-tested against the alpha build. Plugins are judged by their own `engines.dsh` range first (falling back to dsh peers) from 0.2.1-alpha.4 on; `preview` reports `requirements` alongside the legacy `peers` key and resolves update compatibility from `engines.dsh`; `verify` includes V10 for plugin authors; the panel reads the renamed refusal field. Sandbox installs are now bounded: 5 minutes per attempt (10 total by default, 30 cap), a 2-minute silence watchdog, one retry sharing that budget, the captured pnpm output on failure, and opt-in fetch/registry controls. Interception, repair, and memory mechanics: [docs/architecture.md](docs/architecture.md).**
+**Status: v0.20.9 — dsh 0.2.2-rc.1 adaptation: the known-release table covers `0.2.2-alpha.3` and `0.2.2-rc.1`, the first release candidate of the 0.2.2 line. rc.1 moves the plugin runtime to Cordis 4.1.0 / Loader 1.1.0 / Include 1.1.0, raises dsh's own Node.js floor to 24.9, adds step-conditional tools and the native/PTC execution split, makes Session Projection registration asynchronous, and moves the official bundle list to `@deepseek-ai/dsh-official-bundles`; the static pre-boot checks still judge the 0.2.1-alpha.4+ boot and dsh-requirement semantics (a plugin's own `engines.dsh` first, dsh peers otherwise). This is a compatibility declaration, not a stability claim; the bundle keeps its existing `tools.register` / `pluginManager` / Cordis calls, checked against the rc.1 sources and smoke-tested at the launcher level. `preview` reports `requirements` alongside the legacy `peers` key and resolves update compatibility from `engines.dsh`; `verify` includes V10 for plugin authors; the panel reads the renamed refusal field. Sandbox installs are bounded: 5 minutes per attempt (10 total by default, 30 cap), a 2-minute silence watchdog, one retry sharing that budget, the captured pnpm output on failure, and opt-in fetch/registry controls. Interception, repair, and memory mechanics: [docs/architecture.md](docs/architecture.md).**
 
 ## Names
 
@@ -71,7 +71,7 @@ dsh-ops selftest               # run built-in fault samples through all rules
 | 9 | Release-age exclusion hygiene | warn | `minimumReleaseAgeExclude` with two versioned entries for one package breaks pnpm 11's lockfile exemption, so every later install in the profile fails with `ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION` (reproduced against pnpm 11.7); the bare package name is the recommended fix |
 | 10 | Duplicate physical copies | fatal / warn | `@deepseek-ai/*` and framework-core packages existing as more than one **same-version** physical copy inside one installation tree (pnpm store entities behind symlinks dedupe to one physical copy; different-version nesting is ordinary npm resolution and stays silent; the legacy shared-closure mirror is excluded — no launcher since 0.1.6 reads it). Cumulative installs/upgrades leave same-version residues, and packages that register process-global names at module evaluation (native bindings, koffi types) fail on the second copy with the reason swallowed by the loader; the official static gate passes (field case 2026-10-13: four copies of `@deepseek-ai/dsh-win32-process`, `Duplicate type name 'DSH_STARTUPINFOW'`) |
 
-Resolution follows the launcher's runtime generation (0.1.6+ through 0.2.2-alpha.2): the profile's own tree wins natively, then the package table rebuilt from the installation manifest and the selected bundles — the frozen disk mirror no longer decides. The Node lookup follows the anchor's physical ancestor chain only; environment-injected paths (NODE_PATH, global paths, loader chains) are ignored, matching the launcher's own table.
+Resolution follows the launcher's runtime generation (0.1.6+ through 0.2.2-rc.1): the profile's own tree wins natively, then the package table rebuilt from the installation manifest and the selected bundles — the frozen disk mirror no longer decides. The Node lookup follows the anchor's physical ancestor chain only; environment-injected paths (NODE_PATH, global paths, loader chains) are ignored, matching the launcher's own table.
 
 Real-ecosystem validation: dangling peer declarations (authors referencing official packages that were never published) were detected on multiple third-party plugins.
 
@@ -99,6 +99,7 @@ Exit codes: `0` ok (or dsh's own code) / `1` fatal findings remain (for `preview
 - `gate` releases only after its child exits. For a long-running command such as `dsh web`, close it yourself; `--boot-threshold-ms` is evaluated once the child exits (a child that stayed up long enough marks the boot successful). Killing it yields `1` even when the boot baseline was recorded.
 - In PowerShell, the `--` separator is consumed by the `dsh-ops.ps1` shim, so `dsh-ops gate -- dsh ...` loses the separator and `dsh` receives no arguments. Use `cmd /c dsh-ops gate ...` (or the `--%` stop-parsing token) instead.
 - Inside DSH's workspace-write sandbox, `dsh-ops gate` cannot spawn `dsh --version` (`spawn EPERM`). Run it outside that sandbox, or give the CI job enough process-spawn permission; this is the sandbox boundary, not a plugin fault.
+- dsh 0.2.2 (rc.1 and later) requires Node.js 24.9+ for its own runtime. `gate`, the sandbox console, `verify --runtime`, and `adapt` launch dsh through the PATH, so an older Node fails inside dsh before dsh-ops can attribute it; upgrade the runtime that runs dsh, not the one that runs dsh-ops.
 
 ## Configuration (`$DSH_HOME/dsh-ops.yml`)
 
@@ -152,7 +153,7 @@ dsh-xray rates this project C3 (a capability-surface rating, not intent); the ta
 
 ```sh
 pnpm install && pnpm run build
-pnpm run typecheck && pnpm run test      # 366 tests (core 284 + bundle 45 + cli 37; one POSIX-only test skipped on Windows)
+pnpm run typecheck && pnpm run test      # 376 tests (core 294 + bundle 45 + cli 37; one POSIX-only test skipped on Windows)
 node packages/cli/lib/index.js selftest  # engine self-check
 node scripts/e2e/scan-fix.e2e.mjs        # offline E2E (real pnpm repair)
 node scripts/e2e/gate.e2e.mjs            # gate scenarios (pass/block/bypass/attribution/headless)

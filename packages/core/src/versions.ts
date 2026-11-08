@@ -47,6 +47,15 @@ export const KNOWN_VERSION_BOUNDARIES: readonly string[] = [
   // (tool activation/execution split, session projections, Cordis Timer/Fiber);
   // boot and dsh requirement semantics remain those of 0.2.1-alpha.4+.
   '0.2.2-alpha.2',
+  // alpha.3 is the alpha line's patch release (UI and session-view fixes);
+  // boot, plugin-manager, and requirement semantics are unchanged from alpha.2.
+  '0.2.2-alpha.3',
+  // 0.2.2-rc.1 opens the 0.2.2 rc line: Cordis 4.1.0 / Loader 1.1.0 /
+  // Include 1.1.0, Node.js 24.9+, and step-conditional tools plus PTC
+  // execution split at the plugin-runtime level; the static pre-boot checks
+  // still judge the 0.2.1-alpha.4+ boot and dsh requirement semantics
+  // (`tools.register(definition, options?)` and `pluginManager` remain).
+  '0.2.2-rc.1',
 ]
 
 /** Newest known release; the `latest` reporting target. */
