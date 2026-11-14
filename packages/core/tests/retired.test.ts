@@ -1,10 +1,22 @@
 import { describe, expect, it } from 'vitest'
 import { join } from 'node:path'
-import { isRetiredBundle, retiredBundleVersion, scanProfile } from '../src/index.js'
+import semver from 'semver'
+import { isRetiredBundle, RETIRED_BUNDLES, RETIRED_BUNDLES_MIN_VERSION, retiredBundleVersion, scanProfile } from '../src/index.js'
 import { makeHome, writeProfile, writeLockfile, writeJson, type HomeFixture } from './helpers.js'
 
 const RETIRED = '@deepseek-ai/dsh-experimental-schedule-bundle'
 const AGENT_TEAM = '@deepseek-ai/dsh-experimental-agent-team-profile'
+
+/**
+ * The official `RETIRED_BUNDLES` set as shipped by dsh 0.2.2-rc.3
+ * (`@deepseek-ai/dsh-official-bundles`, imported by app-boot's profile.ts).
+ * Update this snapshot and {@link RETIRED_BUNDLE_VERSIONS} together when a
+ * release retires another bundle; the contract test fails on drift.
+ */
+const OFFICIAL_RETIRED_AT_RC3: readonly string[] = [
+  '@deepseek-ai/dsh-experimental-schedule-bundle',
+  '@deepseek-ai/dsh-experimental-agent-team-profile',
+].sort()
 
 /** Write the dsh installation anchor (the shared closure's @deepseek-ai/dsh link). */
 function writeDshInstall(fixture: HomeFixture, version: string): void {
@@ -20,6 +32,20 @@ async function scanWithRetired(fixture: HomeFixture, bundle: string = RETIRED) {
   writeLockfile(fixture.paths, {})
   return scanProfile({ paths: fixture.paths, profileName: 'web' })
 }
+
+describe('official retired-bundle contract', () => {
+  it('matches the dsh 0.2.2-rc.3 retired set', () => {
+    expect([...RETIRED_BUNDLES].sort()).toEqual([...OFFICIAL_RETIRED_AT_RC3])
+  })
+
+  it('gives every retired bundle a readable boundary at or after the earliest retirement', () => {
+    for (const name of OFFICIAL_RETIRED_AT_RC3) {
+      const boundary = retiredBundleVersion(name)
+      expect(boundary).not.toBeNull()
+      expect(semver.gte(boundary!, RETIRED_BUNDLES_MIN_VERSION)).toBe(true)
+    }
+  })
+})
 
 describe('retired bundles', () => {
   it('gates each retirement on its own launcher version', () => {

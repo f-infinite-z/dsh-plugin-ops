@@ -409,4 +409,59 @@ describe('verifyPluginPackage', () => {
       expect(report.findings.some((f) => f.ruleId === 'requirement-contract' && f.severity === 'error' && f.message.includes('workspace:'))).toBe(true)
     })
   })
+
+  it('rejects a malformed dsh.bundle.platforms declaration (V11)', () => {
+    const manifest = JSON.parse(GOOD_FILES['package.json']!) as {
+      dsh: { bundle: Record<string, unknown>; client: Record<string, unknown> }
+    }
+    manifest.dsh.bundle.platforms = 'win32'
+    withPkg({ ...GOOD_FILES, 'package.json': JSON.stringify(manifest) }, (dir) => {
+      const report = verifyPluginPackage(dir)
+      expect(report.findings.some((f) => f.ruleId === 'bundle-metadata' && f.severity === 'error')).toBe(true)
+    })
+  })
+
+  it('rejects unsupported platform values (V11)', () => {
+    const manifest = JSON.parse(GOOD_FILES['package.json']!) as {
+      dsh: { bundle: Record<string, unknown>; client: Record<string, unknown> }
+    }
+    manifest.dsh.bundle.platforms = ['win32', 'solaris']
+    withPkg({ ...GOOD_FILES, 'package.json': JSON.stringify(manifest) }, (dir) => {
+      const report = verifyPluginPackage(dir)
+      expect(report.findings.some((f) => f.ruleId === 'bundle-metadata' && f.severity === 'error' && f.message.includes('solaris'))).toBe(true)
+    })
+  })
+
+  it('warns that wsl is accepted only from dsh 0.2.2-rc.2 on (V11)', () => {
+    const manifest = JSON.parse(GOOD_FILES['package.json']!) as {
+      dsh: { bundle: Record<string, unknown>; client: Record<string, unknown> }
+    }
+    manifest.dsh.bundle.platforms = ['wsl', 'linux']
+    withPkg({ ...GOOD_FILES, 'package.json': JSON.stringify(manifest) }, (dir) => {
+      const report = verifyPluginPackage(dir)
+      expect(report.findings.some((f) => f.ruleId === 'bundle-metadata' && f.severity === 'warn' && f.message.includes('0.2.2-rc.2'))).toBe(true)
+    })
+  })
+
+  it('accepts Node platform names without a finding (V11)', () => {
+    const manifest = JSON.parse(GOOD_FILES['package.json']!) as {
+      dsh: { bundle: Record<string, unknown>; client: Record<string, unknown> }
+    }
+    manifest.dsh.bundle.platforms = ['win32', 'darwin', 'linux']
+    withPkg({ ...GOOD_FILES, 'package.json': JSON.stringify(manifest) }, (dir) => {
+      const report = verifyPluginPackage(dir)
+      expect(report.findings.filter((f) => f.ruleId === 'bundle-metadata')).toEqual([])
+    })
+  })
+
+  it('warns when dsh.bundle.listedByDefault is not a boolean (V11)', () => {
+    const manifest = JSON.parse(GOOD_FILES['package.json']!) as {
+      dsh: { bundle: Record<string, unknown>; client: Record<string, unknown> }
+    }
+    manifest.dsh.bundle.listedByDefault = 'yes'
+    withPkg({ ...GOOD_FILES, 'package.json': JSON.stringify(manifest) }, (dir) => {
+      const report = verifyPluginPackage(dir)
+      expect(report.findings.some((f) => f.ruleId === 'bundle-metadata' && f.severity === 'warn' && f.message.includes('listedByDefault'))).toBe(true)
+    })
+  })
 })

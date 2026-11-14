@@ -52,7 +52,7 @@ export interface PackageManifest {
   peerDependenciesMeta?: Record<string, unknown>
   optionalDependencies?: Record<string, string>
   engines?: Record<string, unknown>
-  dsh?: { bundle?: { patch?: unknown }; profile?: unknown; client?: unknown }
+  dsh?: { bundle?: { patch?: unknown; platforms?: unknown; listedByDefault?: unknown }; profile?: unknown; client?: unknown }
 }
 
 export function readPackageManifest(dir: string): PackageManifest | null {

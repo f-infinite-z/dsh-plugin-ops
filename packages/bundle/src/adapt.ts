@@ -50,7 +50,15 @@ export interface ChangeLike {
 
 /** The official plugin-manager service surface this panel uses. */
 export interface PluginManagerLike {
-  installBundle(spec: string, options?: { enabled?: boolean }): Promise<ChangeLike>
+  installBundle(spec: string, options?: {
+    enabled?: boolean
+    /**
+     * dsh 0.2.2-rc.2+ install verification: the run must land this package at
+     * this manifest version (or roll back with `unexpected-package`). Earlier
+     * managers ignore the unknown option.
+     */
+    expected?: { name: string; version: string }
+  }): Promise<ChangeLike>
   removeBundle(name: string): Promise<ChangeLike>
   setVersionExemption(packageVersion: string, runtimeVersion: string, enabled: boolean, acceptRisk?: boolean): Promise<ChangeLike>
   listVersionExemptions(): { exemptions: Record<string, string[]>; warnings: string[] }
@@ -103,13 +111,49 @@ function incompatibleOf(items: NonNullable<ChangeLike['error']>['incompatible'])
   })
 }
 
+/** A full semver version, as a pinned registry spec names it. */
+const FULL_VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/
+
+/**
+ * The exact `{ name, version }` a registry spec is pinned to, or null for a
+ * spec that names no single version (a range, tag, Git, file, or workspace
+ * spec). Only a pinned spec can carry the official `expected` installation
+ * verification (dsh 0.2.2-rc.2+), which undoes a run that lands elsewhere.
+ * @param spec - an npm install spec, such as `pkg-a@1.2.3` or `@scope/pkg@1.2.3`.
+ * @returns the pinned package and version, or null.
+ */
+export function expectedFromSpec(spec: string): { name: string; version: string } | null {
+  const raw = spec.trim()
+  if (raw === '' || raw.startsWith('file:') || raw.startsWith('link:') || raw.startsWith('workspace:') || raw.startsWith('git+') || raw.includes('://')) return null
+  const at = raw.lastIndexOf('@')
+  // A scoped name's own '@' sits at index 0, so a separator at or before it
+  // means the spec is a bare name.
+  if (at <= 0) return null
+  const name = raw.slice(0, at)
+  const version = raw.slice(at + 1)
+  return FULL_VERSION.test(version) ? { name, version } : null
+}
+
 /**
  * Attempt one install. A refusal for unmet dsh requirements returns the
- * diagnosis instead of a plain failure; nothing is written on refusal.
+ * diagnosis instead of a plain failure; nothing is written on refusal. A
+ * pinned registry spec additionally carries the official `expected` check
+ * where the manager supports it, so a run that installs another version or
+ * package is rolled back instead of landing a surprise.
+ * @param manager - the official plugin-manager service.
+ * @param spec - the install spec.
+ * @param expected - the exact package and version the caller expects, when it
+ *   already knows them (an adapted install does); absent, derived from a
+ *   pinned registry spec.
  */
-export async function installWithDiagnosis(manager: PluginManagerLike, spec: string): Promise<AdaptOutcome> {
+export async function installWithDiagnosis(
+  manager: PluginManagerLike,
+  spec: string,
+  expected?: { name: string; version: string },
+): Promise<AdaptOutcome> {
+  const pinned = expected ?? expectedFromSpec(spec)
   try {
-    const result = await manager.installBundle(spec)
+    const result = await manager.installBundle(spec, pinned === null ? undefined : { expected: pinned })
     if (result.error !== undefined) {
       if (result.error.code === 'incompatible-version' && result.error.incompatible !== undefined) {
         return {
@@ -146,7 +190,7 @@ export async function applyAdaptedInstall(
   } catch (error) {
     return { ok: false, code: 'exemption-error', message: messageOf(error) }
   }
-  const result = await installWithDiagnosis(manager, input.spec)
+  const result = await installWithDiagnosis(manager, input.spec, { name: input.name, version: input.version })
   if (!result.ok) {
     let rolledBack = false
     try {

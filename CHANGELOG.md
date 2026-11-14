@@ -2,6 +2,32 @@
 
 All notable changes are tracked here.
 
+## 0.21.1 — 2026-11-14
+
+### Author checks, official install verification, retired-set contract (dsh 0.2.2-rc.3)
+
+- **`verify` gains V11: bundle metadata.** A malformed `dsh.bundle.platforms`
+  (non-array, empty, or non-string values) and any unsupported platform value
+  are errors on every release; `wsl` is accepted from `0.2.2-rc.2` on and warns
+  for the older releases it would break. A non-boolean
+  `dsh.bundle.listedByDefault` warns: rc.2+ reports it as a metadata
+  diagnostic, earlier releases fail to list the bundle.
+- **Adapted installs carry the official `expected` verification.** When the
+  panel installs through the official plugin-manager service and the spec is
+  pinned (or the diagnosis already names the version), the call passes
+  `expected: { name, version }`; dsh 0.2.2-rc.2+ then rolls back a run that
+  lands another package or version instead of installing a surprise, while
+  older managers ignore the unknown option. CLI adapt and the sandbox still
+  drive the official CLI, which exposes no expected option.
+- **Retired-set contract test.** A snapshot of the official rc.3
+  `RETIRED_BUNDLES` (schedule, agent-team-profile) fails the suite when the
+  implementation or the official set drifts apart, so the next retirement
+  cannot be missed silently.
+- **In-place rc.3 smoke.** The global dsh was upgraded to `0.2.2-rc.3`; an
+  isolated home and the real web profile both booted (25s/30s alive,
+  `/dsh-ops/api/info` 401), `preview` targets rc.3 with no plugin skipped, and
+  `check --freshness` reports fresh.
+
 ## 0.20.10 — 2026-11-14
 
 ### dsh 0.2.2-rc.3 adaptation: known-release table + retired bundle

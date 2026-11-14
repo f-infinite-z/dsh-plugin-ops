@@ -13,8 +13,17 @@ import { ENGINES_DSH_MIN_VERSION } from './compatibility.js'
  * that decide whether the package loads after `dsh plugin add`.
  */
 
+/** Node platform names `dsh.bundle.platforms` accepts (verified against dsh 0.2.2-rc.3 sources). */
+const BUNDLE_PLATFORMS: ReadonlySet<string> = new Set([
+  'aix', 'android', 'darwin', 'freebsd', 'haiku', 'linux', 'openbsd', 'sunos', 'win32', 'cygwin', 'netbsd',
+])
+
+/** The first release that also accepts `wsl` in `dsh.bundle.platforms`. */
+const WSL_PLATFORM_MIN_VERSION = '0.2.2-rc.2'
+
 export type VerifyRuleId =
   | 'bundle-patch'
+  | 'bundle-metadata'
   | 'patch-resolution'
   | 'dependency-protocol'
   | 'esm-entry'
@@ -152,7 +161,8 @@ function invalidPeerName(name: string): string | null {
  * Verify one plugin package against the harness publish contracts before it
  * is published. Checks: the `dsh.bundle.patch` declaration and parse, patch
  * rows resolving to declared dependencies or existing files, an ESM default
- * entry, and the `dsh.client` → `exports["./client"]` contract.
+ * entry, the `dsh.client` — `exports["./client"]` contract, and the bundle
+ * metadata (`platforms` including the 0.2.2 `wsl` value, `listedByDefault`).
  */
 export function verifyPluginPackage(packageDir: string): VerifyReport {
   const findings: VerifyFinding[] = []
@@ -408,6 +418,51 @@ export function verifyPluginPackage(packageDir: string): VerifyReport {
         }
       }
     }
+  }
+
+  // ---- V11: bundle metadata contract (platforms / listedByDefault;
+  // dsh 0.2.2-rc.2 accepts `wsl` and downgrades a bad listedByDefault to a
+  // metadata diagnostic, older launchers reject both declarations) ----
+  const platforms = bundle?.platforms
+  if (platforms !== undefined) {
+    if (
+      !Array.isArray(platforms) ||
+      platforms.length === 0 ||
+      !platforms.every((value): value is string => typeof value === 'string')
+    ) {
+      findings.push({
+        ruleId: 'bundle-metadata',
+        severity: 'error',
+        message: 'dsh.bundle.platforms must be a nonempty list of platform names',
+        detail: 'the launcher rejects this declaration on every release; list Node platform names (or wsl) or omit the field',
+      })
+    } else {
+      const invalid = platforms.filter((platform) => !BUNDLE_PLATFORMS.has(platform) && platform !== 'wsl')
+      if (invalid.length > 0) {
+        findings.push({
+          ruleId: 'bundle-metadata',
+          severity: 'error',
+          message: `dsh.bundle.platforms contains unsupported values: ${invalid.join(', ')}`,
+          detail: 'use Node platform names (win32, darwin, linux, …) or wsl; any other value makes the launcher reject the declaration',
+        })
+      } else if (platforms.includes('wsl')) {
+        findings.push({
+          ruleId: 'bundle-metadata',
+          severity: 'warn',
+          message: `dsh.bundle.platforms declares "wsl", accepted from dsh ${WSL_PLATFORM_MIN_VERSION} on`,
+          detail: 'older launchers reject the declaration; list win32 and linux instead if those releases must load this bundle',
+        })
+      }
+    }
+  }
+  const listedByDefault = bundle?.listedByDefault
+  if (listedByDefault !== undefined && typeof listedByDefault !== 'boolean') {
+    findings.push({
+      ruleId: 'bundle-metadata',
+      severity: 'warn',
+      message: 'dsh.bundle.listedByDefault must be a boolean',
+      detail: 'dsh 0.2.2-rc.2+ reports it as a metadata diagnostic; older releases fail to list the bundle',
+    })
   }
 
   // ---- V3: ESM default entry ----

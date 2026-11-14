@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  applyAdaptedInstall, installWithDiagnosis, listExemptions, removeAndCleanup, revokeExemptionsFor,
+  applyAdaptedInstall, expectedFromSpec, installWithDiagnosis, listExemptions, removeAndCleanup, revokeExemptionsFor,
   type ChangeLike, type PluginManagerLike,
 } from '../src/adapt.js'
 
@@ -12,11 +12,13 @@ function change(overrides: Partial<ChangeLike> = {}): ChangeLike {
 class FakeManager implements PluginManagerLike {
   exemptions: Record<string, string[]> = {}
   installs: string[] = []
+  installOptions: Array<{ enabled?: boolean; expected?: { name: string; version: string } } | undefined> = []
   removes: string[] = []
   constructor(private readonly results: ChangeLike[] = []) {}
 
-  installBundle(spec: string): Promise<ChangeLike> {
+  installBundle(spec: string, options?: { enabled?: boolean; expected?: { name: string; version: string } }): Promise<ChangeLike> {
     this.installs.push(spec)
+    this.installOptions.push(options)
     return Promise.resolve(this.results.shift() ?? change())
   }
 
@@ -43,11 +45,42 @@ class FakeManager implements PluginManagerLike {
   }
 }
 
+describe('expectedFromSpec', () => {
+  it('reads a pinned registry spec, scoped or not', () => {
+    expect(expectedFromSpec('pkg-a@1.0.0')).toEqual({ name: 'pkg-a', version: '1.0.0' })
+    expect(expectedFromSpec('@scope/pkg@1.2.3-rc.1')).toEqual({ name: '@scope/pkg', version: '1.2.3-rc.1' })
+    expect(expectedFromSpec('pkg-a@1.0.0+build.5')).toEqual({ name: 'pkg-a', version: '1.0.0+build.5' })
+  })
+
+  it('returns null for a spec that names no single version', () => {
+    expect(expectedFromSpec('pkg-a')).toBeNull()
+    expect(expectedFromSpec('@scope/pkg')).toBeNull()
+    expect(expectedFromSpec('pkg-a@^1.0.0')).toBeNull()
+    expect(expectedFromSpec('pkg-a@latest')).toBeNull()
+    expect(expectedFromSpec('file:../pkg-a')).toBeNull()
+    expect(expectedFromSpec('git+https://github.com/o/r.git#abc')).toBeNull()
+    expect(expectedFromSpec('')).toBeNull()
+  })
+})
+
 describe('installWithDiagnosis', () => {
   it('returns success for a plain install', async () => {
     const manager = new FakeManager([change({ bundle: 'pkg-a' })])
     const outcome = await installWithDiagnosis(manager, 'pkg-a')
     expect(outcome).toEqual({ ok: true, application: 'applied', target: 'pkg', bundle: 'pkg-a' })
+    expect(manager.installOptions[0]).toBeUndefined()
+  })
+
+  it('passes the pinned expected pair to the official manager', async () => {
+    const manager = new FakeManager([change()])
+    await installWithDiagnosis(manager, '@scope/pkg@1.2.3')
+    expect(manager.installOptions[0]).toEqual({ expected: { name: '@scope/pkg', version: '1.2.3' } })
+  })
+
+  it('omits expected for a spec that names no single version', async () => {
+    const manager = new FakeManager([change()])
+    await installWithDiagnosis(manager, 'pkg-a@^1.0.0')
+    expect(manager.installOptions[0]).toBeUndefined()
   })
 
   it('carries the unmet requirements and their risk on a refusal', async () => {
@@ -121,11 +154,12 @@ describe('installWithDiagnosis', () => {
 })
 
 describe('applyAdaptedInstall', () => {
-  it('grants the exemption, then installs', async () => {
+  it('grants the exemption, then installs with the known expected pair', async () => {
     const manager = new FakeManager([change()])
-    const outcome = await applyAdaptedInstall(manager, { spec: 'pkg-a@1.0.0', name: 'pkg-a', version: '1.0.0', runtimeVersion: '0.2.0' })
+    const outcome = await applyAdaptedInstall(manager, { spec: 'pkg-a', name: 'pkg-a', version: '1.0.0', runtimeVersion: '0.2.0' })
     expect(outcome.ok).toBe(true)
     expect(manager.exemptions).toEqual({ 'pkg-a@1.0.0': ['0.2.0'] })
+    expect(manager.installOptions[0]).toEqual({ expected: { name: 'pkg-a', version: '1.0.0' } })
   })
 
   it('revokes the exemption when the adapted install still fails', async () => {

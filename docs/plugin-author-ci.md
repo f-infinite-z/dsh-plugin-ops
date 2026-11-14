@@ -4,7 +4,9 @@ Give a plugin repository a publish gate that proves the package loads:
 
 1. **`dsh-ops verify`** — static publish-time checks (bundle patch declaration
    and parse, patch-row resolution, dependency protocols, ESM entry + `apply`
-   export, client export contract and bundle shape, `files` completeness).
+   export, client export contract and bundle shape, `files` completeness,
+   bundle metadata: `dsh.bundle.platforms` including the 0.2.2 `wsl` value and
+   a boolean `listedByDefault`).
 2. **Boot smoke** — installs dsh, installs your plugin into an isolated
    profile, and boots `dsh web` once; if the plugin tree fails to load, the
    job fails and prints the boot log.
