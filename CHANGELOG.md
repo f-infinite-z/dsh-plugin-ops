@@ -2,6 +2,41 @@
 
 All notable changes are tracked here.
 
+## 0.20.10 — 2026-11-14
+
+### dsh 0.2.2-rc.3 adaptation: known-release table + retired bundle
+
+- **The known-release table learns `0.2.2-rc.2` and `0.2.2-rc.3`.** rc.2 is
+  the next release on the merged line: the launcher accepts `wsl` in
+  `dsh.bundle.platforms`, the plugin manager gains `expected` install
+  verification and Git updates (`updatable: boolean` becomes
+  `update?: 'registry' | 'git'`), and the official bundle set retires
+  `dsh-experimental-agent-team-profile`; rc.3 adds the DeepSeek chat-import
+  bundle and CI fixes. `check --freshness` reports fresh again, and
+  `preview`, the compatibility matrix, and rule 8 judge the newest release.
+- **Retired bundles carry per-bundle boundaries.**
+  `RETIRED_BUNDLE_VERSIONS` maps each retired bundle to the first release
+  that drops it (`schedule` since `0.2.1-alpha.1`, `agent-team-profile`
+  since `0.2.2-rc.2`), and `retiredBundleVersion` exposes the boundary the
+  `--version-view all` note renders. A profile that still lists the
+  agent-team profile reports `info` (self-healing) from rc.2 on and stays
+  fatal before it.
+- **The static pre-boot checks keep their 0.2.1-alpha.4+ semantics.** Boot,
+  `engines.dsh`-first requirements, and the startup-diagnostic layout are
+  unchanged across rc.1 → rc.3 (verified file-by-file on `app-boot`,
+  `package-manifest`, `launch-environment`, and the startup log writer).
+  The bundle's existing host calls remain compatible:
+  `tools.register(definition, options?)`, `pluginManager` (`installBundle` /
+  `removeBundle` / `setVersionExemption` / `listVersionExemptions`),
+  `webServer.register`, `connection.requestRejection`, `ctx.llm`, and the
+  client `slots` surface. The plugin manager's new `expected` install
+  verification and `update: 'registry' | 'git'` field are not read by
+  dsh-ops, so no source change is needed.
+- **Regression coverage pins the newest release.** The engines.dsh-first
+  requirement rules and the freshness target are tested against
+  `0.2.2-rc.3`; the per-bundle retirement boundary is tested for the
+  agent-team profile.
+
 ## 0.20.9 — 2026-11-08
 
 ### dsh 0.2.2-rc.1 adaptation: known-release table

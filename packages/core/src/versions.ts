@@ -56,6 +56,16 @@ export const KNOWN_VERSION_BOUNDARIES: readonly string[] = [
   // still judge the 0.2.1-alpha.4+ boot and dsh requirement semantics
   // (`tools.register(definition, options?)` and `pluginManager` remain).
   '0.2.2-rc.1',
+  // rc.2 is the next release on the merged line: the launcher accepts `wsl`
+  // in `dsh.bundle.platforms`, the plugin manager gains `expected` install
+  // verification and Git updates (`updatable: boolean` becomes
+  // `update?: 'registry' | 'git'`), and the official bundle set retires
+  // `dsh-experimental-agent-team-profile`; boot, dsh-requirement, and
+  // startup-diagnostic semantics are unchanged from rc.1.
+  '0.2.2-rc.2',
+  // rc.3 adds the DeepSeek chat-import bundle and CI fixes; boot,
+  // plugin-manager, and requirement semantics are unchanged from rc.2.
+  '0.2.2-rc.3',
 ]
 
 /** Newest known release; the `latest` reporting target. */

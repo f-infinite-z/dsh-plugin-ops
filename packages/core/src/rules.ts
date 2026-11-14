@@ -16,7 +16,7 @@ import type { LockedDirectDeps } from './lockfile.js'
 import { lastSuccessSnapshot, diffSnapshots } from './memory.js'
 import type { OutdatedState } from './outdated.js'
 import { readTextFile } from './fsutil.js'
-import { isRetiredBundle, RETIRED_BUNDLES, RETIRED_BUNDLES_MIN_VERSION } from './retired.js'
+import { isRetiredBundle, retiredBundleVersion } from './retired.js'
 import { boundaryNote, decisionVersion, type VersionView } from './versions.js'
 
 export interface RuleContext {
@@ -140,8 +140,9 @@ export function ruleBundleDeclaration(ctx: RuleContext): Finding[] {
     const tolerant = toleratesOptionalBundles(version) && unreadable
     const notes: string[] = []
     if (ctx.versionView === 'all') {
-      if (RETIRED_BUNDLES.has(problem.name)) {
-        notes.push(boundaryNote(RETIRED_BUNDLES_MIN_VERSION, 'the retired bundle does not resolve and the boot aborts', 'the launcher removes it from the profile on the next start'))
+      const retiredAt = retiredBundleVersion(problem.name)
+      if (retiredAt !== null) {
+        notes.push(boundaryNote(retiredAt, 'the retired bundle does not resolve and the boot aborts', 'the launcher removes it from the profile on the next start'))
       }
       if (unreadable) {
         notes.push(boundaryNote(OPTIONAL_TOLERANCE_MIN_VERSION, 'an unreadable bundle aborts the boot', 'the launcher skips it with a warning'))
