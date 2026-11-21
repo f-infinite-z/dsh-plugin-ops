@@ -2,6 +2,32 @@
 
 All notable changes are tracked here.
 
+## 0.21.2 — 2026-11-21
+
+### dsh 0.2.2-rc.4 / rc.5 adaptation: known-release table
+
+- **The known-release table learns `0.2.2-rc.4` and `0.2.2-rc.5`.** rc.4 is a
+  version-only republish: the `@deepseek-ai/dsh` sources and lib files are
+  byte-identical to rc.3, and every checked runtime subpackage (`app-boot`,
+  `base`, `plugin-manager`, `official-bundles`, `launch-environment`,
+  `home-paths`) changes only its manifest version; the release documents the
+  DeepSeek `CONTENT_REFUSED` refusal code. rc.5 stops pinning
+  `web.searchProvider` in `dsh-base`; `dsh-web` now prefers the legacy
+  Messages search (`deepseek-official`) on DeepSeek model routes and the
+  DeepSeek Search API elsewhere. Boot, plugin-manager, dsh-requirement,
+  startup-diagnostic, and retired-bundle semantics are unchanged from rc.3,
+  so no rule branch changes. `check --freshness` reports fresh again, and
+  `preview`, the compatibility matrix, and rule 8 judge rc.5.
+- **Freshness, contract, and compatibility tests re-anchored to rc.5.** The
+  freshness cases cover rc.4 and rc.5, the retired-set snapshot matches the
+  official rc.5 `RETIRED_BUNDLES` (schedule and agent-team-profile, unchanged),
+  and the requirement-rule test exercises rc.5. `verify`'s platform comment
+  now cites the rc.5 sources.
+- **Verification:** typecheck passes; core 308 + bundle 49 + cli 37 (1
+  POSIX-only test skipped) = 394 tests; build succeeds; `selftest` 6/6;
+  `check --freshness` reports `covers <= 0.2.2-rc.5; registry newest
+  0.2.2-rc.5 — fresh`.
+
 ## 0.21.1 — 2026-11-14
 
 ### Author checks, official install verification, retired-set contract (dsh 0.2.2-rc.3)

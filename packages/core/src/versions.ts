@@ -66,6 +66,17 @@ export const KNOWN_VERSION_BOUNDARIES: readonly string[] = [
   // rc.3 adds the DeepSeek chat-import bundle and CI fixes; boot,
   // plugin-manager, and requirement semantics are unchanged from rc.2.
   '0.2.2-rc.3',
+  // rc.4 is a version-only republish of the merged line: the shipped sources
+  // and lib files are byte-identical to rc.3 (the release documents the
+  // DeepSeek `CONTENT_REFUSED` refusal code), so boot, plugin-manager, and
+  // requirement semantics are unchanged.
+  '0.2.2-rc.4',
+  // rc.5 stops pinning `web.searchProvider` in dsh-base: dsh-web selects the
+  // legacy Messages search (`deepseek-official`) for DeepSeek model routes and
+  // the DeepSeek Search API elsewhere. That is runtime web behavior only; the
+  // boot, plugin-manager, requirement, and retired-bundle semantics are
+  // unchanged from rc.4.
+  '0.2.2-rc.5',
 ]
 
 /** Newest known release; the `latest` reporting target. */

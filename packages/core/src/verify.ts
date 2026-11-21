@@ -13,7 +13,7 @@ import { ENGINES_DSH_MIN_VERSION } from './compatibility.js'
  * that decide whether the package loads after `dsh plugin add`.
  */
 
-/** Node platform names `dsh.bundle.platforms` accepts (verified against dsh 0.2.2-rc.3 sources). */
+/** Node platform names `dsh.bundle.platforms` accepts (verified against dsh 0.2.2-rc.5 sources). */
 const BUNDLE_PLATFORMS: ReadonlySet<string> = new Set([
   'aix', 'android', 'darwin', 'freebsd', 'haiku', 'linux', 'openbsd', 'sunos', 'win32', 'cygwin', 'netbsd',
 ])

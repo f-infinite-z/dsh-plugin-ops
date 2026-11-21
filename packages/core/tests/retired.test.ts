@@ -8,12 +8,12 @@ const RETIRED = '@deepseek-ai/dsh-experimental-schedule-bundle'
 const AGENT_TEAM = '@deepseek-ai/dsh-experimental-agent-team-profile'
 
 /**
- * The official `RETIRED_BUNDLES` set as shipped by dsh 0.2.2-rc.3
+ * The official `RETIRED_BUNDLES` set as shipped by dsh 0.2.2-rc.5
  * (`@deepseek-ai/dsh-official-bundles`, imported by app-boot's profile.ts).
  * Update this snapshot and {@link RETIRED_BUNDLE_VERSIONS} together when a
  * release retires another bundle; the contract test fails on drift.
  */
-const OFFICIAL_RETIRED_AT_RC3: readonly string[] = [
+const OFFICIAL_RETIRED_AT_RC5: readonly string[] = [
   '@deepseek-ai/dsh-experimental-schedule-bundle',
   '@deepseek-ai/dsh-experimental-agent-team-profile',
 ].sort()
@@ -34,12 +34,12 @@ async function scanWithRetired(fixture: HomeFixture, bundle: string = RETIRED) {
 }
 
 describe('official retired-bundle contract', () => {
-  it('matches the dsh 0.2.2-rc.3 retired set', () => {
-    expect([...RETIRED_BUNDLES].sort()).toEqual([...OFFICIAL_RETIRED_AT_RC3])
+  it('matches the dsh 0.2.2-rc.5 retired set', () => {
+    expect([...RETIRED_BUNDLES].sort()).toEqual([...OFFICIAL_RETIRED_AT_RC5])
   })
 
   it('gives every retired bundle a readable boundary at or after the earliest retirement', () => {
-    for (const name of OFFICIAL_RETIRED_AT_RC3) {
+    for (const name of OFFICIAL_RETIRED_AT_RC5) {
       const boundary = retiredBundleVersion(name)
       expect(boundary).not.toBeNull()
       expect(semver.gte(boundary!, RETIRED_BUNDLES_MIN_VERSION)).toBe(true)
@@ -56,7 +56,7 @@ describe('retired bundles', () => {
     expect(isRetiredBundle(RETIRED, 'not-a-version')).toBe(false)
     expect(isRetiredBundle(AGENT_TEAM, '0.2.2-rc.1')).toBe(false)
     expect(isRetiredBundle(AGENT_TEAM, '0.2.2-rc.2')).toBe(true)
-    expect(isRetiredBundle(AGENT_TEAM, '0.2.2-rc.3')).toBe(true)
+    expect(isRetiredBundle(AGENT_TEAM, '0.2.2-rc.5')).toBe(true)
     expect(isRetiredBundle('@deepseek-ai/dsh-base', '0.2.1-alpha.1')).toBe(false)
   })
 
