@@ -16,6 +16,7 @@ export { diagnoseIncompatibility, classifyPeerRisk, renderAdaptDiagnosis, type A
 export { readGlobalDshVersion } from './dsh-version.js'
 export { RETIRED_BUNDLE_VERSIONS, RETIRED_BUNDLES, RETIRED_BUNDLES_MIN_VERSION, isRetiredBundle, retiredBundleVersion } from './retired.js'
 export { KNOWN_VERSION_BOUNDARIES, LATEST_KNOWN_VERSION, decisionVersion, boundariesFrom, boundaryNote, checkVersionFreshness, freshnessFromDistTags, type VersionView, type VersionFreshness } from './versions.js'
+export { DSH_NODE_REQUIREMENTS, dshNodeRequirement, nodeSatisfiesRequirement } from './node-requirement.js'
 export { readLatestStartupReport, type StartupReport, type StartupReportEntry } from './startup-log.js'
 export {
   scanSessions,

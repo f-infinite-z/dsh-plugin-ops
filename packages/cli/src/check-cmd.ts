@@ -1,6 +1,7 @@
 import { existsSync, readdirSync } from 'node:fs'
 import {
-  scanProfile, ScanError, reportOk, countSeverities, resolveDshPaths, checkVersionFreshness,
+  scanProfile, ScanError, reportOk, countSeverities, resolveDshPaths, checkVersionFreshness, readGlobalDshVersion,
+  dshNodeRequirement, nodeSatisfiesRequirement,
   type OpsConfig, type ScanReport, type DshPaths, type Finding, type VersionView, type VersionFreshness,
 } from 'dsh-plugin-ops-core'
 
@@ -23,12 +24,44 @@ interface CheckProfile {
   error?: string
 }
 
+/** Node.js vs the npm-installed dsh's own engines.node floor. */
+export interface CheckEnvironment {
+  /** The running Node.js version. */
+  node: string
+  /** The npm-installed dsh version, or null when no global dsh was found. */
+  dshVersion: string | null
+  /** The engines.node range that dsh version declares, or null when the table has none. */
+  nodeRange: string | null
+  /** Whether Node satisfies the range; null when there is nothing to check. */
+  ok: boolean | null
+}
+
+/**
+ * Compare the running Node.js with the requirement the installed dsh release
+ * declares. A dsh upgrade can raise the floor (0.2.3-alpha.2 requires
+ * ^24.22.3 || >=26.13.1), and the launcher then refuses to start, so the
+ * check reports the gap before the next boot.
+ * @param dshVersion - npm-installed dsh version, or null when unknown.
+ * @param nodeVersion - running Node.js version (`process.version`-shaped).
+ */
+export function buildEnvironment(dshVersion: string | null, nodeVersion: string): CheckEnvironment {
+  const nodeRange = dshNodeRequirement(dshVersion)
+  return {
+    node: nodeVersion,
+    dshVersion,
+    nodeRange,
+    ok: nodeRange === null ? null : nodeSatisfiesRequirement(nodeVersion, nodeRange),
+  }
+}
+
 export interface CheckResult {
   checkedAt: string
   profiles: CheckProfile[]
   ok: boolean
   /** Present only with `--freshness`: the known-release table vs the registry. */
   freshness?: VersionFreshness
+  /** Node.js vs the installed dsh's engines.node floor (npm installations). */
+  environment: CheckEnvironment
 }
 
 function listProfileNames(paths: DshPaths): string[] {
@@ -72,6 +105,7 @@ export async function runCheckCommand(options: CheckCommandOptions): Promise<num
     checkedAt,
     profiles,
     ok: profiles.every((p) => p.ok),
+    environment: buildEnvironment(await readGlobalDshVersion(), process.version),
     ...(options.freshness === true
       ? { freshness: await checkVersionFreshness({ registry: process.env.npm_config_registry ?? process.env.NPM_CONFIG_REGISTRY ?? null }) }
       : {}),
@@ -91,6 +125,9 @@ export async function runCheckCommand(options: CheckCommandOptions): Promise<num
   process.stdout.write(`dsh-ops check @ ${checkedAt}\nprofiles: ${profiles.length === 0 ? '(none found)' : profiles.map((p) => p.name).join(', ')}\n\n`)
   process.stdout.write(summary.join('\n'))
   process.stdout.write('\n')
+  if (result.environment.ok === false) {
+    process.stdout.write(`\nnode: ${result.environment.node} does not satisfy dsh ${result.environment.dshVersion}'s engines.node (${result.environment.nodeRange}); the launcher refuses to start until Node is upgraded\n`)
+  }
   if (result.freshness !== undefined) {
     const fresh = result.freshness
     const state = fresh.fresh === null

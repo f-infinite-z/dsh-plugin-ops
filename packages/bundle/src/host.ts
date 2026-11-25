@@ -32,16 +32,28 @@ import type { SandboxInstallOptions, SandboxManager } from './sandbox.js'
 export const ROUTE_PREFIX = '/dsh-ops'
 
 /**
- * The harness connection's request admission — the Host/Origin trust fence
- * plus browser authentication (launch-token/cookie) — read through
- * `ctx.get('connection')`. Kept structural so the host half imports no
- * official runtime code; a host without that service falls back to the
- * same-origin check alone.
+ * The harness admission a host provides for the panel route. Kept structural
+ * so the host half imports no official runtime code.
+ *
+ * - `connection`: dsh <= 0.2.2-rc.x exposed `connection.requestRejection` —
+ *   the Host/Origin trust fence plus browser authentication — and the handler
+ *   applies it per request.
+ * - `webserver`: dsh >= 0.2.3-alpha.1 removed that public method and moved
+ *   admission to the Web server's `webserver/authorize` channel (driven by the
+ *   connection service's token/cookie providers), so a route registered with
+ *   `auth: 'required'` only reaches this handler after admission.
  */
-export interface RequestGuard {
-  /** 401/403 for a request that must not pass; undefined admits it. */
-  requestRejection(request: { headers: IncomingMessage['headers'] }): number | undefined
-}
+export type RequestGuard =
+  | {
+    /** Per-request admission read from the connection service (old dsh). */
+    mode: 'connection'
+    /** 401/403 for a request that must not pass; undefined admits it. */
+    requestRejection(request: { headers: IncomingMessage['headers'] }): number | undefined
+  }
+  | {
+    /** The Web server's own authorize channel already admitted the request. */
+    mode: 'webserver'
+  }
 
 export interface HostHandlerOptions {
   home: string
@@ -150,11 +162,15 @@ export function createHostHandler(options: HostHandlerOptions): (req: IncomingMe
         json(res, 403, { error: 'this host provides no connection service to authenticate against' })
         return
       }
-      const rejection = guard.requestRejection({ headers: req.headers })
-      if (rejection !== undefined) {
-        json(res, rejection, { error: rejection === 401 ? 'unauthorized' : 'forbidden' })
-        return
+      if (guard.mode === 'connection') {
+        const rejection = guard.requestRejection({ headers: req.headers })
+        if (rejection !== undefined) {
+          json(res, rejection, { error: rejection === 401 ? 'unauthorized' : 'forbidden' })
+          return
+        }
       }
+      // A `webserver` guard means dsh admitted this route through its own
+      // authorize channel before the handler was invoked.
       const url = new URL(req.url ?? '/', `http://${req.headers.host ?? '127.0.0.1'}`)
       if (url.pathname !== ROUTE_PREFIX && !url.pathname.startsWith(`${ROUTE_PREFIX}/`)) {
         json(res, 404, { error: `no route for ${req.method} ${url.pathname}` })

@@ -42,7 +42,7 @@ async function withServer(
 }
 
 /** A guard that admits everything, so route behavior is testable without a harness. */
-const allowGuard = (): RequestGuard => ({ requestRejection: () => undefined })
+const allowGuard = (): RequestGuard => ({ mode: 'connection', requestRejection: () => undefined })
 
 function handlerFor(home: string, channel: ModelChannel | null, guard: () => RequestGuard | null = allowGuard) {
   return createHostHandler({ home, profile: 'web', config: {}, channel: () => channel, guard })
@@ -111,15 +111,29 @@ describe('createHostHandler', () => {
   it('passes the connection guard rejection through (401/403)', async () => {
     const home = makeHome()
     try {
-      await withServer(handlerFor(home, null, () => ({ requestRejection: () => 401 })), async (base) => {
+      await withServer(handlerFor(home, null, () => ({ mode: 'connection', requestRejection: () => 401 })), async (base) => {
         const res = await fetch(`${base}/dsh-ops/api/info`)
         expect(res.status).toBe(401)
         const body = (await res.json()) as { error: string }
         expect(body.error).toBe('unauthorized')
       })
-      await withServer(handlerFor(home, null, () => ({ requestRejection: () => 403 })), async (base) => {
+      await withServer(handlerFor(home, null, () => ({ mode: 'connection', requestRejection: () => 403 })), async (base) => {
         const res = await fetch(`${base}/dsh-ops/api/info`)
         expect(res.status).toBe(403)
+      })
+    } finally {
+      rmSync(home, { recursive: true, force: true })
+    }
+  })
+
+  it('admits directly when the Web server owns admission (dsh 0.2.3-alpha.1+)', async () => {
+    const home = makeHome()
+    try {
+      // The route is registered with auth: 'required', so the Web server has
+      // already run webserver/authorize before invoking the handler.
+      await withServer(handlerFor(home, null, () => ({ mode: 'webserver' })), async (base) => {
+        const res = await fetch(`${base}/dsh-ops/api/info`)
+        expect(res.status).toBe(200)
       })
     } finally {
       rmSync(home, { recursive: true, force: true })

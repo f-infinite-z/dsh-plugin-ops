@@ -19,6 +19,7 @@ import { runGateCommand } from '../src/gate-cmd.js'
 import { runVerifyCommand } from '../src/verify-cmd.js'
 import { runDevCommand, renderDevStatic, renderDevDesktop, packageIdentity } from '../src/dev-cmd.js'
 import { runPreviewCommand } from '../src/preview-cmd.js'
+import { buildEnvironment } from '../src/check-cmd.js'
 import { helpRequested } from '../src/args.js'
 import type { ScanReport, Finding, VerifyReport } from 'dsh-plugin-ops-core'
 
@@ -523,5 +524,24 @@ describe('preview command', () => {
     } finally {
       fixture.dispose()
     }
+  })
+})
+
+describe('check environment', () => {
+  it('flags Node below the 0.2.3-alpha.2 dsh floor', () => {
+    const environment = buildEnvironment('0.2.3-alpha.2', 'v24.22.1')
+    expect(environment.nodeRange).toBe('^24.22.3 || >=26.13.1')
+    expect(environment.ok).toBe(false)
+  })
+
+  it('accepts a supported Node release', () => {
+    expect(buildEnvironment('0.2.3-alpha.2', 'v24.22.3').ok).toBe(true)
+    expect(buildEnvironment('0.2.3-alpha.2', 'v26.13.1').ok).toBe(true)
+  })
+
+  it('has nothing to judge before the tracked floor or without a global dsh', () => {
+    expect(buildEnvironment('0.2.2-rc.5', 'v24.9.0').nodeRange).toBeNull()
+    expect(buildEnvironment('0.2.2-rc.5', 'v24.9.0').ok).toBeNull()
+    expect(buildEnvironment(null, 'v24.22.1').ok).toBeNull()
   })
 })

@@ -17,6 +17,9 @@ export const RETIRED_BUNDLE_VERSIONS: Readonly<Record<string, string>> = Object.
   // 0.2.2-rc.2 retires the agent-team profile after folding its capabilities
   // into the shipped optional bundles.
   '@deepseek-ai/dsh-experimental-agent-team-profile': '0.2.2-rc.2',
+  // 0.2.3-alpha.1 retires the recommendations bundle: the Web composition
+  // mounts the action-card and recommendation rows itself.
+  '@deepseek-ai/dsh-personalized-recommendations': '0.2.3-alpha.1',
 })
 
 /** Every bundle an official release retired (at or after {@link RETIRED_BUNDLES_MIN_VERSION}). */

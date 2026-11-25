@@ -77,6 +77,27 @@ export const KNOWN_VERSION_BOUNDARIES: readonly string[] = [
   // boot, plugin-manager, requirement, and retired-bundle semantics are
   // unchanged from rc.4.
   '0.2.2-rc.5',
+  // 0.2.3-alpha.1 opens the next alpha line with the runtime rework: the Web
+  // composition mounts personalized recommendations itself (the bundle
+  // retires), dsh-base adds the deepseek-auth, cli-account, and upstream-skills
+  // rows and drops tool-working-directory, the Web server moves browser
+  // authentication behind `webserver/authorize` plus per-route `auth` (the new
+  // host-authentication-token package owns the launch token and cookies, and
+  // `connection.requestRejection` is gone), Include's `applyEntryPatches`
+  // returns `{ data }` while `parseEntryYaml` replaces the raw js-yaml dialect,
+  // the Loader reports invalid entry options through the startup audit, the
+  // plugin manager throws typed `PluginManagerError` codes, and dsh-home-paths
+  // adds the category resolver `dshPath`. Node.js stays >=24.9.0 and Cordis
+  // stays 4.1.0, so the static pre-boot checks still judge the
+  // 0.2.1-alpha.4+ boot and dsh requirement semantics.
+  '0.2.3-alpha.1',
+  // alpha.2 raises Node.js to ^24.22.3 || >=26.13.1 (the bundled-undici
+  // security floor; every earlier 24.x and 26.x release is unsupported) and
+  // moves the runtime line to Cordis 4.2.0-alpha.1 / Loader 1.2.0-alpha.1 /
+  // Include 1.2.0-alpha.1 / schemastery 3.20.0-alpha.1. The verified boot,
+  // plugin-manager, requirement, and retired-bundle sources are byte-identical
+  // to alpha.1.
+  '0.2.3-alpha.2',
 ]
 
 /** Newest known release; the `latest` reporting target. */

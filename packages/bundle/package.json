@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-ops-bundle",
-  "version": "0.21.2",
+  "version": "0.21.3",
   "type": "module",
   "description": "Embedded dsh bundle for dsh-plugin-ops: a settings-page health panel (scan, plugin rows, diagnosis chat) over the shared engine",
   "license": "MIT",
@@ -69,7 +69,7 @@
     "dsh-plugin-ops-core": "workspace:^"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "^4.0.0"
+    "@deepseek-ai/cordis": "^4.0.0 || >=4.2.0-alpha.1 <5.0.0"
   },
   "devDependencies": {
     "@types/react": "~18.3.1",

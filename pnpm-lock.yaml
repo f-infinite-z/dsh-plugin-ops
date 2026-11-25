@@ -24,7 +24,7 @@ importers:
   packages/bundle:
     dependencies:
       '@deepseek-ai/cordis':
-        specifier: ^4.0.0
+        specifier: ^4.0.0 || >=4.2.0-alpha.1 <5.0.0
         version: 4.0.2
       dsh-plugin-ops-core:
         specifier: workspace:^

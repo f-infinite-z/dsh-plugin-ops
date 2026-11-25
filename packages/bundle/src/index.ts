@@ -32,7 +32,13 @@ export interface HostContext {
     register(route: {
       kind: 'prefix'
       path: string
-      handler: (req: IncomingMessage, res: ServerResponse) => void | Promise<void>
+      /**
+       * dsh 0.2.3-alpha.1+ route admission (`anonymous` | `required` | `deny`,
+       * default `required`); webServer versions before that ignore it.
+       */
+      auth?: 'anonymous' | 'required' | 'deny'
+      /** dsh 0.2.3-alpha.1+ passes the admitted Peer as the third argument. */
+      handler: (req: IncomingMessage, res: ServerResponse, peer?: unknown) => void | Promise<void>
     }): () => void
   }
   get(name: string): unknown
@@ -81,7 +87,11 @@ function registerPanel(ctx: HostContext): void {
     guard: () => resolveGuard(ctx),
   })
   ctx.effect(
-    () => ctx.webServer.register({ kind: 'prefix', path: ROUTE_PREFIX, handler }),
+    // `auth: 'required'` is the dsh 0.2.3-alpha.1+ admission contract (the
+    // Web server asks `webserver/authorize` before dispatch, and the
+    // connection service's token/cookie providers answer); older servers
+    // ignore the unknown field and the handler's own connection guard applies.
+    () => ctx.webServer.register({ kind: 'prefix', path: ROUTE_PREFIX, auth: 'required', handler }),
     'dsh-ops-bundle: /dsh-ops prefix',
   )
   // The agent tools are optional like every service read here: a tree
@@ -117,14 +127,24 @@ function resolveManager(ctx: HostContext): PluginManagerLike | null {
  * The connection service's request admission (Host/Origin fence plus browser
  * authentication), when this tree provides it — the same gate the harness API
  * routes use, so /dsh-ops is not an unauthenticated side door.
+ *
+ * dsh 0.2.3-alpha.1 moved admission to the Web server's `webserver/authorize`
+ * channel and removed the public `connection.requestRejection`; the presence
+ * of the connection service then means the route's `auth: 'required'` is
+ * enforced before this handler runs. A tree without the service stays
+ * fail-closed.
  */
 function resolveGuard(ctx: HostContext): RequestGuard | null {
   try {
     const connection = ctx.get('connection') as { requestRejection?: (request: { headers: unknown }) => number | undefined } | null | undefined
-    if (connection === null || connection === undefined || typeof connection.requestRejection !== 'function') return null
-    return {
-      requestRejection: (request) => connection.requestRejection!(request),
+    if (connection === null || connection === undefined) return null
+    if (typeof connection.requestRejection === 'function') {
+      return {
+        mode: 'connection',
+        requestRejection: (request) => connection.requestRejection!(request),
+      }
     }
+    return { mode: 'webserver' }
   } catch {
     return null
   }

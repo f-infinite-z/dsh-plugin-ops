@@ -2,6 +2,51 @@
 
 All notable changes are tracked here.
 
+## 0.21.3 — 2026-11-25
+
+### dsh 0.2.3-alpha.1 / alpha.2 adaptation: runtime-auth channel, Node floor, retired set
+
+- **The known-release table learns `0.2.3-alpha.1` and `0.2.3-alpha.2`.**
+  alpha.1 opens the next alpha line: the Web composition mounts personalized
+  recommendations itself (the bundle retires), dsh-base adds the deepseek-auth,
+  cli-account, and upstream-skills rows and drops tool-working-directory, the
+  Web server moves browser authentication to `webserver/authorize` plus
+  per-route `auth` (host-authentication-token owns the launch token and
+  cookies; the public `connection.requestRejection` is gone), Include's
+  `applyEntryPatches` returns `{ data }` while `parseEntryYaml` replaces the
+  raw js-yaml dialect, the Loader reports invalid entry options through the
+  startup audit, the plugin manager throws typed `PluginManagerError` codes,
+  and dsh-home-paths adds the category resolver `dshPath`. alpha.2 raises
+  Node.js to `^24.22.3 || >=26.13.1` (the bundled-undici security floor;
+  earlier 24.x and 26.x releases are unsupported) and moves the runtime line
+  to Cordis 4.2.0-alpha.1 / Loader 1.2.0-alpha.1 / Include 1.2.0-alpha.1 /
+  schemastery 3.20.0-alpha.1; the verified boot, plugin-manager,
+  requirement, and retired sources are byte-identical to alpha.1.
+  `check --freshness` reports fresh again, and `preview`, the compatibility
+  matrix, and rule 8 judge alpha.2.
+- **The panel route uses the official authorize channel.** dsh 0.2.3-alpha.1
+  removed `connection.requestRejection`, so `/dsh-ops` registers with
+  `auth: 'required'` (ignored by older Web servers) and, when the connection
+  service no longer exposes the old method, treats the Web server's own
+  admission as the gate; trees without a connection service stay fail-closed
+  403. The bundle's Cordis peer now admits the 4.2.0-alpha.1 line
+  (`^4.0.0 || >=4.2.0-alpha.1 <5.0.0`).
+- **The retired set gains personalized recommendations.** The official alpha.1
+  `RETIRED_BUNDLES` adds `@deepseek-ai/dsh-personalized-recommendations`; the
+  per-bundle table maps it to `0.2.3-alpha.1`, a profile that still lists it
+  reports info (self-healing) from that release on and fatal before it, and
+  the contract snapshot now cites the alpha.2 set.
+- **`check` reports the Node.js floor the installed dsh declares.** A new
+  `environment` block compares the running Node.js with the dsh release's own
+  `engines.node` (tracked from `0.2.3-alpha.2` on), so a Node 24.22.1 machine
+  sees the 24.22.3 requirement before the launcher refuses to start; unknown
+  dsh versions or releases before the floor report nothing.
+- **Verification:** typecheck passes; core, bundle, and cli suites pass;
+  build succeeds; `selftest` 6/6; `check --freshness` reports
+  `covers <= 0.2.3-alpha.2` fresh. The local web profile still boots the
+  released dsh 0.2.2-rc.5 line; the alpha.2 in-place smoke is deferred until
+  the machine's Node.js is at or above 24.22.3.
+
 ## 0.21.2 — 2026-11-21
 
 ### dsh 0.2.2-rc.4 / rc.5 adaptation: known-release table
